@@ -215,6 +215,10 @@
             "datetime"
           ],
           "description": "display_only: how the value is shown"
+        },
+        "read_only": {
+          "$ref": "#/definitions/condition",
+          "description": "when this holds the item is shown as text and its posted value is ignored"
         }
       }
     },
@@ -312,7 +316,8 @@
           "enum": [
             "number",
             "integer",
-            "date"
+            "date",
+            "datetime"
           ],
           "description": "display only: number = id-ID grouping, up to 2 decimals; integer; date = DD-MM-YYYY"
         }
@@ -338,7 +343,8 @@
             "static",
             "classic_report",
             "form",
-            "interactive_report"
+            "interactive_report",
+            "chart"
           ]
         },
         "template": {
@@ -405,6 +411,51 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 100000
+        },
+        "sort": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "column"
+          ],
+          "description": "interactive report: sort used until the user picks another",
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "dir": {
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        },
+        "chart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "description": "chart region: source.sql returns label, value",
+          "properties": {
+            "type": {
+              "enum": [
+                "bar",
+                "pie"
+              ]
+            },
+            "format": {
+              "enum": [
+                "number",
+                "integer"
+              ]
+            },
+            "value_label": {
+              "type": "string",
+              "description": "what the value means, e.g. Jumlah or Rp"
+            }
+          }
         }
       }
     },
@@ -601,6 +652,14 @@
         },
         "never": {
           "const": true
+        },
+        "request_in": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "the request (button pressed) is one of these"
         }
       }
     },

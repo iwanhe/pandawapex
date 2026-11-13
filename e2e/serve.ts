@@ -1,10 +1,10 @@
 // Starts a disposable environment for the Playwright suite:
 // fresh database, workspace "e2e", seed data, the example app (password login) and the same app
-// with SSO against a local mock IdP, then the engine on E2E_PORT.
+// with SSO against a local mock IdP, the pilot app (examples/demo-permintaan), then the engine on E2E_PORT.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { addUser, createWorkspace, importApp, migrate } from '../src/cli/commands.ts';
+import { addUser, createWorkspace, importApp, migrate, setupPilot } from '../src/cli/commands.ts';
 import { createPool } from '../src/engine/db.ts';
 import { buildServer } from '../src/engine/server.ts';
 import { startMockIdp } from '../test/oidc-mock.ts';
@@ -26,6 +26,9 @@ const spec = readFileSync(join(ROOT, 'examples/emp/app.yaml'), 'utf8').replace(/
 await importApp(pool, E2E.ws, spec, 'e2e');
 await addUser(pool, E2E.ws, E2E.user, E2E.password, ['SDM']);
 await addUser(pool, E2E.ws, E2E.user2, E2E.password);
+
+// pilot app "Demo Permintaan Barang" (ported from APEX): workspace pilot, users admin/budi/sari/dodi/gudang
+await setupPilot(pool, E2E.password, 'pilot');
 
 const idp = await startMockIdp();
 idp.nextUser = { sub: 'e2e-sso-1', email: 'sri.wahyuni@kcsi.co.id', preferred_username: 'sri.wahyuni@kcsi.co.id', groups: ['Gudang'] };

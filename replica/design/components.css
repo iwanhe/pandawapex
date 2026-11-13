@@ -209,6 +209,7 @@ select.r-input { appearance: none; padding-right: 32px; background-image: var(--
 
 /* ---------- report table (classic report, IR, builder reports) ---------- */
 .r-table-wrap { overflow: auto; max-width: 100%; }
+.r-table-wrap:focus-visible { outline: 2px solid var(--r-color-focus); outline-offset: 2px; }   /* scrollable: reachable by keyboard (WCAG 2.1.1) */
 .r-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--r-text-base-size); }
 .r-table th, .r-table td { padding: var(--r-space-3) var(--r-space-5); text-align: left; border-bottom: 1px solid var(--r-color-border); white-space: nowrap; }
 .r-table thead th { position: sticky; top: 0; z-index: 1; background: var(--r-color-surface-sunken); font-size: var(--r-text-sm-size); font-weight: 600; color: var(--r-color-text-muted); }
@@ -358,3 +359,37 @@ th .r-sort:hover { text-decoration: underline; }
   .r-ir-toolbar__end { margin-left: 0; width: 100%; flex-wrap: wrap; }
   .r-ir-filter__panel { position: fixed; left: var(--r-space-4); right: var(--r-space-4); top: auto; width: auto; }
 }
+
+/* ---------- charts (region type chart) ----------
+   Categorical palette in fixed order, validated on the white surface: worst adjacent CVD ΔE 9.1, normal-vision ΔE 19.6.
+   Slots 3, 4, 5 are below 3:1 against white, so every chart prints its values (legend / bar ends) and has a table view. */
+:root {
+  --r-chart-1: #2a78d6; --r-chart-2: #eb6834; --r-chart-3: #1baf7a; --r-chart-4: #eda100;
+  --r-chart-5: #e87ba4; --r-chart-6: #008300; --r-chart-7: #6250d6; --r-chart-8: #e34948; --r-chart-other: #8a8f98;
+}
+.r-chart { margin: 0; display: flex; flex-direction: column; gap: var(--r-space-5); }
+.r-chart-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--r-space-3); }
+.r-chart-bars__row { display: grid; grid-template-columns: minmax(5rem, 32%) minmax(0, 1fr) minmax(4.5rem, max-content); gap: var(--r-space-4); align-items: center; }
+.r-chart-bars__label { color: var(--r-color-text-muted); overflow-wrap: anywhere; }
+.r-chart-bars__track { display: block; overflow: visible; }
+.r-chart-bar { fill: var(--r-color-accent); }
+.r-chart-bars__value { text-align: right; font-variant-numeric: tabular-nums; }
+.r-chart-pie { display: flex; flex-wrap: wrap; align-items: center; gap: var(--r-space-6); }
+.r-chart-pie__donut { width: 176px; height: 176px; flex: none; }
+.r-chart-pie__total { font-size: 15px; font-weight: 700; fill: var(--r-color-text); }
+.r-chart-pie__caption { font-size: 9px; fill: var(--r-color-text-muted); }
+.r-chart-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--r-space-2); min-width: 12rem; flex: 1; }
+.r-chart-legend li { display: flex; align-items: center; gap: var(--r-space-3); }
+.r-chart-legend svg { flex: none; }
+.r-chart-legend__value { margin-left: auto; color: var(--r-color-text-muted); font-variant-numeric: tabular-nums; }
+.r-chart__table summary { cursor: pointer; color: var(--r-color-accent); width: max-content; }
+.r-chart__table .r-table { margin-top: var(--r-space-3); }
+circle.r-chart-s1 { stroke: var(--r-chart-1); } rect.r-chart-s1 { fill: var(--r-chart-1); }
+circle.r-chart-s2 { stroke: var(--r-chart-2); } rect.r-chart-s2 { fill: var(--r-chart-2); }
+circle.r-chart-s3 { stroke: var(--r-chart-3); } rect.r-chart-s3 { fill: var(--r-chart-3); }
+circle.r-chart-s4 { stroke: var(--r-chart-4); } rect.r-chart-s4 { fill: var(--r-chart-4); }
+circle.r-chart-s5 { stroke: var(--r-chart-5); } rect.r-chart-s5 { fill: var(--r-chart-5); }
+circle.r-chart-s6 { stroke: var(--r-chart-6); } rect.r-chart-s6 { fill: var(--r-chart-6); }
+circle.r-chart-s7 { stroke: var(--r-chart-7); } rect.r-chart-s7 { fill: var(--r-chart-7); }
+circle.r-chart-s8 { stroke: var(--r-chart-8); } rect.r-chart-s8 { fill: var(--r-chart-8); }
+circle.r-chart-other { stroke: var(--r-chart-other); } rect.r-chart-other { fill: var(--r-chart-other); }

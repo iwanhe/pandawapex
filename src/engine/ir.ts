@@ -17,6 +17,8 @@ export interface IrState { q: string; sort: { col: string; dir: 'asc' | 'desc' }
 
 const EMPTY: IrState = { q: '', sort: null, filters: [], page: 1 };
 const stateKey = (r: RegionDef) => `__ir_${r.staticId}`;
+/** a fresh report: the region's default sort, nothing else */
+const initial = (r: RegionDef): IrState => ({ ...EMPTY, sort: r.defaultSort, filters: [] });
 const P = (r: RegionDef, k: string) => `${r.staticId}__${k}`;
 
 type Kind = 'number' | 'date' | 'timestamp' | 'boolean' | 'text';
@@ -46,9 +48,9 @@ interface Col extends ColumnDef { field: string; kind: Kind }
 export function readState(ctx: Ctx, r: RegionDef): IrState {
    try {
       const raw_ = ctx.session.state.get(stateKey(r));
-      return raw_ ? { ...EMPTY, ...JSON.parse(raw_) } : { ...EMPTY, filters: [] };
+      return raw_ ? { ...EMPTY, ...JSON.parse(raw_) } : initial(r);
    } catch {
-      return { ...EMPTY, filters: [] };
+      return initial(r);
    }
 }
 
@@ -119,7 +121,7 @@ function applyParams(r: RegionDef, cols: Col[], st: IrState, q: Record<string, s
    let problem: string | null = null;
    const s: IrState = { ...st, filters: [...st.filters] };
    const get = (k: string) => q[P(r, k)];
-   if (get('reset') !== undefined) return { state: { ...EMPTY, filters: [] }, changed: true, problem };
+   if (get('reset') !== undefined) return { state: initial(r), changed: true, problem };
    if (get('q') !== undefined) { s.q = get('q').slice(0, 200); s.page = 1; changed = true; }
    if (get('sort') !== undefined) {
       const col = cols.find(c => c.name === get('sort') && c.sortable && !c.hidden);
@@ -265,7 +267,7 @@ export async function renderInteractiveReport(v: View, r: RegionDef): Promise<Sa
    });
    return html`${toolbar}
    <p class="r-sr-only" aria-live="polite" data-ir-status>${status}</p>
-   <div class="r-table-wrap">
+   <div class="r-table-wrap" tabindex="0" role="group" aria-label="Tabel ${r.title ?? r.staticId}">
      <table class="r-table">
        <caption class="r-sr-only">${r.title ?? r.staticId}</caption>
        <thead><tr>${head}</tr></thead>

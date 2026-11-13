@@ -93,3 +93,30 @@ export async function addUser(pool: pg.Pool, workspace: string, username: string
        returning id`, [ws.rows[0].id, username, pwd, groups]);
    return r.rows[0].id;
 }
+
+export const PILOT_SCHEMAS = ['apx_demo', 'apx_demo_sec_pkg', 'apx_demo_doc_pkg', 'apx_demo_approval_pkg', 'apx_demo_request_pkg'];
+export const PILOT_USERS: [string, string][] = [
+   ['admin', 'ADMIN'], ['budi', 'REQUESTER'], ['sari', 'MANAGER'], ['dodi', 'DIRECTOR'], ['gudang', 'WAREHOUSE'],
+];
+
+/**
+ * Pilot "Demo Permintaan Barang" (examples/demo-permintaan): workspace with one schema per ported package,
+ * database objects + sample data, the app, and one login per role (same password). Safe to run again.
+ */
+export async function setupPilot(pool: pg.Pool, password: string, ws = 'pandawa'): Promise<ImportResult> {
+   const root = new URL('../../examples/demo-permintaan/', import.meta.url);
+   await createWorkspace(pool, ws, PILOT_SCHEMAS);
+   // the scripts set search_path: run them on their own connection and reset it before it goes back to the pool
+   const c = await pool.connect();
+   try {
+      await c.query(readFileSync(new URL('install.sql', root), 'utf8'));
+      await c.query(readFileSync(new URL('seed.sql', root), 'utf8'));
+   } finally {
+      await c.query('reset search_path').catch(() => {});
+      c.release();
+   }
+   const r = await importApp(pool, ws, readFileSync(new URL('app.yaml', root), 'utf8'));
+   for (const [user] of PILOT_USERS) await addUser(pool, ws, user, password);
+   return r;
+}
+

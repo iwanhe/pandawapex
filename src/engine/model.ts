@@ -5,7 +5,7 @@ import type pg from 'pg';
 export interface Target { page: number; items?: Record<string, string>; clear_cache?: string | null }
 export interface Condition {
    item_not_null?: string; item_null?: string; item_equals?: { item: string; value: string };
-   request_equals?: string; sql_expression?: string; sql_exists?: string; never?: true;
+   request_equals?: string; request_in?: string[]; sql_expression?: string; sql_exists?: string; never?: true;
 }
 export interface AuthzDef { id: string; name: string; type: string; source: string; evaluation: string; errorMsg: string }
 export interface ComputationDef { itemName: string; point: string; type: string; expression: string; condition: Condition | null }
@@ -28,6 +28,8 @@ export interface ItemDef {
    inline: boolean;
    /** display_only formatting */
    format: string | null;
+   /** when this holds: shown as text, posted value ignored */
+   readOnly: Condition | null;
    help: string | null; placeholder: string | null; maxLength: number | null;
    authzId: string | null; condition: Condition | null;
 }
@@ -43,6 +45,9 @@ export interface RegionDef {
    id: string; staticId: string; type: string; title: string | null; sourceType: string | null; source: string | null;
    template: string; colSpan: number; newRow: boolean; pageSize: number; emptyText: string | null; maxDownloadRows: number;
    columns: ColumnDef[]; items: ItemDef[]; buttons: ButtonDef[]; condition: Condition | null; authzId: string | null;
+   /** interactive report sort until the user picks one */
+   defaultSort: { col: string; dir: 'asc' | 'desc' } | null;
+   chart: { type: 'bar' | 'pie'; format?: string; value_label?: string } | null;
 }
 export interface ValidationDef {
    name: string; type: string; expression: string | null; errorMsg: string; item: string | null; whenButton: string | null; condition: Condition | null;
@@ -138,7 +143,7 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
          column: r.source?.column ?? null, pk: !!r.source?.pk, defaultValue: r.default_value?.value ?? null,
          lov, nullDisplay: nd ?? (r.is_required ? null : ''), cascade: r.cascade_parents ?? [],
          onValue: r.attributes?.on_value ?? 'Y', offValue: r.attributes?.off_value ?? 'N', inline: !!r.attributes?.inline,
-         format: r.format_mask ?? null,
+         format: r.format_mask ?? null, readOnly: r.attributes?.read_only ?? null,
          help: r.attributes?.help ?? null, placeholder: r.attributes?.placeholder ?? null,
          maxLength: r.attributes?.max_length ?? null, authzId: r.authz_scheme_id, condition: r.condition,
       };
@@ -164,6 +169,8 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
          colSpan: r.grid?.col_span ?? 12, newRow: r.grid?.new_row ?? true,
          pageSize: r.attributes?.page_size ?? 15, emptyText: r.attributes?.empty_text ?? null,
          maxDownloadRows: r.attributes?.max_download_rows ?? 10000,
+         defaultSort: r.attributes?.sort ? { col: r.attributes.sort.column, dir: r.attributes.sort.dir } : null,
+         chart: r.attributes?.chart ?? null,
          columns: colsQ.filter(c => c.region_id === r.id).map(c => ({
             name: c.name, label: c.label, dataType: c.data_type, isPk: c.is_pk, hidden: c.hidden, link: c.link,
             searchable: c.searchable, sortable: c.sortable, format: c.format_mask,

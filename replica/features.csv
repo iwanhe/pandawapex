@@ -47,7 +47,7 @@ Collections (padanan APEX_COLLECTION) di jsonb,runtime,should,yes,no,
 Error handling function + pesan ramah,runtime,should,yes,partial,M1: halaman error ramah + kode referensi; error handling function per app belum
 Theme/template engine sendiri (page/region/report/button),ui,should,yes,partial,M1: template page/region/login/error di kode (design system rpx); belum bisa dipilih/diubah per app
 Translations berbasis text message,ui,should,yes,no,fitur 26.1; ID/EN untuk subsidiary
-Charts region,regions,could,yes,no,pakai library open source (mis. ECharts) bukan Oracle JET
+Charts region,regions,could,yes,partial,"Pilot DEMO: bar & pie sebagai SVG dari server (tanpa library), tabel alternatif; jenis lain belum"
 IR chart view / group by / pivot,regions,could,yes,no,
 Master-detail IG,regions,could,yes,no,
 SQL Workshop: SQL Commands,sql workshop,could,yes,no,S17
@@ -57,7 +57,7 @@ Email via SMTP (padanan APEX_MAIL),runtime,could,yes,no,
 Diff antar versi spec aplikasi,lifecycle,could,yes,no,
 Template components / custom plugin API,extensibility,could,yes,no,
 Importer APEXlang .apx,lifecycle,could,yes,no,hanya jika lisensi APEXlang mengizinkan pihak ketiga
-Converter aplikasi APEX lama ke spec replika,migration,could,yes,no,termasuk translasi PL/SQL→PL/pgSQL; proyek terpisah
+Converter aplikasi APEX lama ke spec replika,migration,could,yes,no,termasuk translasi PL/SQL→PL/pgSQL; proyek terpisah. Pilot manual: examples/demo-permintaan (pola di PORTING.md)
 AI: buat page dari bahasa natural,ai,could,yes,no,fase lanjut
 Kompatibilitas penuh PL/SQL dan Oracle SQL,runtime,skip,yes,skip,database target PostgreSQL; kode user ditulis PL/pgSQL
 Parity seluruh package APEX_* PL/SQL API,runtime,skip,yes,skip,hanya padanan inti

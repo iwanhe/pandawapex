@@ -21,7 +21,7 @@ START = re.compile(r'^(\s*)(%s) (\S+) \($' % '|'.join(KINDS))
 SUPPORT = {
     'region': {
         'staticContent': 'yes', 'classicReport': 'yes', 'interactiveReport': 'partial', 'form': 'yes',
-        'breadcrumb': 'partial', 'interactiveGrid': 'no', 'cards': 'no', 'facetedSearch': 'no', 'chart': 'no',
+        'breadcrumb': 'partial', 'interactiveGrid': 'no', 'cards': 'no', 'facetedSearch': 'no', 'chart': 'partial',
         'list': 'no', 'tree': 'no', 'map': 'no', 'calendar': 'no', 'plsqlDynamicContent': 'no', 'smartFilters': 'no',
         'searchRegion': 'no', 'contentRow': 'no', 'dynamicContent': 'no', 'templateComponent': 'no',
     },
