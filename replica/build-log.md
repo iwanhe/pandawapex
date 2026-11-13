@@ -54,3 +54,9 @@ Lebih sulit dari perkiraan:
 - `@fastify/rate-limit` hanya memasang hook pada rute yang didaftarkan **setelah** plugin selesai dimuat. Semua rute
   dipindah ke child plugin. Tanpa tes 429, ini akan lolos tanpa terlihat.
 - Unique `(oidc_issuer, oidc_subject)` dari schema awal salah untuk multi-workspace. Ketahuan saat menulis provisioning.
+
+## Test pass (2026-11-13)
+
+- Playwright e2e (desktop 1440 + mobile 390) dengan pemindaian axe dan guard console/5xx: 50/50 lulus. Integrasi: 43/43.
+- 4 bug ditemukan dan diperbaiki (S3×3, S4×1), masing-masing dengan tes yang gagal lebih dulu. Detail di `replica/bugs.md`.
+- Page submission token (rencana M2) dibangun lebih awal karena BUG-004.
