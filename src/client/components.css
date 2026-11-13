@@ -393,3 +393,27 @@ circle.r-chart-s6 { stroke: var(--r-chart-6); } rect.r-chart-s6 { fill: var(--r-
 circle.r-chart-s7 { stroke: var(--r-chart-7); } rect.r-chart-s7 { fill: var(--r-chart-7); }
 circle.r-chart-s8 { stroke: var(--r-chart-8); } rect.r-chart-s8 { fill: var(--r-chart-8); }
 circle.r-chart-other { stroke: var(--r-chart-other); } rect.r-chart-other { fill: var(--r-chart-other); }
+
+/* ---------- builder (B1) ---------- */
+.r-builder-stack { display: flex; flex-direction: column; gap: var(--r-grid-gap); }
+.r-cards--stats { margin-bottom: var(--r-grid-gap); grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.r-stat { margin: 0; font-size: var(--r-text-xl-size); line-height: var(--r-text-xl-line); font-weight: 600; font-variant-numeric: tabular-nums; }
+.r-cards--stats .r-card { gap: var(--r-space-2); }
+.r-cards--stats .r-help { margin: 0; overflow-wrap: anywhere; }
+.r-table__actions { white-space: nowrap; text-align: right; }
+.r-facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--r-space-5) var(--r-space-6); }
+.r-facts dt { font-size: var(--r-text-sm-size); color: var(--r-color-text-muted); }
+.r-facts dd { margin: var(--r-space-2) 0 0; overflow-wrap: anywhere; }
+.r-region--danger { border-color: var(--r-color-danger); }
+.r-region--danger .r-region__title { color: var(--r-color-danger); }
+.r-problems { margin: var(--r-space-3) 0 0; padding-left: var(--r-space-6); font-family: var(--r-font-mono); font-size: var(--r-text-sm-size); overflow-wrap: anywhere; }
+.r-spec-text { min-height: 320px; font-size: var(--r-text-sm-size); line-height: 1.5; tab-size: 2; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.r-main code, .r-login code { font-family: var(--r-font-mono); font-size: 0.92em; padding: 0 var(--r-space-2); border-radius: var(--r-radius-sm); background: var(--r-color-surface-sunken); }
+.r-login .r-help { margin-top: var(--r-space-5); text-align: center; }
+.r-header .r-badge { flex: none; }
+.r-header .r-badge .r-icon { width: 14px; height: 14px; }
+.r-main > .r-region + .r-region, .r-main > .r-region + form.r-region, .r-main > form.r-region + .r-region { margin-top: var(--r-grid-gap); }
+@media (max-width: 640px) {
+  .r-header .r-badge { display: none; }
+  .r-table__actions .r-btn { padding-inline: var(--r-space-3); }
+}

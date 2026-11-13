@@ -137,3 +137,25 @@ membandingkan ke database.
 
 Run: integrasi 93/93, e2e 72/72 (2 di-skip). Bug baru dari axe: tabel scroll tidak bisa difokus keyboard, diperbaiki (lihat build-log).
 
+
+## Fase 2 B1: builder (2026-11-13)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B1-H1 | builder | happy | login developer → beranda → cari aplikasi → buat → ekspor → impor balik (ganti) → hapus; axe bersih di setiap layar | e2e (2 viewport), int | ✅ |
+| B1-H2 | builder | happy | ekspor → impor → ekspor menghasilkan teks spec yang sama; metadata 16 tabel identik (emp, DEMO, kitchen sink) | int | ✅ |
+| B1-E1 | builder | edge: tanpa sesi | GET ke halaman builder → login lalu kembali ke alamat semula; alamat kembali di luar `/builder` diabaikan | int | ✅ |
+| B1-E2 | builder | edge: idle 1 jam / logout / cookie lama dipakai ulang | kembali ke login dengan pesan sesi berakhir | int | ✅ |
+| B1-E3 | builder | edge: impor alias yang sudah ada | 409, spec tetap di kotak; dengan centang "Ganti" berhasil, riwayat bertambah | e2e, int | ✅ |
+| B1-E4 | builder | edge: impor YAML rusak / spec tidak valid / skema bukan milik workspace | 422 dengan daftar masalah, tidak ada yang tersimpan | int | ✅ |
+| B1-E5 | builder | edge: textarea mengirim CRLF | diimpor sama dengan LF | int | ✅ |
+| B1-E6 | builder | edge: cari `%` | dicari harfiah, bukan wildcard | int | ✅ |
+| B1-E7 | builder | edge: keyboard saja | login dan keluar tanpa mouse | e2e | ✅ |
+| B1-N1 | builder | negatif: sandi salah / workspace salah / akun aplikasi | satu pesan yang sama, 401 | e2e, int | ✅ |
+| B1-N2 | builder | negatif: 5 kali salah | akun dikunci; `rpx dev add` membuka; akun dikunci → sesi terbuka hilang | int | ✅ |
+| B1-N3 | builder | negatif: data workspace lain | daftar kosong; buka, ekspor, hapus aplikasi workspace lain → 404 | int | ✅ |
+| B1-N4 | builder | negatif: POST tanpa token CSRF | login 403, hapus 403 | int | ✅ |
+| B1-N5 | builder | negatif: hapus dengan alias salah | 422, aplikasi tetap ada | e2e, int | ✅ |
+| B1-N6 | builder | negatif: unduh versi milik aplikasi lain / id tidak valid | 404 | int | ✅ |
+
+Run: `npm test` 108/108, e2e 76/76 (2 skip, sama seperti sebelumnya). Bug baru: tidak ada.
