@@ -1,0 +1,49 @@
+# Instalasi lokal tanpa SSO: PostgreSQL + engine + data contoh.
+#   1. cp .env.example .env   lalu isi RPX_SECRET dan RPX_DEMO_PASSWORD
+#   2. docker compose up -d --build
+#   3. buka http://localhost:8080/r/demo/emp   (user: RPX_DEMO_USER, default "admin")
+name: pandawapex
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rpx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-lokal}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PORT:-55432}:5432"     # hanya dari komputer ini; port 55432 agar tidak bentrok dengan PostgreSQL lain
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rpx"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  setup:
+    build: .
+    command: ["node", "src/cli/rpx.ts", "demo", "setup"]
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
+      RPX_DEMO_USER: ${RPX_DEMO_USER:-admin}
+      RPX_DEMO_PASSWORD: ${RPX_DEMO_PASSWORD:?isi RPX_DEMO_PASSWORD di file .env (minimal 10 karakter)}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    environment:
+      RPX_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
+      RPX_SECRET: ${RPX_SECRET:?isi RPX_SECRET di file .env (openssl rand -hex 32)}
+      PORT: 8080
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

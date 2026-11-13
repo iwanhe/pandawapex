@@ -1,0 +1,10 @@
+node_modules
+.git
+.github
+replica
+e2e
+test
+test-results
+*.log
+.env
+.env.*

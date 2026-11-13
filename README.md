@@ -17,6 +17,10 @@ atau ke `rpx_rt.v('P2_EMPNO')` di dalam blok PL/pgSQL.
 
 ## Menjalankan lokal
 
+Cara tercepat (Docker Compose, tanpa SSO) dan cara Windows tanpa Docker: **[docs/install-lokal.md](docs/install-lokal.md)**.
+
+Manual, langkah demi langkah:
+
 Prasyarat: Node.js ≥ 22.18 (TypeScript dijalankan langsung lewat type stripping), PostgreSQL ≥ 16.
 
 ```bash
@@ -73,4 +77,4 @@ replica/            dokumen perencanaan: recon, arsitektur, design system, build
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
 - [Design system](replica/design/components.md)
-- [Build log](replica/build-log.md)
+- [Build log](replica/build-log.md) · [Test plan](replica/test-plan.md) · [Bugs](replica/bugs.md) · [Parity](replica/parity.md)

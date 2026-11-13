@@ -12,6 +12,8 @@ const USAGE = `rpx <command>
   app import <file.yaml> --ws <name>                 validate and import an app spec
   app check <file.yaml>                              validate a spec without a database
   user add --ws <name> --username <u> --password <p> [--group <g>]
+  demo setup                                         migrate + workspace "demo" + contoh data + app emp + user
+                                                     (RPX_DEMO_USER, RPX_DEMO_PASSWORD); aman dijalankan ulang
 
 Environment: DATABASE_URL (owner/superuser connection for these admin commands)`;
 
@@ -49,6 +51,17 @@ async function main(): Promise<number> {
       } else if (cmd === 'app' && sub === 'import') {
          const r = await importApp(pool, need(values.ws, '--ws'), readFileSync(need(arg, 'file'), 'utf8'));
          console.log(`${r.replaced ? 'replaced' : 'created'} app ${r.appId}: ${r.pages} pages, ${r.regions} regions, ${r.items} items`);
+      } else if (cmd === 'demo' && sub === 'setup') {
+         const user = process.env.RPX_DEMO_USER || 'admin';
+         const password = process.env.RPX_DEMO_PASSWORD ?? '';
+         if (password.length < 10) throw new Error('RPX_DEMO_PASSWORD must be set (at least 10 characters)');
+         await migrate(pool, m => console.log(m));
+         await createWorkspace(pool, 'demo', ['demo_app']);
+         const root = new URL('../../', import.meta.url);
+         await pool.query(readFileSync(new URL('examples/emp/seed.sql', root), 'utf8'));
+         const r = await importApp(pool, 'demo', readFileSync(new URL('examples/emp/app.yaml', root), 'utf8'));
+         await addUser(pool, 'demo', user, password);
+         console.log(`demo ready: app ${r.appId}, user "${user}". Open /r/demo/emp`);
       } else if (cmd === 'user' && sub === 'add') {
          await addUser(pool, need(values.ws, '--ws'), need(values.username, '--username'), need(values.password, '--password'), values.group ?? []);
          console.log(`user ${values.username} saved`);
