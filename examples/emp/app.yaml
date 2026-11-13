@@ -9,6 +9,22 @@ timezone: Asia/Jakarta
 substitutions:
   COMPANY: KCSI
 
+# Hanya anggota grup SDM (dari akun lokal atau klaim grup SSO) yang boleh menambah/mengubah data.
+authorization:
+  - name: pengelola_sdm
+    type: group_member
+    source: SDM
+    error_msg: Halaman ini hanya untuk tim SDM.
+
+application_items:
+  - { name: AI_MASUK_SEJAK }
+
+computations:
+  - item: AI_MASUK_SEJAK
+    point: after_authentication
+    type: sql_expression
+    expression: "to_char(now(), 'DD-MM-YYYY HH24:MI')"
+
 navigation:
   - { label: Karyawan, icon: users, page: 1 }
   - { label: Tentang aplikasi, icon: info, page: 3 }
@@ -44,12 +60,13 @@ pages:
           - { name: P1_CARI, type: text, label: Cari nama, placeholder: "contoh: Dewi", col_span: 6, protection: unrestricted }
         buttons:
           - { name: CARI, label: Cari }
-          - { name: TAMBAH, label: Tambah karyawan, hot: true, action: redirect, position: header, target: { page: 2, clear_cache: "2" } }
+          - { name: TAMBAH, label: Tambah karyawan, hot: true, action: redirect, position: header, target: { page: 2, clear_cache: "2" }, authorization: pengelola_sdm }
 
   - page: 2
     alias: karyawan-form
     name: Form karyawan
     breadcrumb_parent: 1
+    authorization: pengelola_sdm
     regions:
       - static_id: form
         title: Data karyawan
@@ -78,6 +95,7 @@ pages:
               static:
                 - { display: Aktif, return: Y }
                 - { display: Nonaktif, return: N }
+          - { name: P2_MASA_KERJA, type: display_only, label: Masa kerja, col_span: 6, condition: { item_not_null: P2_EMPNO } }
         buttons:
           - { name: BATAL, label: Batal, action: redirect, style: ghost, target: { page: 1 } }
           - { name: HAPUS, label: Hapus, style: danger, confirm: "Hapus data karyawan ini?", condition: { item_not_null: P2_EMPNO } }
@@ -95,6 +113,10 @@ pages:
         error_msg: Tanggal masuk tidak boleh di masa depan.
         item: P2_TGL_MASUK
         when_button: SIMPAN
+    computations:
+      - item: P2_MASA_KERJA
+        type: sql_expression
+        expression: "case when :P2_TGL_MASUK is null then null else extract(year from age(current_date, :P2_TGL_MASUK::date))::int || ' tahun' end"
     processes:
       - { name: ambil_data, type: form_init, region: form }
       - { name: simpan_data, type: form_dml, region: form, success_msg: "Data karyawan &P2_NAMA. tersimpan." }
@@ -111,4 +133,4 @@ pages:
         source:
           html: |
             <p>Aplikasi contoh untuk &COMPANY.: daftar dan form karyawan.</p>
-            <p>Anda masuk sebagai <strong>&APP_USER.</strong>.</p>
+            <p>Anda masuk sebagai <strong>&APP_USER.</strong> sejak &AI_MASUK_SEJAK..</p>

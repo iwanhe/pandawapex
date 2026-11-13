@@ -13,34 +13,46 @@ export interface LovSpec { static?: { display: string; return: string }[]; sql?:
 export interface ItemSpec {
    name: string; type: string; label?: string; help?: string; placeholder?: string; required?: boolean;
    col_span?: number; source?: { column: string; pk?: boolean }; default?: string; lov?: LovSpec;
-   protection?: string; max_length?: number;
+   protection?: string; max_length?: number; authorization?: string; condition?: Condition;
 }
 export interface ButtonSpec {
    name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect'; target?: Target;
-   style?: string; confirm?: string; position?: string; condition?: Condition;
+   style?: string; confirm?: string; position?: string; condition?: Condition; authorization?: string;
 }
-export interface Condition { item_not_null?: string; item_null?: string }
+export interface Condition {
+   item_not_null?: string; item_null?: string; item_equals?: { item: string; value: string };
+   request_equals?: string; sql_expression?: string; sql_exists?: string; never?: true;
+}
+export interface AuthzSpec { name: string; type: string; source: string; evaluation?: string; error_msg?: string }
+export interface ComputationSpec { item: string; point?: string; type: string; expression: string; condition?: Condition }
 export interface ColumnSpec { name: string; label?: string; data_type?: string; is_pk?: boolean; hidden?: boolean; link?: Target }
 export interface RegionSpec {
    static_id: string; title?: string; type: 'static' | 'classic_report' | 'form'; template?: string;
    col_span?: number; new_row?: boolean; source?: { sql?: string; table?: string; html?: string };
    page_size?: number; empty_text?: string; columns?: ColumnSpec[]; items?: ItemSpec[]; buttons?: ButtonSpec[];
-   condition?: Condition;
+   condition?: Condition; authorization?: string;
 }
-export interface ValidationSpec { name: string; type: string; expression?: string; error_msg: string; item?: string; when_button?: string }
+export interface ValidationSpec {
+   name: string; type: string; expression?: string; error_msg: string; item?: string; when_button?: string; condition?: Condition;
+}
 export interface ProcessSpec {
    name: string; point?: string; type: string; region?: string; code?: string;
-   when_button?: string; success_msg?: string; error_msg?: string;
+   when_button?: string; success_msg?: string; error_msg?: string; condition?: Condition;
 }
-export interface BranchSpec { page: number; items?: Record<string, string>; clear_cache?: string; when_button?: string }
-export interface NavSpec { label: string; icon?: string; page?: number; url?: string; children?: NavSpec[] }
+export interface BranchSpec { page: number; items?: Record<string, string>; clear_cache?: string; when_button?: string; condition?: Condition }
+export interface NavSpec {
+   label: string; icon?: string; page?: number; url?: string; children?: NavSpec[]; authorization?: string; condition?: Condition;
+}
 export interface PageSpec {
    page: number; alias?: string; name: string; title?: string; requires_auth?: boolean; breadcrumb_parent?: number;
    regions?: RegionSpec[]; validations?: ValidationSpec[]; processes?: ProcessSpec[]; branches?: BranchSpec[];
+   authorization?: string; computations?: ComputationSpec[];
 }
 export interface AppSpec {
    app: string; name: string; version?: string; parsing_schema: string; home_page?: number; timezone?: string;
    substitutions?: Record<string, string>; authentication?: string | AuthSpec; navigation?: NavSpec[]; pages: PageSpec[];
+   authorization?: AuthzSpec[]; authorization_scheme?: string;
+   application_items?: { name: string; protection?: string }[]; computations?: ComputationSpec[];
 }
 export interface OidcSpec {
    issuer: string; client_id: string; client_secret_env: string; scopes?: string; username_claim?: string;
@@ -141,6 +153,42 @@ function checkSemantics(spec: AppSpec): void {
    });
    walkNav(spec.navigation ?? []);
    if (spec.home_page !== undefined && !pages.has(spec.home_page)) p.push(`home_page ${spec.home_page} does not exist`);
+   const schemes = new Set<string>();
+   for (const a of spec.authorization ?? []) {
+      if (schemes.has(a.name)) p.push(`authorization ${a.name}: duplicate name`);
+      schemes.add(a.name);
+   }
+   const authzRef = (where: string, name: string | undefined) => {
+      if (name !== undefined && !schemes.has(name)) p.push(`${where}: authorization "${name}" is not defined`);
+   };
+   authzRef('authorization_scheme', spec.authorization_scheme);
+   for (const ai of spec.application_items ?? []) {
+      if (itemPage.has(ai.name)) p.push(`application item ${ai.name}: name is used twice (item names are unique per app)`);
+      else if (/^P\d+_/.test(ai.name)) p.push(`application item ${ai.name}: P<n>_ names are reserved for page items`);
+      itemPage.set(ai.name, -1);
+   }
+   for (const c of spec.computations ?? []) {
+      if (!itemPage.has(c.item)) p.push(`computation on ${c.item}: item does not exist`);
+      if (c.point && !['on_new_session', 'after_authentication', 'before_header'].includes(c.point)) {
+         p.push(`computation on ${c.item}: application computations run on_new_session, after_authentication or before_header`);
+      }
+   }
+   for (const page of spec.pages) {
+      authzRef(`page ${page.page}`, page.authorization);
+      for (const r of page.regions ?? []) {
+         authzRef(`page ${page.page} region ${r.static_id}`, r.authorization);
+         for (const it of r.items ?? []) authzRef(`item ${it.name}`, it.authorization);
+         for (const b of r.buttons ?? []) authzRef(`page ${page.page} button ${b.name}`, b.authorization);
+      }
+      for (const c of page.computations ?? []) {
+         const owner = itemPage.get(c.item);
+         if (owner === undefined) p.push(`page ${page.page} computation on ${c.item}: item does not exist`);
+         else if (owner !== page.page && owner !== -1) p.push(`page ${page.page} computation on ${c.item}: item belongs to page ${owner}`);
+         if (c.point && !['before_header', 'after_submit'].includes(c.point)) p.push(`page ${page.page} computation on ${c.item}: page computations run before_header or after_submit`);
+      }
+   }
+   const walkNavAuthz = (n: NavSpec[]) => n.forEach(e => { authzRef(`navigation "${e.label}"`, e.authorization); walkNavAuthz(e.children ?? []); });
+   walkNavAuthz(spec.navigation ?? []);
    const auth = authOf(spec);
    if (auth.scheme === 'oidc' && !auth.oidc) p.push('authentication: scheme oidc needs an oidc block');
    if (auth.scheme !== 'oidc' && (auth.oidc || auth.allow_builtin !== undefined)) p.push('authentication: oidc / allow_builtin only apply to scheme oidc');
@@ -180,6 +228,37 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
    await c.query('delete from rpx.nav_lists where app_id = $1', [appId]);
    await c.query('delete from rpx.auth_schemes where app_id = $1', [appId]);
    await c.query('delete from rpx.lovs where app_id = $1', [appId]);
+   await c.query('delete from rpx.authz_schemes where app_id = $1', [appId]);
+
+   // authorization schemes first: everything else refers to them by name
+   const authzIds = new Map<string, string>();
+   for (const a of spec.authorization ?? []) {
+      const r = await c.query(
+         `insert into rpx.authz_schemes (app_id, name, scheme_type, source, evaluation, error_msg)
+          values ($1, $2, $3, $4, $5, $6) returning id`,
+         [appId, a.name, a.type, a.source, a.evaluation ?? 'once_per_session',
+          a.error_msg ?? 'Anda tidak memiliki akses ke bagian ini.']);
+      authzIds.set(a.name, r.rows[0].id);
+   }
+   const authz = (name: string | undefined) => (name ? authzIds.get(name)! : null);
+   await c.query('update rpx.applications set authz_scheme_id = $2 where id = $1', [appId, authz(spec.authorization_scheme)]);
+
+   for (const ai of spec.application_items ?? []) {
+      await c.query(
+         `insert into rpx.items (app_id, name, item_type, protection) values ($1, $2, 'app_item', $3)`,
+         [appId, ai.name, ai.protection ?? 'restricted']);
+   }
+   const insertComputations = async (list: ComputationSpec[], pageId: string | null, defaultPoint: string) => {
+      let seq = 10;
+      for (const cp of list) {
+         await c.query(
+            `insert into rpx.computations (app_id, page_id, item_name, point, comp_type, expression, seq, condition)
+             values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [appId, pageId, cp.item, cp.point ?? defaultPoint, cp.type, cp.expression, seq, cp.condition ?? null]);
+         seq += 10;
+      }
+   };
+   await insertComputations(spec.computations ?? [], null, 'on_new_session');
 
    const auth = authOf(spec);
    await c.query(`insert into rpx.auth_schemes (app_id, name, scheme_type, attributes, is_current) values ($1, 'default', $2, $3, true)`,
@@ -191,8 +270,10 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          let seq = 10;
          for (const e of entries) {
             const r = await c.query(
-               `insert into rpx.nav_entries (list_id, parent_id, label, icon, target, seq) values ($1, $2, $3, $4, $5, $6) returning id`,
-               [nl.rows[0].id, parent, e.label, e.icon ?? null, e.page !== undefined ? { page: e.page } : { url: e.url ?? '#' }, seq]);
+               `insert into rpx.nav_entries (list_id, parent_id, label, icon, target, seq, authz_scheme_id, condition)
+                values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+               [nl.rows[0].id, parent, e.label, e.icon ?? null, e.page !== undefined ? { page: e.page } : { url: e.url ?? '#' }, seq,
+                authz(e.authorization), e.condition ?? null]);
             seq += 10;
             await insertNav(e.children ?? [], r.rows[0].id);
          }
@@ -203,23 +284,24 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
    let regions = 0, items = 0;
    for (const page of spec.pages) {
       const pg_ = await c.query(
-         `insert into rpx.pages (app_id, page_no, alias, name, title, requires_auth, attributes)
-          values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+         `insert into rpx.pages (app_id, page_no, alias, name, title, requires_auth, attributes, authz_scheme_id)
+          values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
          [appId, page.page, page.alias ?? null, page.name, page.title ?? null,
           auth.scheme === 'no_auth' ? false : page.requires_auth ?? true,
-          { breadcrumb_parent: page.breadcrumb_parent ?? null }]);
+          { breadcrumb_parent: page.breadcrumb_parent ?? null }, authz(page.authorization)]);
       const pageId: string = pg_.rows[0].id;
+      await insertComputations(page.computations ?? [], pageId, 'before_header');
       const regionIds = new Map<string, string>();
       let rseq = 10;
       for (const r of page.regions ?? []) {
          const sourceType = r.source?.sql ? 'sql' : r.source?.table ? 'table' : null;
          const source = r.source?.sql ?? r.source?.table ?? r.source?.html ?? null;
          const reg = await c.query(
-            `insert into rpx.regions (page_id, name, static_id, region_type, source_type, source, seq, grid, template, attributes, condition)
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
+            `insert into rpx.regions (page_id, name, static_id, region_type, source_type, source, seq, grid, template, attributes, condition, authz_scheme_id)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
             [pageId, r.title ?? r.static_id, r.static_id, r.type, sourceType, source, rseq,
              { col_span: r.col_span ?? 12, new_row: r.new_row ?? true }, r.template ?? 'standard',
-             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null }, r.condition ?? null]);
+             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null }, r.condition ?? null, authz(r.authorization)]);
          rseq += 10;
          regions++;
          const regionId: string = reg.rows[0].id;
@@ -237,50 +319,51 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          for (const it of r.items ?? []) {
             await c.query(
                `insert into rpx.items (app_id, page_id, region_id, name, item_type, label, seq, grid, source, default_value
-                                     , inline_lov, is_required, protection, attributes)
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+                                     , inline_lov, is_required, protection, attributes, condition, authz_scheme_id)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
                [appId, pageId, regionId, it.name, it.type, it.label ?? null, iseq, { col_span: it.col_span ?? 12 },
                 it.source ? { type: 'db_column', column: it.source.column.toLowerCase(), pk: it.source.pk ?? false } : null,
                 it.default !== undefined ? { type: 'static', value: it.default } : null,
                 it.lov ?? null, it.required ?? false,
                 it.protection === 'restricted' ? 'restricted' : it.protection === 'unrestricted' ? 'unrestricted' : 'checksum_session',
-                { help: it.help ?? null, placeholder: it.placeholder ?? null, max_length: it.max_length ?? null }]);
+                { help: it.help ?? null, placeholder: it.placeholder ?? null, max_length: it.max_length ?? null },
+                it.condition ?? null, authz(it.authorization)]);
             iseq += 10;
             items++;
          }
          let bseq = 10;
          for (const b of r.buttons ?? []) {
             await c.query(
-               `insert into rpx.buttons (page_id, region_id, name, label, action, target, is_hot, position, confirm_msg, seq, attributes, condition)
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+               `insert into rpx.buttons (page_id, region_id, name, label, action, target, is_hot, position, confirm_msg, seq, attributes, condition, authz_scheme_id)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
                [pageId, regionId, b.name, b.label, b.action ?? 'submit', b.target ?? null, b.hot ?? false,
-                b.position ?? 'next', b.confirm ?? null, bseq, { style: b.style ?? 'normal' }, b.condition ?? null]);
+                b.position ?? 'next', b.confirm ?? null, bseq, { style: b.style ?? 'normal' }, b.condition ?? null, authz(b.authorization)]);
             bseq += 10;
          }
       }
       let vseq = 10;
       for (const v of page.validations ?? []) {
          await c.query(
-            `insert into rpx.validations (page_id, name, val_type, expression, error_msg, associated_item, when_button, seq)
-             values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [pageId, v.name, v.type, v.expression ?? null, v.error_msg, v.item ?? null, v.when_button ?? null, vseq]);
+            `insert into rpx.validations (page_id, name, val_type, expression, error_msg, associated_item, when_button, seq, condition)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [pageId, v.name, v.type, v.expression ?? null, v.error_msg, v.item ?? null, v.when_button ?? null, vseq, v.condition ?? null]);
          vseq += 10;
       }
       let pseq = 10;
       for (const pr of page.processes ?? []) {
          const point = pr.point ?? (pr.type === 'form_init' ? 'before_header' : 'after_submit');
          await c.query(
-            `insert into rpx.processes (app_id, page_id, region_id, name, point, proc_type, code, when_button, success_msg, error_msg, seq)
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            `insert into rpx.processes (app_id, page_id, region_id, name, point, proc_type, code, when_button, success_msg, error_msg, seq, condition)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [appId, pageId, pr.region ? regionIds.get(pr.region) ?? null : null, pr.name, point, pr.type, pr.code ?? null,
-             pr.when_button ?? null, pr.success_msg ?? null, pr.error_msg ?? null, pseq]);
+             pr.when_button ?? null, pr.success_msg ?? null, pr.error_msg ?? null, pseq, pr.condition ?? null]);
          pseq += 10;
       }
       let brseq = 10;
       for (const b of page.branches ?? []) {
          await c.query(
-            `insert into rpx.branches (page_id, point, target, when_button, seq) values ($1, 'after_submit', $2, $3, $4)`,
-            [pageId, { page: b.page, items: b.items ?? {}, clear_cache: b.clear_cache ?? null }, b.when_button ?? null, brseq]);
+            `insert into rpx.branches (page_id, point, target, when_button, seq, condition) values ($1, 'after_submit', $2, $3, $4, $5)`,
+            [pageId, { page: b.page, items: b.items ?? {}, clear_cache: b.clear_cache ?? null }, b.when_button ?? null, brseq, b.condition ?? null]);
          brseq += 10;
       }
    }

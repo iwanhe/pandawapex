@@ -49,6 +49,10 @@ SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/back
 - **Proses `form_dml`**: tombol bernama `DELETE` atau `HAPUS` menghapus baris. Tombol lain menyisipkan baris bila PK kosong, atau memperbarui bila PK terisi.
 - **Kode PL/pgSQL** ditulis sebagai isi blok (boleh dengan `declare ... begin ... end;`). Baca item dengan `:P1_X`, tulis dengan `perform rpx_rt.set_item('P1_X', nilai)`.
 - Nama item `P{halaman}_NAMA`, huruf besar, unik per aplikasi. `rpx app check file.yaml` memvalidasi tanpa database.
+- **Otorisasi**: definisikan sekali di `authorization:` (mis. `type: group_member, source: SDM`), lalu pasang dengan `authorization: <nama>` di page, region, item, tombol, atau entri menu. Link dan tombol ke page yang tidak boleh dibuka otomatis disembunyikan. Grup berasal dari `rpx user add --group` atau klaim grup SSO.
+- **Computations**: app (`on_new_session`, `after_authentication`, `before_header`) dan page (`before_header` setelah form init, `after_submit` sebelum validasi). Tipe `plpgsql_fn` adalah isi fungsi dengan `return ...;`.
+- **Kondisi**: `condition: { item_equals: { item: P1_MODE, value: edit } }`, `request_equals`, `sql_exists`, `sql_expression`, `item_null`, `item_not_null`, `never`.
+- **Substitusi** `&ITEM.` selalu di-escape. Gunakan `&ITEM!RAW.` hanya untuk HTML yang memang Anda percaya.
 
 ## Tes
 

@@ -7,17 +7,17 @@ Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 
 Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
 Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
 Application properties + substitution strings,builder,must,yes,partial,"M1: lewat spec YAML (substitutions, timezone); belum ada UI"
-Application items & computations on login,builder,must,yes,no,S14
+Application items & computations on login,builder,must,yes,partial,"M2: application items + computations (on_new_session, after_authentication, before_header, after_submit; static/item/sql/plpgsql_fn) lewat spec; UI builder di Fase 2"
 List of Values static & SQL,shared components,must,yes,partial,M1: LOV inline per item (static/SQL) untuk select; shared LOV belum
 Authentication: built-in accounts,security,must,yes,yes,"M1: argon2id, lock setelah 5 gagal, session baru saat login"
 Authentication: OIDC/social sign-in,security,must,yes,yes,"Backend: OIDC code+PKCE, provisioning, grup dari klaim, batas domain; tested dengan mock IdP"
-Authorization schemes (exists SQL / function boolean / group),security,must,yes,no,S11; evaluation point
-Navigation menu + breadcrumb,shared components,must,yes,partial,M1: menu dari spec + breadcrumb parent; kondisi/otorisasi per entri belum
+Authorization schemes (exists SQL / function boolean / group),security,must,yes,yes,"M2: group_member, exists/not_exists SQL, fn_boolean; once_per_session/page_view/always; app, page, region, item, button, menu; link & tombol ke page terlarang otomatis disembunyikan"
+Navigation menu + breadcrumb,shared components,must,yes,yes,M2: entri menu dengan otorisasi/kondisi; entri & breadcrumb ke page terlarang disembunyikan
 Render page dari metadata (regions + grid layout),runtime,must,yes,yes,M1
-Accept page: computations > validations > processes > branches,runtime,must,yes,partial,"M1: validations, processes, branches; computations belum (M2)"
+Accept page: computations > validations > processes > branches,runtime,must,yes,yes,"M2: after_submit computations → validations → processes → branches, semua dengan kondisi"
 Session state per item + clear cache via URL,runtime,must,yes,yes,M1
 Bind variable :ITEM ke parameter PostgreSQL ($n),runtime,must,yes,yes,M1: $n::text (bind selalu text seperti VARCHAR2)
-Substitution &ITEM. dengan escape filters,runtime,must,yes,partial,M1: &ITEM. selalu di-escape HTML; filter !RAW/!JS/!ATTR belum
+Substitution &ITEM. dengan escape filters,runtime,must,yes,yes,M2: default escape HTML + !HTML !ATTR !JS !RAW !STRIPHTML
 URL scheme ramah (app/page/params) + checksum,runtime,must,yes,yes,M1: HMAC per session; argumen dibuang dari URL setelah diterapkan
 Form region: init (fetch by PK) + DML process,regions,must,yes,yes,M1: insert/update/delete; tombol DELETE/HAPUS = delete
 Lost-update detection pada Form,regions,must,yes,yes,Backend: hash baris bertanda tangan + SELECT FOR UPDATE; update & delete

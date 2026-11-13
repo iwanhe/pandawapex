@@ -24,7 +24,7 @@ await createWorkspace(pool, E2E.ws, [E2E.schema]);
 await pool.query(readFileSync(join(ROOT, 'examples/emp/seed.sql'), 'utf8').replaceAll('demo_app', E2E.schema));
 const spec = readFileSync(join(ROOT, 'examples/emp/app.yaml'), 'utf8').replace(/parsing_schema: \w+/, `parsing_schema: ${E2E.schema}`);
 await importApp(pool, E2E.ws, spec, 'e2e');
-await addUser(pool, E2E.ws, E2E.user, E2E.password);
+await addUser(pool, E2E.ws, E2E.user, E2E.password, ['SDM']);
 await addUser(pool, E2E.ws, E2E.user2, E2E.password);
 
 const idp = await startMockIdp();

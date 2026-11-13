@@ -38,7 +38,8 @@ export async function setup(specText?: string, serverOpts: Partial<Parameters<ty
    await pool.query(readFileSync(join(ROOT, 'examples/emp/seed.sql'), 'utf8').replaceAll('demo_app', schema));
    const spec = (specText ?? readFileSync(join(ROOT, 'examples/emp/app.yaml'), 'utf8')).replace(/parsing_schema: \w+/, `parsing_schema: ${schema}`);
    await importApp(pool, ws, spec, 'test');
-   await addUser(pool, ws, 'iwan', 'rahasia-123');
+   await addUser(pool, ws, 'iwan', 'rahasia-123', ['SDM']);
+   await addUser(pool, ws, 'tamu', 'rahasia-123');
 
    const app = buildServer({ pool, secret: 'x'.repeat(40), loginRateLimit: 1000, ...serverOpts });
    await app.ready();

@@ -60,3 +60,27 @@ Lebih sulit dari perkiraan:
 - Playwright e2e (desktop 1440 + mobile 390) dengan pemindaian axe dan guard console/5xx: 50/50 lulus. Integrasi: 43/43.
 - 4 bug ditemukan dan diperbaiki (S3×3, S4×1), masing-masing dengan tes yang gagal lebih dulu. Detail di `replica/bugs.md`.
 - Page submission token (rencana M2) dibangun lebih awal karena BUG-004.
+
+## M2: authorization, computations, kondisi (2026-11-13), done
+
+| bagian | status | catatan |
+| --- | --- | --- |
+| Authorization schemes | done | `group_member` (grup akun lokal / klaim SSO), `exists_sql`, `not_exists_sql`, `fn_boolean`; evaluasi `once_per_session` (cache di `sessions.authz_cache`), `once_per_page_view`, `always`; dipasang di app, page, region, item, tombol, menu |
+| Link/tombol/menu ke page terlarang | done | otomatis disembunyikan (nama di report jadi teks biasa). Ini lebih ramah daripada menampilkan link yang berakhir 403 |
+| Computations | done | app: `on_new_session`, `after_authentication`, `before_header`; page: `before_header` (setelah form init), `after_submit` (sebelum validasi); tipe `static`, `item`, `sql_query`, `sql_expression`, `plpgsql_fn` |
+| Application items | done | `restricted` secara default (tidak bisa diisi dari URL/form) |
+| Kondisi | done | `item_not_null`, `item_null`, `item_equals`, `request_equals`, `sql_expression`, `sql_exists`, `never` pada region, item, tombol, menu, validasi, proses, branch, computation |
+| Escape filter substitusi | done | `&X.` di-escape; `!HTML`, `!ATTR`, `!JS`, `!RAW`, `!STRIPHTML` |
+| Akun dikunci | done | session yang masih terbuka langsung berakhir |
+| UI builder untuk semua ini | not started | Fase 2 |
+
+Verifikasi: `npm test` 53/53 (+10 tes M2), e2e 52/52 (+F04-N3 user tanpa grup SDM), screenshot S25-readonly, S27-forbidden, S23 (dengan computation masa kerja).
+
+Lebih sulit dari perkiraan:
+- **"Item yang dirender" harus diingat lintas request.** Dengan kondisi/otorisasi, item tersembunyi tidak boleh diterima dari POST,
+  dan checksum item tersembunyi harus hanya mencakup yang dirender. Solusinya: daftar item & tombol yang dirender ditandatangani di form
+  (`__ps`), menggantikan checksum lama. Validasi "tombol tidak dikenal" kini juga berdasarkan daftar ini.
+- **PL/pgSQL function body** (`return ...;` seperti di APEX) tidak bisa dijalankan sebagai `DO`. Dibuat fungsi `pg_temp` sesaat
+  di dalam savepoint. Butuh hak TEMP di database untuk role `ws_*` (default PostgreSQL: ada).
+- Urutan before-header sengaja dibuat: form init → default item → computations, supaya computation bisa memakai baris yang baru diambil
+  (contoh: masa kerja dari tanggal masuk).

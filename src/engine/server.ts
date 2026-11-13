@@ -136,7 +136,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       return html(reply, renderLogin(appDef, s, { info: LOGIN_INFO[q.info] ?? null, returnTo: safeReturn(appDef, q.return) }));
    });
 
-   async function signIn(reply: FastifyReply, appDef: AppDef, guest: Session, user: { id: string; username: string }, returnTo: string) {
+   async function signIn(reply: FastifyReply, appDef: AppDef, guest: Session, user: { id: string; username: string; groups?: string[] }, returnTo: string) {
       await opts.pool.query('update rpx.app_users set failed_logins = 0, last_login = now() where id = $1', [user.id]);
       // new session id after login (session fixation), the guest session is discarded
       const fresh = await createSession(opts.pool, appDef, user);
@@ -154,7 +154,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       const username = String(body.username ?? '').trim();
       const password = String(body.password ?? '');
       const u = await opts.pool.query(
-         `select id, username, pwd_hash, locked, failed_logins from rpx.app_users where workspace_id = $1 and username = $2`,
+         `select id, username, pwd_hash, locked, failed_logins, groups from rpx.app_users where workspace_id = $1 and username = $2`,
          [appDef.workspaceId, username]);
       const user = u.rows[0];
       const ok = await verifyPassword(user?.pwd_hash ?? await getDummyHash(), password).catch(() => false);
@@ -167,7 +167,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
              where id = $1 returning locked`, [user.id, MAX_FAILED_LOGINS]);
          return fail(r.rows[0].locked ? 'Terlalu banyak percobaan gagal. Akun dikunci.' : 'Nama pengguna atau kata sandi salah.');
       }
-      return signIn(reply, appDef, s, { id: user.id, username: user.username }, safeReturn(appDef, body.return));
+      return signIn(reply, appDef, s, { id: user.id, username: user.username, groups: user.groups }, safeReturn(appDef, body.return));
    });
 
    // ---------- OIDC (SSO) ----------
@@ -228,16 +228,16 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       if ('rejected' in id) return fail(id.rejected, 403);
 
       const found = await opts.pool.query(
-         `select id, username, locked from rpx.app_users where workspace_id = $1 and oidc_issuer = $2 and oidc_subject = $3`,
+         `select id, username, locked, groups from rpx.app_users where workspace_id = $1 and oidc_issuer = $2 and oidc_subject = $3`,
          [appDef.workspaceId, id.issuer, id.subject]);
-      let user = found.rows[0] as { id: string; username: string; locked: boolean } | undefined;
+      let user = found.rows[0] as { id: string; username: string; locked: boolean; groups: string[] } | undefined;
       if (!user) {
          if (!appDef.oidc!.provision) return fail('Akun Anda belum didaftarkan untuk aplikasi ini. Hubungi administrator.', 403);
          const ins = await opts.pool.query(
             `insert into rpx.app_users (workspace_id, username, email, oidc_issuer, oidc_subject, groups)
              values ($1, $2, $3, $4, $5, $6)
              on conflict (workspace_id, username) do nothing
-             returning id, username, locked`,
+             returning id, username, locked, groups`,
             [appDef.workspaceId, id.username, id.email, id.issuer, id.subject, id.groups ?? []]);
          if (!ins.rowCount) {
             // the name is taken by a local account: never merge identities silently
@@ -246,9 +246,10 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
          user = ins.rows[0];
       } else if (id.groups) {
          await opts.pool.query('update rpx.app_users set groups = $2, email = coalesce($3, email) where id = $1', [user.id, id.groups, id.email]);
+         user.groups = id.groups;
       }
       if (user!.locked) return fail('Akun ini dikunci. Hubungi administrator aplikasi.', 403);
-      return signIn(reply, appDef, s, { id: user!.id, username: user!.username }, returnTo);
+      return signIn(reply, appDef, s, { id: user!.id, username: user!.username, groups: user!.groups }, returnTo);
    });
 
    app.post('/r/:ws/:app/logout', async (req, reply) => {
