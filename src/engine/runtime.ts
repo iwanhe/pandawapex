@@ -5,7 +5,7 @@ import { itemsMessage, sign, urlMessage, verify } from './checksum.ts';
 import { enterUserCode, leaveUserCode, quoteIdent, quoteQualified, readUserCodeItems, toText } from './db.ts';
 import { attrIf, esc, html, raw, type SafeHtml } from './html.ts';
 import type { AppDef, ButtonDef, Condition, ItemDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
-import { bindValues, clearPages, FLASH_KEY, saveState, takeFlash, type Session } from './session.ts';
+import { bindValues, clearPages, consumeSubmitToken, FLASH_KEY, issueSubmitToken, saveState, takeFlash, type Session } from './session.ts';
 import { alert, icon, shell } from './templates.ts';
 
 export interface Ctx {
@@ -209,6 +209,7 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
       messages: html`<div class="r-messages">${msgs}</div>`,
       body: html`<form method="post" action="${appBase(ctx.app)}/${page.no}" novalidate>
          <input type="hidden" name="__csrf" value="${ctx.session.csrf}">
+         <input type="hidden" name="__sid" value="${await issueSubmitToken(ctx.pool, ctx.session, page.no)}">
          ${protectedChecksum(ctx, page)}
          ${layout(regionsHtml)}
       </form>`,
@@ -449,6 +450,12 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
       throw new HttpError(403, 'Checksum tidak cocok', 'Nilai tersembunyi di formulir ini diubah. Muat ulang halaman lalu coba lagi.');
    }
 
+   // 1b. each rendered form is processed once (double click without JS, browser resend, replay)
+   if (!(await consumeSubmitToken(ctx.pool, ctx.session, page.no, body.__sid))) {
+      throw new HttpError(409, 'Formulir sudah dikirim',
+         'Formulir ini sudah dikirim sebelumnya, jadi tidak diproses lagi. Buka halaman kembali untuk mengirim perubahan baru.');
+   }
+
    // 2. posted values -> session state (restricted & display-only items are ignored)
    const posted: Record<string, string | null> = {};
    for (const it of page.items) {
@@ -516,8 +523,12 @@ async function validate(ctx: Ctx, page: PageDef, request: string): Promise<{ ite
    // required items are only enforced for buttons that save (not for delete)
    if (!deleting) {
       for (const it of page.items) {
-         if (it.required && it.type !== 'hidden' && it.type !== 'display_only' && val(it.name) === null) {
+         const v = val(it.name);
+         if (it.required && it.type !== 'hidden' && it.type !== 'display_only' && v === null) {
             errors.push({ item: it.name, message: `${it.label ?? it.name} wajib diisi.` });
+         } else if (it.maxLength !== null && v !== null && [...v].length > it.maxLength) {
+            // the browser's maxlength is only a hint (and counts UTF-16 units); the server counts characters
+            errors.push({ item: it.name, message: `${it.label ?? it.name} maksimal ${it.maxLength} karakter.` });
          }
       }
    }

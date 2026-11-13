@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import type { AppDef } from './model.ts';
 
@@ -90,4 +91,31 @@ export function bindValues(app: AppDef, s: Session, extra: Record<string, string
    out.APP_ID = app.alias;
    out.APP_SESSION = s.id;
    return { ...out, ...extra };
+}
+
+// One-time submission tokens (double POST / replay protection). Each rendered form gets a token;
+// accepting the form deletes it atomically, so the same submission is processed at most once.
+const SUBMIT_PREFIX = '__sub:';
+const MAX_OPEN_FORMS = 50;
+
+export async function issueSubmitToken(db: pg.Pool | pg.PoolClient, s: Session, pageNo: number): Promise<string> {
+   const token = randomBytes(18).toString('base64url');
+   await db.query(
+      `insert into rpx.session_state (session_id, item_name, value) values ($1, $2, $3)`,
+      [s.id, SUBMIT_PREFIX + token, String(pageNo)]);
+   // keep the most recent forms only (a user who opens many pages without submitting)
+   await db.query(
+      `delete from rpx.session_state where session_id = $1 and item_name like '__sub:%'
+         and item_name not in (select item_name from rpx.session_state
+                               where session_id = $1 and item_name like '__sub:%'
+                               order by updated_at desc limit $2)`, [s.id, MAX_OPEN_FORMS]);
+   return token;
+}
+
+export async function consumeSubmitToken(db: pg.Pool | pg.PoolClient, s: Session, pageNo: number, token: unknown): Promise<boolean> {
+   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{20,40}$/.test(token)) return false;
+   const r = await db.query(
+      `delete from rpx.session_state where session_id = $1 and item_name = $2 and value = $3`,
+      [s.id, SUBMIT_PREFIX + token, String(pageNo)]);
+   return r.rowCount === 1;
 }

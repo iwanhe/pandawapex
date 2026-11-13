@@ -7,3 +7,6 @@ coverage/
 replica/design/vendor/
 replica/design/primitives.html
 !.env.example
+e2e/report/
+e2e/.state.json
+test-results/

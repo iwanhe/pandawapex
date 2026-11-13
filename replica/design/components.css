@@ -71,8 +71,9 @@ a:hover { color: var(--r-color-accent-hover); }
 
 @media (max-width: 1023px) {
   .r-shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "main"; }
-  .r-nav { position: fixed; left: 0; top: var(--r-header-h); bottom: 0; width: var(--r-nav-w); overflow-y: auto; z-index: var(--r-z-nav); transform: translateX(-100%); transition: transform var(--r-motion-base) var(--r-motion-ease); }
-  .r-shell[data-nav="open"] .r-nav { transform: none; box-shadow: var(--r-shadow-pop); }
+  /* closed drawer: off-screen AND visibility hidden, so its links are out of the tab order and the a11y tree */
+  .r-nav { position: fixed; left: 0; top: var(--r-header-h); bottom: 0; width: var(--r-nav-w); overflow-y: auto; z-index: var(--r-z-nav); transform: translateX(-100%); visibility: hidden; transition: transform var(--r-motion-base) var(--r-motion-ease), visibility 0s linear var(--r-motion-base); }
+  .r-shell[data-nav="open"] .r-nav { transform: none; visibility: visible; box-shadow: var(--r-shadow-pop); transition: transform var(--r-motion-base) var(--r-motion-ease), visibility 0s; }
   .r-main { padding: var(--r-content-pad-mobile); }
 }
 
@@ -191,6 +192,8 @@ select.r-input { appearance: none; padding-right: 32px; background-image: var(--
 .r-alert__body { flex: 1; }
 .r-alert__title { margin: 0; font-weight: 600; }
 .r-alert ul { margin: var(--r-space-2) 0 0; padding-left: var(--r-space-7); }
+/* error-summary links are targets on their own line: at least 24px tall (WCAG 2.5.8) */
+.r-alert li > a { display: inline-block; min-height: 24px; line-height: 24px; }
 .r-alert--success { border-color: var(--r-color-success); background: var(--r-color-success-subtle); }
 .r-alert--success .r-alert__icon { color: var(--r-color-success); }
 .r-alert--danger  { border-color: var(--r-color-danger);  background: var(--r-color-danger-subtle); }
