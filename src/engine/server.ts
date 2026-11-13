@@ -9,7 +9,9 @@ import type pg from 'pg';
 import { safeEqual } from './checksum.ts';
 import { loadApp, type AppDef, type PageDef } from './model.ts';
 import { acceptPage, appBase, applyUrlArgs, HttpError, renderPage, type Ctx } from './runtime.ts';
-import { cookieName, cookiePath, createSession, deleteSession, loadSession, type Session } from './session.ts';
+import { cookieName, cookiePath, createSession, deleteSession, loadSession, saveState, type Session } from './session.ts';
+import { finishLogin, identityFrom, OidcSetupError, oidcConfiguration, startLogin } from './oidc.ts';
+import rateLimit from '@fastify/rate-limit';
 import { errorPage, loginPage } from './templates.ts';
 
 export interface ServerOptions {
@@ -17,6 +19,12 @@ export interface ServerOptions {
    secret: string;
    secureCookies?: boolean;
    logger?: boolean;
+   /** external base URL (e.g. https://apps.kcsi.co.id) used for the OIDC redirect URI; defaults to the request host */
+   publicUrl?: string;
+   /** tests only: allow an http:// issuer */
+   allowInsecureOidc?: boolean;
+   /** login / SSO attempts per IP per minute */
+   loginRateLimit?: number;
 }
 
 const STATIC_DIR = join(import.meta.dirname, '../client');
@@ -33,6 +41,8 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
    const app = Fastify({ logger: opts.logger ?? false, trustProxy: true, bodyLimit: 1024 * 1024 });
    app.register(formbody);
    app.register(cookie);
+   app.register(rateLimit, { global: false });
+   const loginLimit = { max: opts.loginRateLimit ?? 20, timeWindow: '1 minute' };
 
    app.addHook('onSend', async (_req, reply, payload) => {
       reply.header('Content-Security-Policy',
@@ -43,6 +53,10 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       return payload;
    });
 
+   const html = (reply: FastifyReply, body: string, status = 200) => reply.code(status).type('text/html; charset=utf-8').send(body);
+
+   // routes live in a child plugin so that they are added after @fastify/rate-limit has loaded
+   app.register(async (app) => {
    // ---------- static assets ----------
    app.get('/static/*', async (req, reply) => {
       const rel = normalize((req.params as { '*': string })['*']).replace(/^([./\\])+/, '');
@@ -100,20 +114,40 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       return typeof r === 'string' && r.startsWith(base) && !r.includes('//', 1) && !r.startsWith(`${base}login`) ? r : `${base}${appDef.homePage}`;
    }
 
-   const html = (reply: FastifyReply, body: string, status = 200) => reply.code(status).type('text/html; charset=utf-8').send(body);
 
    // ---------- login / logout ----------
+   function renderLogin(appDef: AppDef, s: Session, a: { username?: string; error?: string | null; info?: string | null; returnTo: string }) {
+      const sso = appDef.oidc
+         ? { label: appDef.oidc.buttonLabel, href: `${appBase(appDef)}/oidc/start?${new URLSearchParams({ return: a.returnTo })}` }
+         : null;
+      return loginPage({ appName: appDef.name, action: `${appBase(appDef)}/login`, csrf: s.csrf, username: a.username ?? '',
+         error: a.error ?? null, info: a.info ?? null, returnTo: a.returnTo, sso, showForm: builtinAllowed(appDef) }).value;
+   }
+   const builtinAllowed = (appDef: AppDef) => appDef.authScheme === 'builtin_accounts' || !!appDef.oidc?.allowBuiltin;
+   const LOGIN_INFO: Record<string, string> = {
+      expired: 'Sesi Anda berakhir. Silakan masuk lagi.',
+      logout: 'Anda sudah keluar.',
+   };
+
    app.get('/r/:ws/:app/login', async (req, reply) => {
       const appDef = await resolveApp(req);
       const s = await sessionFor(req, reply, appDef);
       const q = req.query as Record<string, string>;
-      const info = q.info === 'expired' ? 'Sesi Anda berakhir. Silakan masuk lagi.' : q.info === 'logout' ? 'Anda sudah keluar.' : null;
-      return html(reply, loginPage({ appName: appDef.name, action: `${appBase(appDef)}/login`, csrf: s.csrf, username: '',
-         error: null, info, returnTo: safeReturn(appDef, q.return) }).value);
+      return html(reply, renderLogin(appDef, s, { info: LOGIN_INFO[q.info] ?? null, returnTo: safeReturn(appDef, q.return) }));
    });
 
-   app.post('/r/:ws/:app/login', async (req, reply) => {
+   async function signIn(reply: FastifyReply, appDef: AppDef, guest: Session, user: { id: string; username: string }, returnTo: string) {
+      await opts.pool.query('update rpx.app_users set failed_logins = 0, last_login = now() where id = $1', [user.id]);
+      // new session id after login (session fixation), the guest session is discarded
+      const fresh = await createSession(opts.pool, appDef, user);
+      await deleteSession(opts.pool, guest.id);
+      setSessionCookie(reply, appDef, fresh);
+      return reply.redirect(returnTo, 303);
+   }
+
+   app.post('/r/:ws/:app/login', { config: { rateLimit: loginLimit } }, async (req, reply) => {
       const appDef = await resolveApp(req);
+      if (!builtinAllowed(appDef)) throw new HttpError(403, 'Tidak tersedia', 'Aplikasi ini hanya menerima masuk lewat SSO.');
       const body = req.body as Record<string, string>;
       const s = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
       if (!s || !safeEqual(s.csrf, body.__csrf)) return reply.redirect(loginUrl(appDef, safeReturn(appDef, body.return), 'expired'), 303);
@@ -124,8 +158,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
          [appDef.workspaceId, username]);
       const user = u.rows[0];
       const ok = await verifyPassword(user?.pwd_hash ?? await getDummyHash(), password).catch(() => false);
-      const fail = (msg: string) => html(reply, loginPage({ appName: appDef.name, action: `${appBase(appDef)}/login`, csrf: s.csrf,
-         username, error: msg, info: null, returnTo: safeReturn(appDef, body.return) }).value, 401);
+      const fail = (msg: string) => html(reply, renderLogin(appDef, s, { username, error: msg, returnTo: safeReturn(appDef, body.return) }), 401);
       if (!user || !user.pwd_hash) return fail('Nama pengguna atau kata sandi salah.');
       if (user.locked) return fail('Akun ini dikunci. Hubungi administrator aplikasi.');
       if (!ok) {
@@ -134,12 +167,88 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
              where id = $1 returning locked`, [user.id, MAX_FAILED_LOGINS]);
          return fail(r.rows[0].locked ? 'Terlalu banyak percobaan gagal. Akun dikunci.' : 'Nama pengguna atau kata sandi salah.');
       }
-      await opts.pool.query('update rpx.app_users set failed_logins = 0, last_login = now() where id = $1', [user.id]);
-      // new session id after login (session fixation), the guest session is discarded
-      const fresh = await createSession(opts.pool, appDef, { id: user.id, username: user.username });
-      await deleteSession(opts.pool, s.id);
-      setSessionCookie(reply, appDef, fresh);
-      return reply.redirect(safeReturn(appDef, body.return), 303);
+      return signIn(reply, appDef, s, { id: user.id, username: user.username }, safeReturn(appDef, body.return));
+   });
+
+   // ---------- OIDC (SSO) ----------
+   function publicBase(req: FastifyRequest): string {
+      return (opts.publicUrl ?? `${req.protocol}://${req.host}`).replace(/\/$/, '');
+   }
+   const OIDC_KEYS = ['__oidc_state', '__oidc_nonce', '__oidc_verifier', '__oidc_return'];
+
+   async function oidcSetup(appDef: AppDef) {
+      if (!appDef.oidc) throw new HttpError(404, 'Tidak tersedia', 'Aplikasi ini tidak memakai SSO.');
+      try {
+         return await oidcConfiguration(appDef.oidc, opts.allowInsecureOidc ?? false);
+      } catch (e) {
+         if (e instanceof OidcSetupError) throw new HttpError(500, 'Konfigurasi SSO belum lengkap', e.message);
+         throw new HttpError(502, 'Penyedia identitas tidak dapat dihubungi', 'Coba lagi beberapa saat lagi atau hubungi administrator.');
+      }
+   }
+
+   app.get('/r/:ws/:app/oidc/start', { config: { rateLimit: loginLimit } }, async (req, reply) => {
+      const appDef = await resolveApp(req);
+      const cfg = await oidcSetup(appDef);
+      const s = await sessionFor(req, reply, appDef);
+      const start = await startLogin(cfg, appDef.oidc!, `${publicBase(req)}${appBase(appDef)}/oidc/callback`);
+      await saveState(opts.pool, s, {
+         __oidc_state: start.state, __oidc_nonce: start.nonce, __oidc_verifier: start.verifier,
+         __oidc_return: safeReturn(appDef, (req.query as Record<string, string>).return),
+      });
+      return reply.redirect(start.url, 303);
+   });
+
+   app.get('/r/:ws/:app/oidc/callback', { config: { rateLimit: loginLimit } }, async (req, reply) => {
+      const appDef = await resolveApp(req);
+      const cfg = await oidcSetup(appDef);
+      const s = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
+      const st = (k: string) => s?.state.get(k) ?? null;
+      if (!s || !st('__oidc_state') || !st('__oidc_verifier') || !st('__oidc_nonce')) {
+         return reply.redirect(loginUrl(appDef, undefined, 'expired'), 303);
+      }
+      const returnTo = safeReturn(appDef, st('__oidc_return'));
+      const checks = { state: st('__oidc_state')!, nonce: st('__oidc_nonce')!, verifier: st('__oidc_verifier')! };
+      // one-time use, whatever happens next
+      await saveState(opts.pool, s, Object.fromEntries(OIDC_KEYS.map(k => [k, null])));
+      const fail = (msg: string, status = 401) => html(reply, renderLogin(appDef, s, { error: msg, returnTo }), status);
+
+      const q = req.query as Record<string, string>;
+      if (q.error) {
+         req.log.warn({ oidcError: q.error }, 'oidc error from IdP');
+         return fail(q.error === 'access_denied' ? 'Masuk dibatalkan di penyedia identitas.' : 'Penyedia identitas menolak permintaan masuk.');
+      }
+      let claims: Record<string, unknown>;
+      try {
+         claims = await finishLogin(cfg, new URL(`${publicBase(req)}${req.url}`), checks);
+      } catch (e) {
+         req.log.warn({ err: (e as Error).message }, 'oidc code exchange failed');
+         return fail('Verifikasi masuk dari penyedia identitas gagal. Silakan coba lagi.');
+      }
+      const id = identityFrom(appDef.oidc!, claims);
+      if ('rejected' in id) return fail(id.rejected, 403);
+
+      const found = await opts.pool.query(
+         `select id, username, locked from rpx.app_users where workspace_id = $1 and oidc_issuer = $2 and oidc_subject = $3`,
+         [appDef.workspaceId, id.issuer, id.subject]);
+      let user = found.rows[0] as { id: string; username: string; locked: boolean } | undefined;
+      if (!user) {
+         if (!appDef.oidc!.provision) return fail('Akun Anda belum didaftarkan untuk aplikasi ini. Hubungi administrator.', 403);
+         const ins = await opts.pool.query(
+            `insert into rpx.app_users (workspace_id, username, email, oidc_issuer, oidc_subject, groups)
+             values ($1, $2, $3, $4, $5, $6)
+             on conflict (workspace_id, username) do nothing
+             returning id, username, locked`,
+            [appDef.workspaceId, id.username, id.email, id.issuer, id.subject, id.groups ?? []]);
+         if (!ins.rowCount) {
+            // the name is taken by a local account: never merge identities silently
+            return fail(`Nama pengguna "${id.username}" sudah dipakai akun lain di workspace ini. Hubungi administrator.`, 409);
+         }
+         user = ins.rows[0];
+      } else if (id.groups) {
+         await opts.pool.query('update rpx.app_users set groups = $2, email = coalesce($3, email) where id = $1', [user.id, id.groups, id.email]);
+      }
+      if (user!.locked) return fail('Akun ini dikunci. Hubungi administrator aplikasi.', 403);
+      return signIn(reply, appDef, s, { id: user!.id, username: user!.username }, returnTo);
    });
 
    app.post('/r/:ws/:app/logout', async (req, reply) => {
@@ -192,12 +301,21 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       return html(reply, r.html, r.status);
    });
 
+   });
+
    // ---------- errors (S27) ----------
    app.setErrorHandler((err, req, reply) => {
       const params = req.params as { ws?: string; app?: string } | undefined;
       const back = params?.ws && params.app ? `/r/${encodeURIComponent(params.ws)}/${encodeURIComponent(params.app)}` : null;
       if (err instanceof HttpError) {
          return html(reply, errorPage(err.status, err.title, err.message, back).value, err.status);
+      }
+      const code = (err as { statusCode?: number }).statusCode;
+      if (code === 429) {
+         return html(reply, errorPage(429, 'Terlalu banyak percobaan', 'Tunggu sekitar satu menit lalu coba lagi.', back).value, 429);
+      }
+      if (code && code >= 400 && code < 500) {
+         return html(reply, errorPage(code, 'Permintaan tidak valid', 'Permintaan tidak dapat diproses.', back).value, code);
       }
       const ref = randomUUID().slice(0, 8);
       req.log.error({ err, ref }, 'unhandled error');

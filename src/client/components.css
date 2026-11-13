@@ -311,3 +311,5 @@ a.r-card:hover { border-color: var(--r-color-accent); color: inherit; }
 .r-region__items-bar .r-field { flex: 1 1 260px; max-width: 420px; }
 .r-region__static > :first-child { margin-top: 0; }
 .r-region__static > :last-child { margin-bottom: 0; }
+.r-btn--block { display: flex; width: 100%; }
+.r-login .r-divider { margin: var(--r-space-6) 0; }

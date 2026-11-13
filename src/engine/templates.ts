@@ -96,7 +96,13 @@ export function alert(kind: 'success' | 'danger' | 'warning' | 'info', title: st
 
 export function loginPage(args: {
    appName: string; action: string; csrf: string; username: string; error: string | null; info: string | null; returnTo: string;
+   sso?: { label: string; href: string } | null; showForm?: boolean;
 }): SafeHtml {
+   const showForm = args.showForm ?? true;
+   const sso = args.sso
+      ? html`<a class="r-btn r-btn--primary r-btn--lg r-btn--block" href="${args.sso.href}">${icon('key-round')} ${args.sso.label}</a>
+             ${showForm ? html`<p class="r-divider">atau dengan akun aplikasi</p>` : ''}`
+      : html``;
    const body = html`<main class="r-login" id="main">
   <div class="r-login__card">
     <div class="r-login__brand">${icon('layout-grid')} ${args.appName}</div>
@@ -105,16 +111,17 @@ export function loginPage(args: {
       <div class="r-region__body">
         ${args.error ? alert('danger', args.error) : ''}
         ${args.info ? alert('info', args.info) : ''}
-        <input type="hidden" name="__csrf" value="${args.csrf}">
+        ${sso}
+        ${showForm ? html`<input type="hidden" name="__csrf" value="${args.csrf}">
         <input type="hidden" name="return" value="${args.returnTo}">
         <div class="r-form">
           <div class="r-field r-col-12"><label class="r-label" for="username">Nama pengguna</label>
-            <input class="r-input" id="username" name="username" autocomplete="username" required value="${args.username}"${attrIf('autofocus', !args.username)}></div>
+            <input class="r-input" id="username" name="username" autocomplete="username" required value="${args.username}"${attrIf('autofocus', !args.username && !args.sso)}></div>
           <div class="r-field r-col-12"><label class="r-label" for="password">Kata sandi</label>
             <input class="r-input" id="password" name="password" type="password" autocomplete="current-password" required${attrIf('autofocus', !!args.username)}></div>
-        </div>
+        </div>` : ''}
       </div>
-      <div class="r-region__footer"><button type="submit" class="r-btn r-btn--primary">Masuk</button></div>
+      ${showForm ? html`<div class="r-region__footer"><button type="submit" class="r-btn${args.sso ? '' : ' r-btn--primary'}">Masuk</button></div>` : ''}
     </form>
   </div>
 </main>`;

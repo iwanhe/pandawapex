@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { translateBinds, wrapDoBlock } from './bind.ts';
 import { itemsMessage, sign, urlMessage, verify } from './checksum.ts';
@@ -121,6 +122,8 @@ export interface RenderState {
    errors?: { item: string | null; message: string }[];
    processError?: { title: string; detail: string };
    runBeforeHeader: boolean;
+   /** signed row-version tokens per form region (static id), carried through re-renders */
+   rowVersions?: Record<string, string>;
    query?: Record<string, string>;
 }
 
@@ -159,7 +162,10 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
             if (p.type !== 'form_init') continue;
             const r = await inSavepoint(c, () => formInit(c, ctx, page, p));
             if (!r.ok) initError = pgMessage(r.error);
-            else Object.assign(stateChanges, r.value);
+            else {
+               Object.assign(stateChanges, r.value.values);
+               if (r.value.version) (rs.rowVersions ??= {})[r.value.staticId] = r.value.version;
+            }
          }
          // defaults for empty items (new record)
          for (const it of page.items) {
@@ -229,22 +235,48 @@ function protectedChecksum(ctx: Ctx, page: PageDef): SafeHtml {
    return html`<input type="hidden" name="__ps" value="${sign(ctx.secret, ctx.session.salt, itemsMessage(page.no, vals))}">`;
 }
 
-async function formInit(c: pg.PoolClient, ctx: Ctx, page: PageDef, p: ProcessDef): Promise<Record<string, string | null>> {
-   const region = page.regions.find(r => r.id === p.regionId)!;
-   const cols = region.items.filter(i => i.column);
+/** Columns of a form region in a fixed order: what form_init reads and the row version hashes. */
+function formColumns(region: RegionDef): ItemDef[] {
+   return region.items.filter(i => i.column);
+}
+
+async function readRow(c: pg.PoolClient, region: RegionDef, pkVals: (string | null)[], lock: boolean): Promise<(string | null)[] | null> {
+   const cols = formColumns(region);
    const pks = cols.filter(i => i.pk);
-   const pkVals = pks.map(i => ctx.session.state.get(i.name) ?? null);
-   const out: Record<string, string | null> = {};
-   if (pkVals.some(v => v === null)) {
-      // new record: clear the non-pk items unless the user already typed something this request
-      return out;
-   }
    const sql = `select ${cols.map(i => quoteIdent(i.column!)).join(', ')} from ${quoteQualified(region.source!)}
-                where ${pks.map((i, n) => `${quoteIdent(i.column!)} = $${n + 1}`).join(' and ')}`;
+                where ${pks.map((i, n) => `${quoteIdent(i.column!)} = $${n + 1}`).join(' and ')}${lock ? ' for update' : ''}`;
    const r = await c.query({ text: sql, values: pkVals, rowMode: 'array' });
-   if (!r.rowCount) throw new Error('Data yang diminta tidak ditemukan (mungkin sudah dihapus).');
-   cols.forEach((it, n) => { out[it.name] = toText(r.rows[0][n]); });
-   return out;
+   return r.rowCount ? (r.rows[0] as unknown[]).map(toText) : null;
+}
+
+// Lost-update detection: form_init signs a hash of the row it showed; form_dml re-reads the row
+// FOR UPDATE and refuses to write when the hash differs (someone else changed it meanwhile).
+function rowHash(values: (string | null)[]): string {
+   return createHash('sha256').update(JSON.stringify(values)).digest('base64url').slice(0, 32);
+}
+function versionToken(ctx: Ctx, page: PageDef, region: RegionDef, values: (string | null)[]): string {
+   const h = rowHash(values);
+   return `${h}.${sign(ctx.secret, ctx.session.salt, `rv|${page.no}|${region.staticId}|${h}`)}`;
+}
+function versionMatches(ctx: Ctx, page: PageDef, region: RegionDef, token: string | undefined, current: (string | null)[]): boolean {
+   const [h, sig] = (token ?? '').split('.');
+   if (!h || !verify(ctx.secret, ctx.session.salt, `rv|${page.no}|${region.staticId}|${h}`, sig)) return false;
+   return h === rowHash(current);
+}
+
+export class LostUpdateError extends Error {}
+
+async function formInit(c: pg.PoolClient, ctx: Ctx, page: PageDef, p: ProcessDef):
+      Promise<{ values: Record<string, string | null>; version: string | null; staticId: string }> {
+   const region = page.regions.find(r => r.id === p.regionId)!;
+   const cols = formColumns(region);
+   const pkVals = cols.filter(i => i.pk).map(i => ctx.session.state.get(i.name) ?? null);
+   const values: Record<string, string | null> = {};
+   if (pkVals.some(v => v === null)) return { values, version: null, staticId: region.staticId };   // new record
+   const row = await readRow(c, region, pkVals, false);
+   if (!row) throw new Error('Data yang diminta tidak ditemukan (mungkin sudah dihapus).');
+   cols.forEach((it, n) => { values[it.name] = row[n]; });
+   return { values, version: versionToken(ctx, page, region, row), staticId: region.staticId };
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +289,8 @@ async function renderRegion(c: pg.PoolClient, ctx: Ctx, page: PageDef, r: Region
       body = await classicReport(c, ctx, page, r, rs);
       flush = true;
    } else if (r.type === 'form') {
-      body = html`<div class="r-form">${await itemsHtml(c, ctx, r.items, rs)}</div>`;
+      const rv = rs.rowVersions?.[r.staticId];
+      body = html`${rv ? html`<input type="hidden" name="__rv_${r.staticId}" value="${rv}">` : ''}<div class="r-form">${await itemsHtml(c, ctx, r.items, rs)}</div>`;
    } else {
       const content = r.source ? html`<div class="r-region__static">${raw(substitute(r.source, values(ctx), true))}</div>` : html``;
       body = r.items.length ? html`${content}<div class="r-form">${await itemsHtml(c, ctx, r.items, rs)}</div>` : content;
@@ -429,7 +462,7 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
    // 3. validations
    const errors = await validate(ctx, page, request);
    if (errors.length) {
-      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, errors }) };
+      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, errors, rowVersions: postedVersions(page, body) }) };
    }
 
    // 4. processes (one transaction, developer code as the workspace role)
@@ -443,11 +476,13 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
       await enterUserCode(c, userCtx(ctx));
       for (const p of procs) {
          try {
-            const ch = await runProcess(c, ctx, page, p, request, changes);
+            const ch = await runProcess(c, ctx, page, p, request, changes, body);
             changes = { ...changes, ...ch };
             if (p.successMsg) messages.push(p.successMsg);
          } catch (e) {
-            failed = { title: p.errorMsg ?? `Proses "${p.name}" gagal.`, detail: pgMessage(e) };
+            failed = e instanceof LostUpdateError
+               ? { title: 'Data diubah pengguna lain', detail: e.message }
+               : { title: p.errorMsg ?? `Proses "${p.name}" gagal.`, detail: pgMessage(e) };
             break;
          }
       }
@@ -460,7 +495,7 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
       c.release();
    }
    if (failed) {
-      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, processError: failed }) };
+      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, processError: failed, rowVersions: postedVersions(page, body) }) };
    }
    await saveState(ctx.pool, ctx.session, changes);
    if (messages.length) {
@@ -516,10 +551,19 @@ async function validate(ctx: Ctx, page: PageDef, request: string): Promise<{ ite
    return errors;
 }
 
+function postedVersions(page: PageDef, body: Record<string, string>): Record<string, string> {
+   const out: Record<string, string> = {};
+   for (const r of page.regions) {
+      const v = body[`__rv_${r.staticId}`];
+      if (typeof v === 'string' && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v)) out[r.staticId] = v;
+   }
+   return out;
+}
+
 const isDelete = (request: string) => /^(DELETE|HAPUS)$/.test(request);
 
 async function runProcess(c: pg.PoolClient, ctx: Ctx, page: PageDef, p: ProcessDef, request: string,
-                          changes: Record<string, string | null>): Promise<Record<string, string | null>> {
+                          changes: Record<string, string | null>, body: Record<string, string>): Promise<Record<string, string | null>> {
    const state = (n: string) => (n in changes ? changes[n] : ctx.session.state.get(n) ?? null);
    if (p.type === 'clear_cache') {
       await clearPages(ctx.pool, ctx.session, ctx.app, [page.no]);
@@ -547,6 +591,16 @@ async function runProcess(c: pg.PoolClient, ctx: Ctx, page: PageDef, p: ProcessD
    const pkVals = pks.map(i => state(i.name));
    const nonPk = cols.filter(i => !i.pk);
    const where = pks.map((i, n) => `${quoteIdent(i.column!)} = $${n + 1}`).join(' and ');
+
+   if (pkVals.every(v => v !== null)) {
+      // update / delete of an existing row: lock it and compare with the version the user saw
+      const current = await readRow(c, region, pkVals, true);
+      if (!current) throw new Error('Data sudah tidak ada (mungkin dihapus pengguna lain).');
+      if (!versionMatches(ctx, page, region, body[`__rv_${region.staticId}`], current)) {
+         throw new LostUpdateError('Data ini diubah pengguna lain sejak Anda membukanya, jadi perubahan Anda tidak disimpan. '
+            + 'Buka ulang data dari daftar untuk melihat versi terbaru, lalu ulangi perubahan Anda.');
+      }
+   }
 
    if (isDelete(request)) {
       if (pkVals.some(v => v === null)) throw new Error('Tidak ada data yang dipilih untuk dihapus.');

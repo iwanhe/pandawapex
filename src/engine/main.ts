@@ -6,7 +6,12 @@ const secret = process.env.RPX_SECRET ?? '';
 if (!url) { console.error('RPX_DATABASE_URL (or DATABASE_URL) is not set'); process.exit(1); }
 
 const pool = createPool(url);
-const app = buildServer({ pool, secret, secureCookies: process.env.RPX_SECURE_COOKIES === '1', logger: true });
+const app = buildServer({
+   pool, secret, logger: true,
+   secureCookies: process.env.RPX_SECURE_COOKIES === '1',
+   publicUrl: process.env.RPX_PUBLIC_URL || undefined,
+   loginRateLimit: process.env.RPX_LOGIN_RATE_LIMIT ? Number(process.env.RPX_LOGIN_RATE_LIMIT) : undefined,
+});
 const port = Number(process.env.PORT ?? 8080);
 app.listen({ port, host: process.env.HOST ?? '0.0.0.0' }).catch(err => { app.log.error(err); process.exit(1); });
 

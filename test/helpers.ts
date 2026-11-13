@@ -20,7 +20,7 @@ export interface Env {
    close: () => Promise<void>;
 }
 
-export async function setup(specText?: string): Promise<Env> {
+export async function setup(specText?: string, serverOpts: Partial<Parameters<typeof buildServer>[0]> = {}): Promise<Env> {
    const tag = randomBytes(4).toString('hex');
    const dbName = `rpx_t_${tag}`;
    const admin = new pg.Client({ connectionString: ADMIN_URL });
@@ -40,7 +40,7 @@ export async function setup(specText?: string): Promise<Env> {
    await importApp(pool, ws, spec, 'test');
    await addUser(pool, ws, 'iwan', 'rahasia-123');
 
-   const app = buildServer({ pool, secret: 'x'.repeat(40) });
+   const app = buildServer({ pool, secret: 'x'.repeat(40), loginRateLimit: 1000, ...serverOpts });
    await app.ready();
    return {
       pool, app, ws, schema, base: `/r/${ws}/emp`,

@@ -33,7 +33,9 @@ npm run rpx -- user add --ws demo --username iwan --password 'rahasia123'
 npm run dev                                               # http://localhost:8080/r/demo/emp/1
 ```
 
-Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` di balik HTTPS.
+Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.
+
+SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/backend.md](replica/backend.md#konfigurasi-sso-di-spec).
 
 ## Aturan spec yang perlu diketahui developer APEX
 

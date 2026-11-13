@@ -40,7 +40,17 @@ export interface PageSpec {
 }
 export interface AppSpec {
    app: string; name: string; version?: string; parsing_schema: string; home_page?: number; timezone?: string;
-   substitutions?: Record<string, string>; authentication?: string; navigation?: NavSpec[]; pages: PageSpec[];
+   substitutions?: Record<string, string>; authentication?: string | AuthSpec; navigation?: NavSpec[]; pages: PageSpec[];
+}
+export interface OidcSpec {
+   issuer: string; client_id: string; client_secret_env: string; scopes?: string; username_claim?: string;
+   groups_claim?: string; allowed_domains?: string[]; provision?: boolean; button_label?: string;
+}
+export interface AuthSpec { scheme: 'builtin_accounts' | 'oidc' | 'no_auth'; oidc?: OidcSpec; allow_builtin?: boolean }
+
+export function authOf(spec: AppSpec): AuthSpec {
+   const a = spec.authentication ?? 'builtin_accounts';
+   return typeof a === 'string' ? { scheme: a as AuthSpec['scheme'] } : a;
 }
 
 export class SpecError extends Error {
@@ -131,6 +141,9 @@ function checkSemantics(spec: AppSpec): void {
    });
    walkNav(spec.navigation ?? []);
    if (spec.home_page !== undefined && !pages.has(spec.home_page)) p.push(`home_page ${spec.home_page} does not exist`);
+   const auth = authOf(spec);
+   if (auth.scheme === 'oidc' && !auth.oidc) p.push('authentication: scheme oidc needs an oidc block');
+   if (auth.scheme !== 'oidc' && (auth.oidc || auth.allow_builtin !== undefined)) p.push('authentication: oidc / allow_builtin only apply to scheme oidc');
    if (p.length) throw new SpecError(p);
 }
 
@@ -168,8 +181,9 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
    await c.query('delete from rpx.auth_schemes where app_id = $1', [appId]);
    await c.query('delete from rpx.lovs where app_id = $1', [appId]);
 
-   await c.query(`insert into rpx.auth_schemes (app_id, name, scheme_type, is_current) values ($1, 'default', $2, true)`,
-      [appId, spec.authentication ?? 'builtin_accounts']);
+   const auth = authOf(spec);
+   await c.query(`insert into rpx.auth_schemes (app_id, name, scheme_type, attributes, is_current) values ($1, 'default', $2, $3, true)`,
+      [appId, auth.scheme, auth.scheme === 'oidc' ? { ...auth.oidc, allow_builtin: auth.allow_builtin ?? false } : {}]);
 
    if (spec.navigation?.length) {
       const nl = await c.query(`insert into rpx.nav_lists (app_id, name) values ($1, 'navigation_menu') returning id`, [appId]);
@@ -192,7 +206,7 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          `insert into rpx.pages (app_id, page_no, alias, name, title, requires_auth, attributes)
           values ($1, $2, $3, $4, $5, $6, $7) returning id`,
          [appId, page.page, page.alias ?? null, page.name, page.title ?? null,
-          spec.authentication === 'no_auth' ? false : page.requires_auth ?? true,
+          auth.scheme === 'no_auth' ? false : page.requires_auth ?? true,
           { breadcrumb_parent: page.breadcrumb_parent ?? null }]);
       const pageId: string = pg_.rows[0].id;
       const regionIds = new Map<string, string>();
