@@ -25,8 +25,25 @@ computations:
     type: sql_expression
     expression: "to_char(now(), 'DD-MM-YYYY HH24:MI')"
 
+# Daftar pilihan bersama: dipakai beberapa item lewat namanya.
+lovs:
+  DEPARTEMEN:
+    sql: select nama as d, deptno as r from departemen order by nama
+  STATUS_KERJA:
+    static:
+      - { display: Tetap, return: TETAP }
+      - { display: Kontrak, return: KONTRAK }
+      - { display: Magang, return: MAGANG }
+  KEAHLIAN:
+    static:
+      - { display: SQL, return: SQL }
+      - { display: APEX, return: APEX }
+      - { display: Gudang, return: GDG }
+      - { display: K3, return: K3 }
+
 navigation:
   - { label: Karyawan, icon: users, page: 1 }
+  - { label: Mutasi, icon: pencil, page: 4, authorization: pengelola_sdm }
   - { label: Tentang aplikasi, icon: info, page: 3 }
 
 pages:
@@ -78,20 +95,13 @@ pages:
             label: Departemen
             col_span: 6
             source: { column: deptno }
-            lov:
-              sql: select nama as d, deptno as r from departemen order by nama
-              null_display: "- Pilih departemen -"
+            lov: DEPARTEMEN
+            null_display: "- Pilih departemen -"
           - { name: P2_TGL_MASUK, type: date, label: Tanggal masuk, required: true, col_span: 6, source: { column: tgl_masuk } }
           - { name: P2_GAJI, type: number, label: Gaji per bulan (Rp), required: true, col_span: 6, help: Angka tanpa titik pemisah ribuan., source: { column: gaji } }
-          - name: P2_AKTIF
-            type: select
-            label: Status
-            col_span: 6
-            source: { column: aktif }
-            lov:
-              static:
-                - { display: Aktif, return: Y }
-                - { display: Nonaktif, return: N }
+          - { name: P2_AKTIF, type: switch, label: Aktif, col_span: 6, default: "Y", source: { column: aktif } }
+          - { name: P2_STATUS_KERJA, type: radio, label: Status kerja, lov: STATUS_KERJA, inline: true, required: true, default: TETAP, col_span: 6, source: { column: status_kerja } }
+          - { name: P2_KEAHLIAN, type: checkbox_group, label: Keahlian, lov: KEAHLIAN, inline: true, col_span: 12, source: { column: keahlian } }
           - { name: P2_MASA_KERJA, type: display_only, label: Masa kerja, col_span: 6, condition: { item_not_null: P2_EMPNO } }
         buttons:
           - { name: BATAL, label: Batal, action: close_dialog, style: ghost }
@@ -132,3 +142,83 @@ pages:
           html: |
             <p>Aplikasi contoh untuk &COMPANY.: daftar dan form karyawan.</p>
             <p>Anda masuk sebagai <strong>&APP_USER.</strong> sejak &AI_MASUK_SEJAK..</p>
+
+  - page: 4
+    alias: mutasi
+    name: Mutasi karyawan
+    authorization: pengelola_sdm
+    regions:
+      - static_id: mutasi
+        title: Mutasi jabatan
+        type: static
+        items:
+          - name: P4_DEPT_ASAL
+            type: select
+            label: Departemen asal
+            col_span: 6
+            lov: DEPARTEMEN
+            null_display: "- Semua departemen -"
+          # daftar karyawan dimuat ulang setiap kali departemen asal berubah
+          - name: P4_EMPNO
+            type: popup_lov
+            label: Karyawan
+            required: true
+            col_span: 6
+            cascade: [P4_DEPT_ASAL]
+            lov:
+              sql: |
+                select nama || ' (' || coalesce(jabatan, '-') || ')' as d, empno as r
+                from karyawan
+                where aktif and (:P4_DEPT_ASAL is null or deptno = :P4_DEPT_ASAL::int)
+                order by nama
+          - { name: P4_DEPT_TUJUAN, type: radio, label: Departemen tujuan, required: true, col_span: 6, lov: DEPARTEMEN }
+          - name: P4_JABATAN_BARU
+            type: select
+            label: Jabatan baru
+            required: true
+            col_span: 6
+            cascade: [P4_DEPT_TUJUAN]
+            null_display: "- Pilih jabatan -"
+            lov:
+              sql: select nama as d, nama as r from jabatan where deptno = :P4_DEPT_TUJUAN::int order by nama
+          - { name: P4_BERLAKU, type: datetime, label: Berlaku mulai, required: true, col_span: 6 }
+          - { name: P4_STATUS, type: radio, label: Status kerja, lov: STATUS_KERJA, inline: true, required: true, default: TETAP, col_span: 6 }
+          - { name: P4_KEAHLIAN, type: checkbox_group, label: Keahlian, lov: KEAHLIAN, inline: true }
+          - { name: P4_SETUJU, type: checkbox, label: Atasan langsung sudah menyetujui mutasi ini, required: true }
+        buttons:
+          - { name: PROSES, label: Proses mutasi, hot: true }
+    validations:
+      - name: jabatan_berubah
+        type: fn_returns_error
+        item: P4_JABATAN_BARU
+        when_button: PROSES
+        expression: |
+          declare
+             l_nama text;
+          begin
+             select nama into l_nama from karyawan
+             where empno = :P4_EMPNO::int and deptno = :P4_DEPT_TUJUAN::int and jabatan = :P4_JABATAN_BARU;
+             if found then
+                return l_nama || ' sudah menjabat ' || :P4_JABATAN_BARU || ' di departemen itu.';
+             end if;
+             return null;
+          end;
+      - name: berlaku_tidak_lampau
+        type: fn_boolean
+        item: P4_BERLAKU
+        when_button: PROSES
+        expression: "return :P4_BERLAKU::timestamp >= date_trunc('day', localtimestamp);"
+        error_msg: Tanggal berlaku tidak boleh sebelum hari ini.
+    processes:
+      - name: mutasi
+        type: plpgsql
+        when_button: PROSES
+        code: |
+          update karyawan
+             set deptno = :P4_DEPT_TUJUAN::int, jabatan = :P4_JABATAN_BARU
+               , status_kerja = :P4_STATUS, keahlian = coalesce(:P4_KEAHLIAN, keahlian)
+           where empno = :P4_EMPNO::int;
+        success_msg: Mutasi karyawan tercatat.
+      - { name: bersihkan, type: clear_cache }
+    branches:
+      - { page: 1 }

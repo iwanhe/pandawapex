@@ -292,6 +292,7 @@ export function formatValue(v: string | null, format: string | null): string {
    if (v === null) return '';
    if ((format === 'number' || format === 'integer') && /^-?\d+(\.\d+)?$/.test(v)) return (format === 'number' ? NUM : INT).format(Number(v));
    if (format === 'date') { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v); if (m) return `${m[3]}-${m[2]}-${m[1]}`; }
+   if (format === 'datetime') { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(v); if (m) return `${m[3]}-${m[2]}-${m[1]} ${m[4]}`; }
    return v;
 }
 

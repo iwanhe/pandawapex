@@ -12,6 +12,7 @@ import { acceptPage, appBase, applyUrlArgs, HttpError, renderPage, type Ctx, typ
 import { cookieName, cookiePath, createSession, deleteSession, loadSession, saveState, type Session } from './session.ts';
 import { Evaluator } from './guard.ts';
 import { downloadRows } from './ir.ts';
+import { itemEndpoint } from './items.ts';
 import { toCsv, toXlsx } from './export.ts';
 import { enterUserCode } from './db.ts';
 import { bindValues } from './session.ts';
@@ -333,6 +334,20 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
          ? reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(toXlsx(data.cols, data.rows, region.title ?? region.staticId))
          : reply.type('text/csv; charset=utf-8').send(toCsv(data.cols, data.rows));
    });
+
+   // popup LOV search (lov) and cascading list refresh (field): HTML fragments for rpx.js
+   for (const what of ['lov', 'field'] as const) {
+      app.get(`/r/:ws/:app/:page/${what}/:item`, async (req, reply) => {
+         const appDef = await resolveApp(req);
+         const page = resolvePage(appDef, (req.params as { page: string }).page);
+         const session = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
+         if (!session || (page.requiresAuth && !session.appUserId)) throw new HttpError(401, 'Sesi berakhir', 'Sesi Anda sudah berakhir. Muat ulang halaman lalu masuk lagi.');
+         const ctx: Ctx = { pool: opts.pool, secret: opts.secret, app: appDef, session };
+         const out = await itemEndpoint(ctx, page, (req.params as { item: string }).item, what, req.query as Record<string, unknown>);
+         reply.header('Cache-Control', 'no-store');
+         return html(reply, out);
+      });
+   }
 
    app.post('/r/:ws/:app/:page', async (req, reply) => {
       const appDef = await resolveApp(req);

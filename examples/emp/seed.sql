@@ -39,3 +39,24 @@ from (values
    ) as v(nama, jabatan, dept, tgl, gaji)
 join departemen d on d.nama = v.dept
 where not exists (select 1 from karyawan);
+
+-- M3: jabatan per departemen (cascading list), status kerja (radio), keahlian (checkbox group)
+create table if not exists jabatan (
+     deptno  int  not null references departemen (deptno)
+   , nama    text not null
+   , primary key (deptno, nama)
+);
+insert into jabatan (deptno, nama)
+select d.deptno, v.nama
+from (values
+     ('Gudang Bahan Baku',   'Kepala Gudang'),   ('Gudang Bahan Baku',   'Staf Penerimaan'), ('Gudang Bahan Baku', 'Operator Forklift')
+   , ('Produksi',            'Analis QC'),       ('Produksi',            'Supervisor Lini 2'), ('Produksi',        'Operator Mesin')
+   , ('Keuangan',            'Akuntan'),         ('Keuangan',            'Staf Administrasi'), ('Keuangan',        'Kasir')
+   , ('Teknologi Informasi', 'Pengembang APEX'), ('Teknologi Informasi', 'Administrator Basis Data')
+   ) as v(dept, nama)
+join departemen d on d.nama = v.dept
+on conflict do nothing;
+
+alter table karyawan add column if not exists status_kerja text not null default 'TETAP'
+   check (status_kerja in ('TETAP', 'KONTRAK', 'MAGANG'));
+alter table karyawan add column if not exists keahlian text;      -- kode dipisah ':' (checkbox group)

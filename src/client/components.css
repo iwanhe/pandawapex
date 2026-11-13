@@ -20,6 +20,7 @@ a { color: var(--r-color-accent); text-underline-offset: 2px; }
 a:hover { color: var(--r-color-accent-hover); }
 .r-icon { width: 16px; height: 16px; flex: none; stroke-width: 2; vertical-align: middle; }
 .r-icon--lg { width: 20px; height: 20px; }
+[hidden] { display: none !important; }   /* components set display; the hidden attribute must still win */
 .r-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .r-skip { position: absolute; left: var(--r-space-3); top: -100px; z-index: var(--r-z-toast); background: var(--r-color-surface); padding: var(--r-space-3) var(--r-space-5); }
 .r-skip:focus { top: var(--r-space-3); }
@@ -269,6 +270,17 @@ th[aria-sort] .r-sort { color: var(--r-color-text); }
 .r-lov-list [role="option"]:last-child { border-bottom: 0; }
 .r-lov-list [role="option"]:hover, .r-lov-list [role="option"][aria-selected="true"] { background: var(--r-color-accent-subtle); }
 .r-lov-list mark { background: none; color: var(--r-color-accent); font-weight: 700; }
+.r-lov-list [role="option"][aria-selected="true"] { box-shadow: inset 3px 0 0 var(--r-color-accent); }
+.r-lov-empty { margin: var(--r-space-4) 0 0; color: var(--r-color-text-muted); }
+.r-lov-more { margin-top: var(--r-space-3); }
+.r-lov-dialog .r-dialog__body { display: flex; flex-direction: column; }
+.r-popup-lov .r-input[readonly] { cursor: pointer; background: var(--r-color-surface); }
+.r-input-group > .r-btn:not(:last-child) { border-radius: 0; }
+
+/* radio / checkbox group as one field (fieldset + legend) */
+.r-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.r-fieldset > legend.r-label { padding: 0; margin-bottom: var(--r-space-2); }
+.r-field[aria-busy="true"] { opacity: .55; pointer-events: none; }
 
 /* ---------- cards + faceted search ---------- */
 .r-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--r-grid-gap); }

@@ -48,6 +48,11 @@ Setiap tes e2e otomatis gagal bila ada console error atau respons 5xx, dan layar
 | F04-N6 | F04 | negatif: CSRF / tombol palsu | POST tanpa token; `REQUEST=DROP` | 403; 400 | int | ✅ |
 | F04-N7 | F04 | negatif: proses gagal | PL/pgSQL `raise exception` | seluruh perubahan di-rollback, pesan proses tampil | int | ✅ |
 | F04-N8 | F04 | negatif: token versi palsu/hilang | kirim tanpa `__rv` / dengan token palsu | ditolak sebagai lost update | int | ✅ |
+| F04-I1 | F04 | happy: item & LOV | mutasi: departemen asal → popup LOV (cari, panah, Enter) → radio departemen tujuan → jabatan ter-refresh → tanggal-jam → setujui → Proses | tersimpan, pesan sukses; axe bersih di page dan saat dialog LOV terbuka | e2e, int | ✅ |
+| F04-I2 | F04 | edge: cascade & keyboard | pilih karyawan, ganti departemen asal; Esc di dialog LOV | anak dikosongkan; Esc menutup daftar saja, fokus kembali ke field | e2e | ✅ |
+| F04-I3 | F04 | happy: switch & checkbox group di modal | matikan Aktif, centang 2 keahlian, pilih Magang | DB: `aktif=false`, `keahlian='SQL:APEX'` | e2e, int | ✅ |
+| F04-I4 | F04 | negatif: nilai di luar daftar | POST departemen 999, status palsu, keahlian palsu, switch "mungkin" | 422 dengan pesan per field, tidak ada yang tersimpan | int | ✅ |
+| F04-I5 | F04 | negatif: endpoint LOV | tanpa session; user tanpa grup SDM; item page lain; parent hidden ditimpa lewat URL | 401; 403; 404; parent diabaikan | int | ✅ |
 | F07-H1 | F07 | happy: SSO | tombol "Masuk dengan akun KCSI" → IdP → callback | masuk, kembali ke page yang diminta, grup tersimpan; tanpa form kata sandi; axe bersih | e2e, int | ✅ (mock IdP) |
 | F07-H2 | F07 | happy: login kedua | SSO lagi dengan sub sama | akun yang sama, grup diperbarui | int | ✅ |
 | F07-N1 | F07 | negatif: domain lain | akun `@contoh.com` | ditolak "tidak diizinkan" | e2e, int | ✅ |
