@@ -351,6 +351,32 @@
     }
   });
 
+  // builder import: a chosen (or dropped) YAML file is read into the spec textarea; the form itself stays urlencoded
+  const specText = (form) => form && form.querySelector('textarea[name="spec"]');
+  const loadSpecFile = (form, file) => {
+    if (!file) return;
+    const help = form.querySelector('#spec-file-help');
+    if (file.size > 900 * 1024) { if (help) help.textContent = `${file.name} terlalu besar (maksimal 900 KB).`; return; }
+    const r = new FileReader();
+    r.onload = () => {
+      specText(form).value = String(r.result);
+      if (help) help.textContent = `${file.name} dimuat (${(file.size / 1024).toFixed(1)} KB). Periksa lalu tekan Impor.`;
+    };
+    r.readAsText(file);
+  };
+  document.addEventListener('change', (e) => {
+    if (e.target.matches && e.target.matches('[data-spec-file]')) loadSpecFile(e.target.closest('form'), e.target.files[0]);
+  });
+  for (const drop of document.querySelectorAll('[data-spec-drop]')) {
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.setAttribute('data-dragover', ''); });
+    drop.addEventListener('dragleave', () => drop.removeAttribute('data-dragover'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      drop.removeAttribute('data-dragover');
+      loadSpecFile(drop.closest('form'), e.dataTransfer.files[0]);
+    });
+  }
+
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
   if (summary) summary.focus();

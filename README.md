@@ -35,8 +35,15 @@ psql "$DATABASE_URL" -f examples/emp/seed.sql             # tabel contoh di sche
 npm run rpx -- app import examples/emp/app.yaml --ws demo
 npm run rpx -- user add --ws demo --username iwan --password 'rahasia123'
 
+npm run rpx -- dev add --ws demo --username admin --password 'rahasia123' --admin
+
 npm run dev                                               # http://localhost:8080/r/demo/emp/1
 ```
+
+**Builder** (Fase 2, mulai B1): http://localhost:8080/builder, masuk dengan workspace + akun developer (`rpx dev add`;
+`demo setup` dan `pilot setup` membuat developer `admin`). Isinya beranda workspace, daftar aplikasi, buat aplikasi
+kosong, impor dan ekspor spec YAML, riwayat impor, dan hapus aplikasi. Ekspor dari CLI:
+`npm run rpx -- app export demo --ws pandawa --out demo.yaml`; ekspor lalu impor lagi menghasilkan metadata yang sama.
 
 Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.
 
@@ -76,8 +83,9 @@ npm run typecheck
 ```
 db/migrations/      migrasi SQL (0001 = schema rpx + rpx_rt)
 src/engine/         server, session, render (show), accept, bind translator, report & form
-src/spec/           JSON Schema spec + importer YAML -> rpx.*
-src/cli/            rpx db migrate | ws create | app import | user add
+src/spec/           JSON Schema spec + importer YAML -> rpx.* + exporter rpx.* -> YAML
+src/builder/        builder (/builder): login developer, workspace, daftar aplikasi, impor/ekspor
+src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add
 src/client/         tokens.css + components.css (design system) + rpx.js
 examples/emp/       aplikasi contoh (report + form karyawan)
 test/               tes integrasi (node:test) terhadap PostgreSQL nyata
