@@ -1,4 +1,4 @@
-# Test plan: pandawapex (Fase 1, M0–M1 + backend)
+# Test plan: pandawapex (Fase 1: M0–M4 + M3, backend)
 
 Build: `f146862` (branch `build/e2e`)  Date: 2026-11-13  Env: lokal, PostgreSQL 16, seed `examples/emp`, Chrome 1440×900 dan 390×844
 
@@ -11,10 +11,10 @@ Yang dites adalah **clone kita sendiri** (`npm run e2e`, `npm test`), bukan Orac
 | F01 buat app dari tabel (builder) | belum dibangun (Fase 2) | — |
 | F02 tambah page Report+Form (builder) | belum dibangun | — |
 | F03 Page Designer | belum dibangun | — |
-| **F04 end user edit data (core loop)** | M1 | ✅ e2e + integrasi |
-| F05 personalisasi IR | M4 | — |
+| **F04 end user edit data (core loop)** | M1 + M3 (item & LOV) + M4 (dialog) | ✅ e2e + integrasi |
+| F05 personalisasi IR | M4 (dasar, tanpa saved reports) | ✅ e2e + integrasi |
 | F06 Interactive Grid | Fase 2 | — |
-| **F07 mengamankan app** | sebagian: autentikasi (akun + SSO); authorization scheme = M2 | ✅ bagian autentikasi |
+| **F07 mengamankan app** | autentikasi (akun + SSO) + authorization scheme (M2) | ✅ |
 | **F08 promosi DEV→PROD** | sebagian: import spec | ✅ import ulang saat user aktif |
 | **F09 navigasi + session state** | M1 | ✅ e2e + integrasi |
 | F10 debugging | M5 | — |
@@ -53,6 +53,11 @@ Setiap tes e2e otomatis gagal bila ada console error atau respons 5xx, dan layar
 | F04-I3 | F04 | happy: switch & checkbox group di modal | matikan Aktif, centang 2 keahlian, pilih Magang | DB: `aktif=false`, `keahlian='SQL:APEX'` | e2e, int | ✅ |
 | F04-I4 | F04 | negatif: nilai di luar daftar | POST departemen 999, status palsu, keahlian palsu, switch "mungkin" | 422 dengan pesan per field, tidak ada yang tersimpan | int | ✅ |
 | F04-I5 | F04 | negatif: endpoint LOV | tanpa session; user tanpa grup SDM; item page lain; parent hidden ditimpa lewat URL | 401; 403; 404; parent diabaikan | int | ✅ |
+| F04-I6 | F04 | negatif: XSS di nilai LOV | nama karyawan berisi `<img onerror>` muncul di popup LOV dan sorotan | tampil sebagai teks | int | ✅ |
+| F04-I7 | F04 | edge: zona waktu & DST | `timestamptz` lewat item datetime di app `Europe/Amsterdam`; simpan tanpa ubah; jam di celah DST | tampil 08:00 (CEST); tersimpan tetap; 02:30 → 03:30 | int | ✅ |
+| F04-I8 | F04 | edge: nilai lama di luar daftar | `keahlian = 'SQL:LAMA'`, buka lalu simpan | `LAMA` tampil tercentang, simpan ditolak dengan alasan, data utuh | int | ✅ (setelah BUG-006) |
+| F04-I9 | F04 | edge: session habis saat memilih | hapus session, buka popup LOV | ke login, lalu kembali ke Mutasi | e2e | ✅ (setelah BUG-007) |
+| F04-I10 | F04 | edge: kontras & huruf khusus | border popup LOV; cari "ayşe" di "İSTANBUL Ayşe" | border = input lain; sorotan tepat | e2e, int | ✅ (setelah BUG-005, BUG-008) |
 | F07-H1 | F07 | happy: SSO | tombol "Masuk dengan akun KCSI" → IdP → callback | masuk, kembali ke page yang diminta, grup tersimpan; tanpa form kata sandi; axe bersih | e2e, int | ✅ (mock IdP) |
 | F07-H2 | F07 | happy: login kedua | SSO lagi dengan sub sama | akun yang sama, grup diperbarui | int | ✅ |
 | F07-N1 | F07 | negatif: domain lain | akun `@contoh.com` | ditolak "tidak diizinkan" | e2e, int | ✅ |
@@ -82,7 +87,7 @@ Setiap tes e2e otomatis gagal bila ada console error atau respons 5xx, dan layar
 ## Tidak dites (alasan)
 
 - Jaringan lambat / offline: aplikasi server-rendered tanpa mode offline. Perilakunya mengikuti browser.
-- Zona waktu / DST: belum ada kolom waktu (timestamptz) di contoh. `tgl_masuk` bertipe `date`. Dites saat item datetime masuk (M3).
+- Zona waktu / DST: dites di F04-I7 (integrasi). Belum dites: user yang zona waktu browsernya berbeda dari zona waktu app; semua jam tampil dalam zona waktu app.
 - Screen reader sungguhan (NVDA/VoiceOver): baru dicek otomatis lewat axe dan label/role di selector. Pengecekan manual masih diperlukan.
 - Data user lain: aplikasi contoh tidak punya kepemilikan baris, jadi semua user melihat semua karyawan (by design). Isolasi antar-session dites lewat checksum/CSRF/lost update.
 
@@ -102,3 +107,16 @@ Setiap tes e2e otomatis gagal bila ada console error atau respons 5xx, dan layar
 | F05-N3 | F05 | negatif: unduh tanpa session / region salah | 303 ke login / 404 | int | ✅ |
 
 Run terakhir: e2e 58/58 lulus, 2 di-skip (60 kasus), integrasi 66/66.
+
+## Run sebelum pilot (2026-11-13, build `59f38fe` → `f67722d`, M0–M4 + M3)
+
+| | jumlah | lulus | gagal | catatan |
+| --- | ---: | ---: | ---: | --- |
+| e2e (Playwright, desktop + 390 px) | 70 | 68 | 0 | 2 di-skip (kasus khusus mobile di proyek desktop); setiap tes: tanpa console error / 5xx, axe WCAG 2.2 AA |
+| integrasi / unit (`npm test`) | 83 | 83 | 0 | PostgreSQL 16, satu database per file tes |
+| manual | 1 | — | — | F07-M1 (IdP KCSI sungguhan) masih menunggu app registration |
+
+Bug baru: **4** (S1 ×1, S3 ×2, S4 ×1), semuanya **fixed** dengan tes yang gagal dulu (`f67722d`). Bug terbuka S1/S2: **0**.
+Satu tes e2e baru (F04-I1) sempat gagal di run penuh karena bergantung pada jumlah karyawan yang diubah spec lain; diperbaiki dengan
+membandingkan ke database.
+
