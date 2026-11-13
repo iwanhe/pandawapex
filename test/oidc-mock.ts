@@ -34,6 +34,13 @@ export async function startMockIdp(clientId = 'pandawapex-test', clientSecret = 
          });
       }
       if (url.pathname === '/jwks') return json(200, { keys: [jwk] });
+      if (url.pathname === '/__next_user' && req.method === 'POST') {
+         // test hook: choose who "signs in" at the next /authorize
+         let raw = '';
+         for await (const chunk of req) raw += chunk;
+         idp.nextUser = JSON.parse(raw);
+         return json(200, { ok: true });
+      }
       if (url.pathname === '/authorize') {
          const p = url.searchParams;
          if (p.get('client_id') !== clientId || p.get('code_challenge_method') !== 'S256' || !p.get('nonce')) return json(400, { error: 'invalid_request' });
