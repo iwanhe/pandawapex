@@ -1,0 +1,586 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/iwanhe/pandawapex/spec.schema.json",
+  "title": "pandawapex application spec (v0, Fase 1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "name",
+    "parsing_schema",
+    "pages"
+  ],
+  "definitions": {
+    "itemName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,59}$"
+    },
+    "ident": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
+    },
+    "colSpan": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]{0,59}$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "clear_cache": {
+          "type": "string",
+          "pattern": "^[0-9]+(,[0-9]+)*$"
+        }
+      }
+    },
+    "lov": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "static": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "display",
+              "return"
+            ],
+            "properties": {
+              "display": {
+                "type": "string"
+              },
+              "return": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "sql": {
+          "type": "string",
+          "description": "select display_value, return_value from ..."
+        },
+        "null_display": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "static"
+          ]
+        },
+        {
+          "required": [
+            "sql"
+          ]
+        }
+      ]
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/itemName"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "number",
+            "textarea",
+            "date",
+            "datetime",
+            "select",
+            "radio",
+            "checkbox",
+            "switch",
+            "hidden",
+            "display_only",
+            "password"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "help": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "col_span": {
+          "$ref": "#/definitions/colSpan"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "column"
+          ],
+          "properties": {
+            "column": {
+              "$ref": "#/definitions/ident"
+            },
+            "pk": {
+              "type": "boolean"
+            }
+          }
+        },
+        "default": {
+          "type": "string"
+        },
+        "lov": {
+          "$ref": "#/definitions/lov"
+        },
+        "protection": {
+          "enum": [
+            "unrestricted",
+            "checksum_session",
+            "restricted"
+          ]
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "button": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "label"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,59}$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "hot": {
+          "type": "boolean"
+        },
+        "action": {
+          "enum": [
+            "submit",
+            "redirect"
+          ]
+        },
+        "target": {
+          "$ref": "#/definitions/target"
+        },
+        "style": {
+          "enum": [
+            "normal",
+            "danger",
+            "ghost"
+          ]
+        },
+        "confirm": {
+          "type": "string"
+        },
+        "position": {
+          "enum": [
+            "next",
+            "previous",
+            "header"
+          ]
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "data_type": {
+          "enum": [
+            "text",
+            "number",
+            "date",
+            "timestamp",
+            "boolean"
+          ]
+        },
+        "is_pk": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "link": {
+          "$ref": "#/definitions/target"
+        }
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "static_id",
+        "type"
+      ],
+      "properties": {
+        "static_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,59}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "static",
+            "classic_report",
+            "form"
+          ]
+        },
+        "template": {
+          "enum": [
+            "standard",
+            "plain",
+            "collapsible"
+          ]
+        },
+        "col_span": {
+          "$ref": "#/definitions/colSpan"
+        },
+        "new_row": {
+          "type": "boolean"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sql": {
+              "type": "string"
+            },
+            "table": {
+              "$ref": "#/definitions/ident"
+            },
+            "html": {
+              "type": "string"
+            }
+          }
+        },
+        "page_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "empty_text": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/column"
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/item"
+          }
+        },
+        "buttons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/button"
+          }
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type",
+        "error_msg"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "not_null",
+            "sql_expression",
+            "sql_exists",
+            "sql_not_exists",
+            "regex"
+          ]
+        },
+        "expression": {
+          "type": "string"
+        },
+        "error_msg": {
+          "type": "string"
+        },
+        "item": {
+          "$ref": "#/definitions/itemName"
+        },
+        "when_button": {
+          "type": "string"
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "point": {
+          "enum": [
+            "before_header",
+            "after_submit"
+          ]
+        },
+        "type": {
+          "enum": [
+            "form_init",
+            "form_dml",
+            "plpgsql",
+            "clear_cache"
+          ]
+        },
+        "region": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "when_button": {
+          "type": "string"
+        },
+        "success_msg": {
+          "type": "string"
+        },
+        "error_msg": {
+          "type": "string"
+        }
+      }
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "clear_cache": {
+          "type": "string",
+          "pattern": "^[0-9]+(,[0-9]+)*$"
+        },
+        "when_button": {
+          "type": "string"
+        }
+      }
+    },
+    "navEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "url": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/navEntry"
+          }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 1,
+      "minProperties": 1,
+      "properties": {
+        "item_not_null": {
+          "$ref": "#/definitions/itemName"
+        },
+        "item_null": {
+          "$ref": "#/definitions/itemName"
+        }
+      }
+    }
+  },
+  "properties": {
+    "app": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,59}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "parsing_schema": {
+      "type": "string",
+      "pattern": "^[a-z_][a-z0-9_]*$"
+    },
+    "home_page": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "substitutions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "authentication": {
+      "enum": [
+        "builtin_accounts",
+        "no_auth"
+      ]
+    },
+    "navigation": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/navEntry"
+      }
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "page",
+          "name"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999
+          },
+          "alias": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,59}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
+          },
+          "breadcrumb_parent": {
+            "type": "integer"
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/region"
+            }
+          },
+          "validations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/validation"
+            }
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/process"
+            }
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/branch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
