@@ -42,6 +42,9 @@ ikut terpasang di **http://localhost:8080/r/pandawa/demo**. User per role, kata 
 
 ## B. Tanpa Docker (Windows, langsung)
 
+Pakai Cmder / cmd.exe atau PostgreSQL portable? Ikuti [checkpoint-fase1.md](checkpoint-fase1.md): langkahnya untuk cmd,
+ada `start-lokal.cmd`, checklist uji, dan troubleshooting.
+
 1. Pasang **PostgreSQL 16** (installer EDB, catat kata sandi `postgres`) dan **Node.js 22 LTS** (≥ 22.18).
 2. Buat database kosong, misalnya lewat pgAdmin atau:
    ```powershell

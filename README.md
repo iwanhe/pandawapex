@@ -18,10 +18,11 @@ atau ke `rpx_rt.v('P2_EMPNO')` di dalam blok PL/pgSQL.
 ## Menjalankan lokal
 
 Cara tercepat (Docker Compose, tanpa SSO) dan cara Windows tanpa Docker: **[docs/install-lokal.md](docs/install-lokal.md)**.
+Windows dengan Cmder dan PostgreSQL portable, lengkap dengan checklist uji: **[docs/checkpoint-fase1.md](docs/checkpoint-fase1.md)** (checkpoint akhir Fase 1).
 
 Manual, langkah demi langkah:
 
-Prasyarat: Node.js ≥ 22.18 (TypeScript dijalankan langsung lewat type stripping), PostgreSQL ≥ 16.
+Prasyarat: Node.js ≥ 22.18 (TypeScript dijalankan langsung lewat type stripping; Node 20 gagal dengan `Unknown file extension ".ts"`), PostgreSQL ≥ 14 (diuji di 16).
 
 ```bash
 npm install
