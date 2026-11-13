@@ -22,7 +22,11 @@ test.describe('F04-I items and lists of values', () => {
       await page.getByRole('button', { name: 'Pilih Karyawan dari daftar' }).click();
       const dlg = page.getByRole('dialog', { name: 'Karyawan' });
       await expect(dlg).toBeVisible();
-      await expect(dlg.getByRole('option')).toHaveCount(2);
+      // other specs may add people to Keuangan: compare with the database, not a fixed number
+      const inKeu = (await db.query(`select count(*)::int as n from ${E2E.schema}.karyawan k join ${E2E.schema}.departemen d using (deptno)
+                                     where d.nama = 'Keuangan' and k.aktif`)).rows[0].n;
+      await expect(dlg.getByRole('option')).toHaveCount(inKeu);
+      await expect(dlg.getByRole('option', { name: /Rina Kartikasari/ })).toBeVisible();
       expect(await axe(page)).toEqual([]);
       await dlg.getByLabel('Cari').fill('rina');
       await expect(dlg.getByRole('option')).toHaveCount(1);
@@ -98,5 +102,26 @@ test.describe('F04-I items and lists of values', () => {
       const row = (await db.query(`select aktif, keahlian, status_kerja from ${E2E.schema}.karyawan where nama = 'Dewi Lestari'`)).rows[0];
       expect(row).toEqual({ aktif: false, keahlian: 'SQL:APEX', status_kerja: 'MAGANG' });
       await db.query(`update ${E2E.schema}.karyawan set status_kerja = 'TETAP' where nama = 'Dewi Lestari'`);
+   });
+});
+
+test.describe('F04-I bugs from the pre-pilot pass', () => {
+   test('BUG-005: the popup LOV box looks like an input you can use (border contrast)', async ({ page }) => {
+      await login(page, E2E.user, E2E.password, `${APP}/4`);
+      const border = (sel: string) => page.locator(sel).evaluate(e => getComputedStyle(e).borderTopColor);
+      expect(await border('#P4_EMPNO')).toBe(await border('#P4_DEPT_ASAL'));
+   });
+
+   test('BUG-007: list requests after the session ended lead to the login page', async ({ page, db, guard }) => {
+      guard.allow(/401/);
+      await login(page, E2E.user, E2E.password, `${APP}/4`);
+      await db.query(`delete from rpx.sessions where app_user_id = (select id from rpx.app_users where username = $1 limit 1)`, [E2E.user]);
+      await page.getByRole('button', { name: 'Pilih Karyawan dari daftar' }).click();
+      await expect(page.getByLabel('Nama pengguna')).toBeVisible();
+      // after signing in again the user comes back to the transfer page
+      await page.getByLabel('Nama pengguna').fill(E2E.user);
+      await page.getByLabel('Kata sandi').fill(E2E.password);
+      await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${APP}/4$`));
    });
 });

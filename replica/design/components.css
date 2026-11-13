@@ -274,7 +274,7 @@ th[aria-sort] .r-sort { color: var(--r-color-text); }
 .r-lov-empty { margin: var(--r-space-4) 0 0; color: var(--r-color-text-muted); }
 .r-lov-more { margin-top: var(--r-space-3); }
 .r-lov-dialog .r-dialog__body { display: flex; flex-direction: column; }
-.r-popup-lov .r-input[readonly] { cursor: pointer; background: var(--r-color-surface); }
+.r-popup-lov .r-input[readonly] { cursor: pointer; background: var(--r-color-surface); border-color: var(--r-color-border-input); }
 .r-input-group > .r-btn:not(:last-child) { border-radius: 0; }
 
 /* radio / checkbox group as one field (fieldset + legend) */

@@ -187,6 +187,8 @@
   // (GET .../field/:item with the parents' current values) and the child's value is cleared.
   // Popup LOV: a search dialog over GET .../lov/:item?q=&p=; it stores the return value and shows the display value.
   // ---------------------------------------------------------------------------
+  // the session ended: reload, and the server sends the user to the login page (and back here afterwards)
+  const sessionEnded = (res) => { if (res.status === 401) { window.location.reload(); return true; } return false; };
   const parentParams = (scope, names, url) => {
     const form = scope.closest('form');
     const fd = form ? new FormData(form) : null;
@@ -212,6 +214,7 @@
     field.setAttribute('aria-busy', 'true');
     try {
       const res = await fetch(url, { credentials: 'same-origin' });
+      if (sessionEnded(res)) return;
       if (!res.ok) throw new Error('cascade');
       const fresh = new DOMParser().parseFromString(await res.text(), 'text/html').body.firstElementChild;
       if (!fresh || !document.contains(field)) throw new Error('cascade');
@@ -256,6 +259,7 @@
       const res = await fetch(url, { credentials: 'same-origin' });
       const text = await res.text();
       if (seq !== lov.seq) return;                     // a newer search is under way
+      if (sessionEnded(res)) return;
       if (!res.ok) throw new Error('lov');
       const doc = new DOMParser().parseFromString(text, 'text/html');
       const list = lov.results.querySelector('[role="listbox"]');

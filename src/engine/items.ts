@@ -186,14 +186,17 @@ function legend(it: ItemDef): SafeHtml {
 const lovUrl = (ctx: Ctx, page: PageDef, it: ItemDef, what: 'lov' | 'field') =>
    `${appBase(ctx.app)}/${page.no}/${what}/${encodeURIComponent(it.name)}`;
 
-function highlight(text: string, q: string): SafeHtml {
+/** The display value with every case-insensitive occurrence of the search text in <mark> (escaped). */
+export function highlightText(text: string, q: string): SafeHtml {
    if (!q) return html`${text}`;
-   const lower = text.toLocaleLowerCase('id'), needle = q.toLocaleLowerCase('id');
+   // a regex over the original string: lower-casing can change the length (İ -> i̇), so indexes from it would drift
+   const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu');
    const parts: SafeHtml[] = [];
    let at = 0;
-   for (let i = lower.indexOf(needle); i >= 0 && needle.length; i = lower.indexOf(needle, at)) {
-      parts.push(html`${text.slice(at, i)}<mark>${text.slice(i, i + needle.length)}</mark>`);
-      at = i + needle.length;
+   for (const m of text.matchAll(re)) {
+      if (!m[0]) break;
+      parts.push(html`${text.slice(at, m.index)}<mark>${m[0]}</mark>`);
+      at = m.index! + m[0].length;
    }
    parts.push(html`${text.slice(at)}`);
    return html`${parts}`;
@@ -246,6 +249,8 @@ export async function fieldHtml(v: View, it: ItemDef, bar = false): Promise<Safe
          if (opts instanceof Error) return lovFailed(opts);
          const chosen = new Set(it.type === 'radio' ? [val] : splitValues(stored));
          const type = it.type === 'radio' ? 'radio' : 'checkbox';
+         // stored values outside the list stay visible and ticked: dropping them would lose data silently on the next save
+         for (const x of chosen) if (x !== '' && !opts.some(o => o.ret === x)) opts.push({ display: x, ret: x });
          // the first option carries the item id, so "#ITEM" links from the error summary land on the group
          return group(html`<div class="r-choice-group${it.inline ? ' r-choice-group--inline' : ''}">
             ${opts.map((o, n) => html`<label class="r-choice"><input type="${type}" name="${it.name}" id="${n ? `${it.name}_${n + 1}` : it.name}" value="${o.ret}"${attrIf('checked', chosen.has(o.ret))}${attrIf('required', it.required && type === 'radio')}${err ? raw(' aria-invalid="true"') : ''}> <span>${o.display}</span></label>`)}
@@ -347,7 +352,7 @@ async function popupList(c: pg.PoolClient, ctx: Ctx, it: ItemDef, q: string, pag
    const status = r.options.length || pageNo > 1
       ? `${first + r.options.length}${r.more ? '+' : ''} pilihan${q ? ` cocok dengan "${q}"` : ''}`
       : `Tidak ada pilihan${q ? ` yang cocok dengan "${q}"` : ''}.`;
-   const options = r.options.map((o, n) => html`<li role="option" id="r-lov-opt-${first + n}" aria-selected="false" data-return="${o.ret}" data-display="${o.display}"><span>${highlight(o.display, q)}</span></li>`);
+   const options = r.options.map((o, n) => html`<li role="option" id="r-lov-opt-${first + n}" aria-selected="false" data-return="${o.ret}" data-display="${o.display}"><span>${highlightText(o.display, q)}</span></li>`);
    return html`${r.options.length
          ? html`<ul class="r-lov-list" role="listbox" id="r-lov-list" aria-label="Pilihan ${nameOf(it)}">${options}</ul>`
          : pageNo > 1 ? '' : html`<p class="r-lov-empty">${status}</p>`}

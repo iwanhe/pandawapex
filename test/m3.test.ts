@@ -265,3 +265,37 @@ describe('posted values', () => {
       assert.equal(postedValue(item('text'), '   '), null);
    });
 });
+
+describe('bugs found in the pre-pilot pass', () => {
+   test('BUG-006: a stored value outside the list is shown and refused, not dropped silently', async () => {
+      await env.pool.query(`update ${env.schema}.karyawan set keahlian = 'SQL:LAMA' where nama = 'Yusuf Hidayat'`);
+      const b = new Browser(env);
+      await b.login();
+      const form = await openEmployee(b, 'Yusuf Hidayat');
+      assert.match(form.body, /<input type="checkbox" name="P2_KEAHLIAN" id="P2_KEAHLIAN_5" value="LAMA" checked/);
+      const r = await b.post(`${env.base}/2`, { ...formFields(form.body), REQUEST: 'SIMPAN' });
+      assert.equal(r.statusCode, 422);
+      assert.match(r.body, /Keahlian: pilihan &quot;LAMA&quot; tidak ada di daftar\./);
+      assert.equal((await emp('Yusuf Hidayat')).keahlian, 'SQL:LAMA', 'nothing lost');
+      await env.pool.query(`update ${env.schema}.karyawan set keahlian = null where nama = 'Yusuf Hidayat'`);
+   });
+
+   test('F04-I6: names with markup stay text in the popup list, its highlight and the shown value', async () => {
+      const evil = '<img src=x onerror=alert(1)> "Budi"';
+      await env.pool.query(`insert into ${env.schema}.karyawan (nama, jabatan, gaji) values ($1, 'Uji', 1)`, [evil]);
+      const b = new Browser(env);
+      await b.login();
+      await b.open(`${env.base}/4`);
+      const r = await b.get(`${env.base}/4/lov/P4_EMPNO?q=${encodeURIComponent('img')}`);
+      assert.doesNotMatch(r.body, /<img/);
+      assert.match(r.body, /&lt;<mark>img<\/mark> src=x onerror=alert\(1\)&gt; &quot;Budi&quot;/);
+      assert.match(r.body, /data-display="&lt;img src=x onerror=alert\(1\)&gt; &quot;Budi&quot; \(Uji\)"/);
+      await env.pool.query(`delete from ${env.schema}.karyawan where nama = $1`, [evil]);
+   });
+
+   test('BUG-008: highlighting stays aligned when lower-casing changes the length', async () => {
+      const { highlightText } = await import('../src/engine/items.ts');
+      assert.equal(highlightText('İSTANBUL Ayşe', 'ayşe').value, 'İSTANBUL <mark>Ayşe</mark>');
+      assert.equal(highlightText('a<b> A', 'a').value, '<mark>a</mark>&lt;b&gt; <mark>A</mark>');
+   });
+});
