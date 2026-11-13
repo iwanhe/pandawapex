@@ -35,3 +35,22 @@ Penyimpangan dari `architecture.md` (disengaja, untuk ditinjau):
 - Template HTML memakai tagged template TS yang auto-escape (`src/engine/html.ts`), bukan Eta. Hasilnya nol dependensi dan escaping default lebih aman.
 - htmx belum dipakai. Paging dan pencarian masih full page (PRG). htmx masuk di M4 untuk refresh region IR.
 - Invalidasi cache metadata memakai cek `spec_hash` per request (satu query kecil). `LISTEN rpx_app_changed` menyusul saat ada >1 instance.
+
+## Backend: SSO OIDC + lost update (2026-11-13), done
+
+- `authentication: { scheme: oidc, ... }` di spec. Client secret dibaca dari env var yang **namanya** disebut di spec.
+  Discovery di-cache per issuer; discovery yang gagal tidak di-cache.
+- Rute `/oidc/start` dan `/oidc/callback`: PKCE S256, state, dan nonce disimpan di session tamu dan dipakai sekali.
+  Callback tanpa session yang cocok kembali ke login. Session id baru setelah login.
+- User SSO dicocokkan per `(workspace, issuer, sub)` (migrasi 0003 menggantikan unique global). Grup diperbarui tiap login.
+  Nama yang bentrok dengan akun lokal ditolak (409), bukan digabung.
+- Lost update: token versi baris (hash + HMAC per session) di hidden field `__rv_<region>`; `form_dml` membaca ulang
+  `FOR UPDATE` sebelum update/delete.
+- Rate limit login & SSO per IP (`@fastify/rate-limit`), halaman 429 yang ramah.
+- Tes: 41 lulus (+14), termasuk mock IdP lengkap (discovery, JWKS, PKCE, kode sekali pakai), dua editor bersaing,
+  dan rate limit.
+
+Lebih sulit dari perkiraan:
+- `@fastify/rate-limit` hanya memasang hook pada rute yang didaftarkan **setelah** plugin selesai dimuat. Semua rute
+  dipindah ke child plugin. Tanpa tes 429, ini akan lolos tanpa terlihat.
+- Unique `(oidc_issuer, oidc_subject)` dari schema awal salah untuk multi-workspace. Ketahuan saat menulis provisioning.

@@ -1,6 +1,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Browser, field, formFields, links, setup, type Env } from './helpers.ts';
+import { buildServer } from '../src/engine/server.ts';
 
 let env: Env;
 before(async () => { env = await setup(); });
@@ -178,6 +179,22 @@ describe('security', () => {
       }
    });
 
+   test('login attempts are rate limited per IP', async () => {
+      const strict = buildServer({ pool: env.pool, secret: 'x'.repeat(40), loginRateLimit: 2 });
+      await strict.ready();
+      try {
+         const codes: number[] = [];
+         for (let i = 0; i < 3; i++) {
+            const r = await strict.inject({ method: 'POST', url: `${env.base}/login`, payload: 'username=a&password=b',
+               headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+            codes.push(r.statusCode);
+         }
+         assert.deepEqual(codes, [303, 303, 429]);
+      } finally {
+         await strict.close();
+      }
+   });
+
    test('logout ends the session', async () => {
       const b = new Browser(env);
       await b.login();
@@ -185,6 +202,69 @@ describe('security', () => {
       const out = await b.post(`${env.base}/logout`, { __csrf: field(p1.body, '__csrf')! });
       assert.equal(out.statusCode, 303);
       assert.match(String((await b.get(`${env.base}/1`)).headers.location), /login/);
+   });
+});
+
+describe('lost update', () => {
+   async function openRow(b: Browser, name: string) {
+      const list = await b.open(`${env.base}/1`);
+      const id = (await env.pool.query(`select empno from ${env.schema}.karyawan where nama = $1`, [name])).rows[0].empno;
+      const form = await b.open(links(list.body).find(l => l.includes(`P2_EMPNO=${id}&`))!);
+      return { id, fields: formFields(form.body) };
+   }
+
+   test('second editor of the same row gets a conflict instead of overwriting', async () => {
+      const a = new Browser(env), b = new Browser(env);
+      await a.login(); await b.login();
+      const ra = await openRow(a, 'Rina Kartikasari');
+      const rb = await openRow(b, 'Rina Kartikasari');
+      assert.match(ra.fields.__rv_form, /^[\w-]+\.[\w-]+$/);
+      assert.equal((await a.post(`${env.base}/2`, { ...ra.fields, P2_JABATAN: 'Akuntan Senior', REQUEST: 'SIMPAN' })).statusCode, 303);
+      const conflict = await b.post(`${env.base}/2`, { ...rb.fields, P2_JABATAN: 'Kepala Akuntansi', REQUEST: 'SIMPAN' });
+      assert.equal(conflict.statusCode, 422);
+      assert.match(conflict.body, /Data diubah pengguna lain/);
+      const db = await env.pool.query(`select jabatan from ${env.schema}.karyawan where empno = $1`, [ra.id]);
+      assert.equal(db.rows[0].jabatan, 'Akuntan Senior');
+      // after reopening, B sees the new version and can save
+      const fresh = await openRow(b, 'Rina Kartikasari');
+      assert.equal(fresh.fields.P2_JABATAN, 'Akuntan Senior');
+      assert.equal((await b.post(`${env.base}/2`, { ...fresh.fields, P2_JABATAN: 'Kepala Akuntansi', REQUEST: 'SIMPAN' })).statusCode, 303);
+   });
+
+   test('delete of a row changed meanwhile is refused too', async () => {
+      const a = new Browser(env), b = new Browser(env);
+      await a.login(); await b.login();
+      const ra = await openRow(a, 'Maria Ulfa');
+      const rb = await openRow(b, 'Maria Ulfa');
+      await a.post(`${env.base}/2`, { ...ra.fields, P2_GAJI: '6300000', REQUEST: 'SIMPAN' });
+      const del = await b.post(`${env.base}/2`, { ...rb.fields, REQUEST: 'HAPUS' });
+      assert.equal(del.statusCode, 422);
+      assert.equal((await env.pool.query(`select count(*)::int as n from ${env.schema}.karyawan where empno = $1`, [rb.id])).rows[0].n, 1);
+   });
+
+   test('a validation error keeps the original version (no silent refresh)', async () => {
+      const a = new Browser(env), b = new Browser(env);
+      await a.login(); await b.login();
+      const rb = await openRow(b, 'Bambang Sutrisno');
+      const err = await b.post(`${env.base}/2`, { ...rb.fields, P2_NAMA: '', REQUEST: 'SIMPAN' });
+      assert.equal(err.statusCode, 422);
+      assert.equal(formFields(err.body).__rv_form, rb.fields.__rv_form);
+      const ra = await openRow(a, 'Bambang Sutrisno');
+      await a.post(`${env.base}/2`, { ...ra.fields, P2_JABATAN: 'Manajer Lini 2', REQUEST: 'SIMPAN' });
+      const again = await b.post(`${env.base}/2`, { ...formFields(err.body), P2_NAMA: 'Bambang Sutrisno', REQUEST: 'SIMPAN' });
+      assert.equal(again.statusCode, 422);
+      assert.match(again.body, /Data diubah pengguna lain/);
+   });
+
+   test('a forged or missing version token is not accepted', async () => {
+      const b = new Browser(env);
+      await b.login();
+      const rb = await openRow(b, 'Dewi Lestari');
+      const { __rv_form, ...noToken } = rb.fields;
+      assert.ok(__rv_form);
+      assert.equal((await b.post(`${env.base}/2`, { ...noToken, REQUEST: 'SIMPAN' })).statusCode, 422);
+      const forged = `${'A'.repeat(32)}.${'B'.repeat(32)}`;
+      assert.equal((await b.post(`${env.base}/2`, { ...rb.fields, __rv_form: forged, REQUEST: 'SIMPAN' })).statusCode, 422);
    });
 });
 

@@ -478,6 +478,52 @@
           "$ref": "#/definitions/itemName"
         }
       }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "client_id",
+        "client_secret_env"
+      ],
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "client_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "client_secret_env": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "name of the environment variable holding the client secret (never the secret itself)"
+        },
+        "scopes": {
+          "type": "string"
+        },
+        "username_claim": {
+          "type": "string"
+        },
+        "groups_claim": {
+          "type": "string"
+        },
+        "allowed_domains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+$"
+          }
+        },
+        "provision": {
+          "type": "boolean"
+        },
+        "button_label": {
+          "type": "string"
+        }
+      }
     }
   },
   "properties": {
@@ -512,9 +558,35 @@
       }
     },
     "authentication": {
-      "enum": [
-        "builtin_accounts",
-        "no_auth"
+      "oneOf": [
+        {
+          "enum": [
+            "builtin_accounts",
+            "no_auth"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scheme"
+          ],
+          "properties": {
+            "scheme": {
+              "enum": [
+                "builtin_accounts",
+                "oidc",
+                "no_auth"
+              ]
+            },
+            "oidc": {
+              "$ref": "#/definitions/oidc"
+            },
+            "allow_builtin": {
+              "type": "boolean"
+            }
+          }
+        }
       ]
     },
     "navigation": {

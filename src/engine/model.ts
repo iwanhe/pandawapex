@@ -34,9 +34,14 @@ export interface PageDef {
    validations: ValidationDef[]; processes: ProcessDef[]; branches: BranchDef[];
 }
 export interface NavDef { label: string; icon: string | null; target: { page?: number; url?: string }; children: NavDef[] }
+export interface OidcConfig {
+   issuer: string; clientId: string; clientSecretEnv: string; scopes: string; usernameClaim: string;
+   groupsClaim: string | null; allowedDomains: string[]; provision: boolean; buttonLabel: string; allowBuiltin: boolean;
+}
 export interface AppDef {
    id: string; workspaceId: string; workspace: string; dbRole: string; alias: string; name: string; version: string;
    parsingSchema: string; homePage: number; specHash: string; timezone: string; authScheme: string;
+   oidc: OidcConfig | null;
    sessionTimeoutSec: number; idleTimeoutSec: number;
    substitutions: Record<string, string>; pages: Map<number, PageDef>; pageAliases: Map<string, number>;
    itemsByName: Map<string, { item: ItemDef; page: number | null }>; nav: NavDef[];
@@ -62,6 +67,7 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       `select a.*, w.name as ws_name, w.db_role
             , extract(epoch from a.session_timeout)::int as st, extract(epoch from a.idle_timeout)::int as it
             , (select scheme_type from rpx.auth_schemes s where s.app_id = a.id and s.is_current) as auth
+            , (select attributes from rpx.auth_schemes s where s.app_id = a.id and s.is_current) as auth_attrs
        from rpx.applications a join rpx.workspaces w on w.id = a.workspace_id where a.id = $1`, [appId])).rows[0];
    const pagesQ = (await pool.query('select * from rpx.pages where app_id = $1 order by page_no', [appId])).rows;
    const regionsQ = (await pool.query(
@@ -138,6 +144,13 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       id: a.id, workspaceId: a.workspace_id, workspace: a.ws_name, dbRole: a.db_role, alias: a.alias, name: a.name,
       version: a.version, parsingSchema: a.parsing_schema, homePage: a.home_page_no, specHash: a.spec_hash,
       timezone: a.globalization?.timezone ?? 'Asia/Jakarta', authScheme: a.auth ?? 'builtin_accounts',
+      oidc: a.auth === 'oidc' ? {
+         issuer: a.auth_attrs.issuer, clientId: a.auth_attrs.client_id, clientSecretEnv: a.auth_attrs.client_secret_env,
+         scopes: a.auth_attrs.scopes ?? 'openid profile email', usernameClaim: a.auth_attrs.username_claim ?? 'preferred_username',
+         groupsClaim: a.auth_attrs.groups_claim ?? null, allowedDomains: a.auth_attrs.allowed_domains ?? [],
+         provision: a.auth_attrs.provision ?? true, buttonLabel: a.auth_attrs.button_label ?? 'Masuk dengan akun organisasi',
+         allowBuiltin: a.auth_attrs.allow_builtin ?? false,
+      } : null,
       sessionTimeoutSec: a.st, idleTimeoutSec: a.it,
       substitutions: a.substitutions ?? {}, pages, pageAliases, itemsByName, nav: buildNav(null),
    };

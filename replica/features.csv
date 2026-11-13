@@ -10,7 +10,7 @@ Application properties + substitution strings,builder,must,yes,partial,"M1: lewa
 Application items & computations on login,builder,must,yes,no,S14
 List of Values static & SQL,shared components,must,yes,partial,M1: LOV inline per item (static/SQL) untuk select; shared LOV belum
 Authentication: built-in accounts,security,must,yes,yes,"M1: argon2id, lock setelah 5 gagal, session baru saat login"
-Authentication: OIDC/social sign-in,security,must,yes,no,untuk SSO KCSI (Entra ID/Google)
+Authentication: OIDC/social sign-in,security,must,yes,yes,"Backend: OIDC code+PKCE, provisioning, grup dari klaim, batas domain; tested dengan mock IdP"
 Authorization schemes (exists SQL / function boolean / group),security,must,yes,no,S11; evaluation point
 Navigation menu + breadcrumb,shared components,must,yes,partial,M1: menu dari spec + breadcrumb parent; kondisi/otorisasi per entri belum
 Render page dari metadata (regions + grid layout),runtime,must,yes,yes,M1
@@ -20,7 +20,7 @@ Bind variable :ITEM ke parameter PostgreSQL ($n),runtime,must,yes,yes,M1: $n::te
 Substitution &ITEM. dengan escape filters,runtime,must,yes,partial,M1: &ITEM. selalu di-escape HTML; filter !RAW/!JS/!ATTR belum
 URL scheme ramah (app/page/params) + checksum,runtime,must,yes,yes,M1: HMAC per session; argumen dibuang dari URL setelah diterapkan
 Form region: init (fetch by PK) + DML process,regions,must,yes,yes,M1: insert/update/delete; tombol DELETE/HAPUS = delete
-Lost-update detection pada Form,regions,must,yes,no,checksum baris atau kolom version
+Lost-update detection pada Form,regions,must,yes,yes,Backend: hash baris bertanda tangan + SELECT FOR UPDATE; update & delete
 Classic Report dengan pagination,regions,must,yes,yes,M1
 Interactive Report: search + sort + filter + pagination,regions,must,yes,no,hard part #1
 Interactive Report: download CSV/XLSX,regions,must,yes,no,
