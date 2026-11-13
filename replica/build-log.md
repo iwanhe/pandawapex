@@ -128,3 +128,25 @@ Lebih sulit dari perkiraan:
 - **Bentuk SQL LOV tidak diketahui** (1 atau 2 kolom, nama kolom bebas). Kolomnya dibaca sekali lewat `limit 0`, disimpan per versi spec,
   lalu pencarian dan cek keanggotaan dibungkus di sekitarnya.
 - **Atribut `hidden`** kalah oleh `display: inline-flex` milik `.r-btn`; ditambah aturan global `[hidden] { display: none !important }`.
+
+## Pilot: porting aplikasi DEMO "Demo Permintaan Barang" dari APEX (2026-11-13), done
+
+Sumber: aplikasi Tim PANDAWA (install.sql Oracle, APEXlang, export f170134). Hasil dan pola terjemahan:
+`examples/demo-permintaan/PORTING.md`.
+
+| bagian | status | catatan |
+| --- | --- | --- |
+| Objek database | done | 5 tabel inti + 4 entitas, 4 package → 4 skema PL/pgSQL, 5 trigger, 10 view; pesan error bisnis identik |
+| 17 halaman | done | termasuk 302 master-detail dari export f170134; login memakai login bawaan |
+| Engine | done | kondisi `request_in`, item `read_only`, sort default IR, region chart (bar/pie), paginasi disembunyikan bila satu halaman, tabel scroll bisa difokus |
+| Celah | dicatat | faceted search, sub-region, metric card, akun login dari UI, format mask bebas |
+
+Verifikasi: `npm test` 93/93 (+10 tes pilot), e2e 72/72 lulus (+2 skenario pilot × 2 viewport), axe bersih di semua layar pilot.
+
+Lebih sulit dari perkiraan:
+- **Variabel package** (`g_bypass`) tidak ada di PL/pgSQL. Diganti setting transaksi (`set_config(..., true)`), yang juga
+  otomatis hilang saat transaksi batal.
+- **Audit di trigger**: PL/pgSQL tidak bisa mengisi field record polimorfik, jadi satu fungsi audit untuk semua tabel
+  ditulis sebagai `jsonb_populate_record(new, ...)`.
+- **axe menemukan bug a11y baru**: tabel di kolom sempit bisa di-scroll tetapi tidak bisa difokus keyboard. Diperbaiki untuk
+  semua report.

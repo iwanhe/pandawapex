@@ -30,9 +30,13 @@ docker compose up -d --build
 
 Buka **http://localhost:8080/r/demo/emp**, lalu masuk sebagai `admin` dengan kata sandi `RPX_DEMO_PASSWORD`.
 
+Pilot **Demo Permintaan Barang** (port dari aplikasi APEX Tim PANDAWA, lihat `examples/demo-permintaan/PORTING.md`)
+ikut terpasang di **http://localhost:8080/r/pandawa/demo**. User per role, kata sandi sama (`RPX_DEMO_PASSWORD`):
+`admin` (ADMIN), `budi` (REQUESTER), `sari` (MANAGER), `dodi` (DIRECTOR), `gudang` (WAREHOUSE).
+
 - PostgreSQL ikut berjalan di container, dan hanya bisa diakses dari komputer ini di port `55432`
   (user `postgres`, kata sandi `POSTGRES_PASSWORD`, default `postgres-lokal`). Port ini tidak bentrok dengan PostgreSQL lain.
-- Service `setup` menjalankan `rpx demo setup` sekali: migrasi, workspace `demo`, data contoh, aplikasi `emp`, dan user.
+- Service `setup` menjalankan `rpx demo setup` dan `rpx pilot setup` sekali: migrasi, workspace `demo` dan `pandawa`, data contoh, kedua aplikasi, dan user.
   Aman dijalankan ulang (`docker compose run --rm setup`).
 - Hapus semuanya beserta datanya: `docker compose down -v`.
 
@@ -49,6 +53,7 @@ Buka **http://localhost:8080/r/demo/emp**, lalu masuk sebagai `admin` dengan kat
    $env:DATABASE_URL = "postgres://postgres:<katasandi>@localhost:5432/rpx"
    $env:RPX_DEMO_PASSWORD = "<minimal 10 karakter>"
    npm run rpx -- demo setup
+   npm run rpx -- pilot setup      # opsional: aplikasi DEMO Permintaan Barang di /r/pandawa/demo
 
    # kunci acak untuk percobaan lokal; untuk server pakai generator kriptografis (openssl rand -hex 32)
    $env:RPX_SECRET = -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Max 16) })

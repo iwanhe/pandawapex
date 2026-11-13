@@ -15,7 +15,7 @@ export interface ItemSpec {
    col_span?: number; source?: { column: string; pk?: boolean }; default?: string; lov?: LovSpec | string;
    protection?: string; max_length?: number; authorization?: string; condition?: Condition;
    cascade?: string[]; null_display?: string; on_value?: string; off_value?: string; inline?: boolean;
-   format?: 'number' | 'integer' | 'date' | 'datetime';
+   format?: 'number' | 'integer' | 'date' | 'datetime'; read_only?: Condition;
 }
 export interface ButtonSpec {
    name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect' | 'close_dialog'; target?: Target;
@@ -23,15 +23,16 @@ export interface ButtonSpec {
 }
 export interface Condition {
    item_not_null?: string; item_null?: string; item_equals?: { item: string; value: string };
-   request_equals?: string; sql_expression?: string; sql_exists?: string; never?: true;
+   request_equals?: string; request_in?: string[]; sql_expression?: string; sql_exists?: string; never?: true;
 }
 export interface AuthzSpec { name: string; type: string; source: string; evaluation?: string; error_msg?: string }
 export interface ComputationSpec { item: string; point?: string; type: string; expression: string; condition?: Condition }
 export interface ColumnSpec {
-   name: string; label?: string; data_type?: string; is_pk?: boolean; hidden?: boolean; link?: Target; searchable?: boolean; sortable?: boolean; format?: 'number' | 'integer' | 'date';
+   name: string; label?: string; data_type?: string; is_pk?: boolean; hidden?: boolean; link?: Target; searchable?: boolean; sortable?: boolean; format?: 'number' | 'integer' | 'date' | 'datetime';
 }
 export interface RegionSpec {
-   static_id: string; title?: string; type: 'static' | 'classic_report' | 'form' | 'interactive_report'; template?: string;
+   static_id: string; title?: string; type: 'static' | 'classic_report' | 'form' | 'interactive_report' | 'chart'; template?: string;
+   sort?: { column: string; dir?: 'asc' | 'desc' }; chart?: { type: 'bar' | 'pie'; format?: 'number' | 'integer'; value_label?: string };
    max_download_rows?: number;
    col_span?: number; new_row?: boolean; source?: { sql?: string; table?: string; html?: string };
    page_size?: number; empty_text?: string; columns?: ColumnSpec[]; items?: ItemSpec[]; buttons?: ButtonSpec[];
@@ -107,7 +108,11 @@ function checkSemantics(spec: AppSpec): void {
       for (const r of page.regions ?? []) {
          if (regionIds.has(r.static_id)) p.push(`page ${page.page}: duplicate region static_id "${r.static_id}"`);
          regionIds.add(r.static_id);
-         if ((r.type === 'classic_report' || r.type === 'interactive_report') && !r.source?.sql) p.push(`page ${page.page} region ${r.static_id}: ${r.type} needs source.sql`);
+         if ((r.type === 'classic_report' || r.type === 'interactive_report' || r.type === 'chart') && !r.source?.sql) p.push(`page ${page.page} region ${r.static_id}: ${r.type} needs source.sql`);
+         if ((r.type === 'chart') !== !!r.chart) p.push(`page ${page.page} region ${r.static_id}: chart settings belong to (and are required for) type chart`);
+         if (r.sort && r.type !== 'interactive_report') p.push(`page ${page.page} region ${r.static_id}: sort applies to interactive reports`);
+         if (r.sort && r.columns && !r.columns.some(c => c.name.toUpperCase() === r.sort!.column.toUpperCase())) p.push(`page ${page.page} region ${r.static_id}: sort column ${r.sort.column} is not a column`);
+         if (r.type === 'chart' && (r.items?.length || r.buttons?.length || r.columns?.length)) p.push(`page ${page.page} region ${r.static_id}: a chart has no items, buttons or columns`);
          if (r.type === 'form') {
             if (!r.source?.table) p.push(`page ${page.page} region ${r.static_id}: form needs source.table`);
             if (!(r.items ?? []).some(i => i.source?.pk)) p.push(`page ${page.page} region ${r.static_id}: form needs an item with source.pk = true`);
@@ -358,7 +363,8 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
              values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
             [pageId, r.title ?? r.static_id, r.static_id, r.type, sourceType, source, rseq,
              { col_span: r.col_span ?? 12, new_row: r.new_row ?? true }, r.template ?? 'standard',
-             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null, max_download_rows: r.max_download_rows ?? 10000 },
+             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null, max_download_rows: r.max_download_rows ?? 10000,
+               sort: r.sort ? { column: r.sort.column.toUpperCase(), dir: r.sort.dir ?? 'asc' } : null, chart: r.chart ?? null },
              r.condition ?? null, authz(r.authorization)]);
          rseq += 10;
          regions++;
@@ -387,7 +393,7 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
                 it.protection === 'restricted' ? 'restricted' : it.protection === 'unrestricted' ? 'unrestricted' : 'checksum_session',
                 { help: it.help ?? null, placeholder: it.placeholder ?? null, max_length: it.max_length ?? null,
                   null_display: it.null_display ?? null, on_value: it.on_value ?? null, off_value: it.off_value ?? null,
-                  inline: it.inline ?? false },
+                  inline: it.inline ?? false, read_only: it.read_only ?? null },
                 it.condition ?? null, authz(it.authorization),
                 typeof it.lov === 'string' ? lovIds.get(it.lov)! : null, it.cascade ?? [], it.format ?? null]);
             iseq += 10;

@@ -5,6 +5,7 @@ import { itemsMessage, sign, urlMessage, verify } from './checksum.ts';
 import { enterUserCode, leaveUserCode, quoteIdent, quoteQualified, readUserCodeItems, toText } from './db.ts';
 import { Evaluator, runComputations } from './guard.ts';
 import { formatValue, renderInteractiveReport } from './ir.ts';
+import { renderChart } from './chart.ts';
 import { absentMeansEmpty, checkValue, itemsHtml, postedValue, typeChecks } from './items.ts';
 import { attrIf, html, raw, type SafeHtml } from './html.ts';
 import type { ButtonDef, ItemDef, NavDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
@@ -345,6 +346,8 @@ async function renderRegion(v: View, r: RegionDef): Promise<SafeHtml> {
    if (r.type === 'classic_report') {
       body = await classicReport(v, r);
       flush = true;
+   } else if (r.type === 'chart') {
+      body = await renderChart(v, r);
    } else if (r.type === 'interactive_report') {
       body = await renderInteractiveReport(v, r);
       flush = true;
@@ -383,9 +386,10 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
       if (h) barButtons.push(h);
    }
    const barItems = await itemsHtml(v, r.items, true);
-   const searchBar = barItems.value.trim() || barButtons.length
+   // hidden items alone need no bar (a master-detail page keeps its selection in one)
+   const searchBar = r.items.some(i => i.type !== 'hidden') || barButtons.length
       ? html`<div class="r-region__items"><div class="r-region__items-bar">${barItems}${barButtons}</div></div>`
-      : html``;
+      : barItems;
 
    const res = await inSavepoint(c, () => runSql(c, ctx, r.source ?? 'select 1', [size + 1, (pageNo - 1) * size],
       (sql, n) => `select * from (${sql}) rpx_q limit $${n} offset $${n + 1}`));
@@ -417,7 +421,7 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
    const last = first + rows.length - 1;
    const nav = (n: number) => pageUrl(ctx, page.no, {}, '', { [pageParam]: String(n) }) + `#${r.staticId}`;
    return html`${searchBar}
-   <div class="r-table-wrap">
+   <div class="r-table-wrap" tabindex="0" role="group" aria-label="Tabel ${r.title ?? r.staticId}">
      <table class="r-table">
        <caption class="r-sr-only">${r.title ?? r.staticId}</caption>
        <thead><tr>${cols.map(col => html`<th scope="col"${col.dataType === 'number' ? raw(' class="r-num"') : ''}>${col.label}</th>`)}</tr></thead>
@@ -428,13 +432,13 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
        })}</tr>`)}</tbody>
      </table>
    </div>
-   <div class="r-pagination">
+   ${pageNo === 1 && !hasMore ? '' : html`<div class="r-pagination">
      <span>Baris ${first}–${last}${hasMore ? '' : html` dari ${last}`}</span>
      <nav class="r-pagination__nav" aria-label="Halaman ${r.title ?? ''}">
        ${pageNo > 1 ? html`<a class="r-btn r-btn--sm r-btn--icon" href="${nav(pageNo - 1)}" aria-label="Halaman sebelumnya">${icon('chevron-left')}</a>` : html`<span class="r-btn r-btn--sm r-btn--icon" aria-disabled="true">${icon('chevron-left')}</span>`}
        ${hasMore ? html`<a class="r-btn r-btn--sm r-btn--icon" href="${nav(pageNo + 1)}" aria-label="Halaman berikutnya">${icon('chevron-right')}</a>` : html`<span class="r-btn r-btn--sm r-btn--icon" aria-disabled="true">${icon('chevron-right')}</span>`}
      </nav>
-   </div>`;
+   </div>`}`;
 }
 
 /** Button markup, or null when its authorization/condition fails or it points to a page the user may not open. */

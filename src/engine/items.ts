@@ -206,9 +206,14 @@ export function highlightText(text: string, q: string): SafeHtml {
 export async function fieldHtml(v: View, it: ItemDef, bar = false): Promise<SafeHtml | null> {
    const { ctx, rs, ev, rendered } = v;
    if (!(await ev.allows(it))) return null;
-   rendered.items.add(it.name);
    const stored = ctx.session.state.get(it.name) ?? null;
    const val = stored ?? '';
+   if (it.type !== 'hidden' && it.readOnly && (await ev.holds(it.readOnly))) {
+      // not added to the rendered items: a value posted for it is ignored, the stored one stays
+      const col = bar ? '' : ` r-col-${it.colSpan}`;
+      return html`<div class="r-field${col}" data-item="${it.name}"><span class="r-label">${nameOf(it)}</span><div class="r-display" id="${it.name}">${await readOnlyText(ev.c, ctx, it, stored)}</div></div>`;
+   }
+   rendered.items.add(it.name);
    if (it.type === 'hidden') return html`<input type="hidden" name="${it.name}" id="${it.name}" value="${val}">`;
 
    const err = rs.errors?.find(e => e.item === it.name);
@@ -279,6 +284,20 @@ export async function fieldHtml(v: View, it: ItemDef, bar = false): Promise<Safe
          const numeric = it.type === 'number';
          return field(label(it), html`<input class="r-input${numeric ? ' r-num' : ''}" type="${type}"${numeric ? raw(' inputmode="decimal"') : ''}${common} value="${it.type === 'password' ? '' : val}"${it.placeholder ? html` placeholder="${it.placeholder}"` : ''}${it.maxLength ? html` maxlength="${it.maxLength}"` : ''}>`);
       }
+   }
+}
+
+/** What a read-only item shows: the display value of list items, Ya/Tidak for switches, formatted dates. */
+async function readOnlyText(c: pg.PoolClient, ctx: Ctx, it: ItemDef, v: string | null): Promise<string> {
+   if (v === null) return '';
+   switch (it.type) {
+      case 'password': return '••••••';
+      case 'checkbox': case 'switch': return v === it.onValue ? 'Ya' : 'Tidak';
+      case 'date': return formatValue(v, 'date');
+      case 'datetime': return formatValue(v, 'datetime');
+      case 'select': case 'radio': case 'popup_lov': return lovDisplay(c, ctx, it, v);
+      case 'checkbox_group': return (await Promise.all(splitValues(v).map(x => lovDisplay(c, ctx, it, x)))).join(', ');
+      default: return v;
    }
 }
 

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { addUser, createWorkspace, importApp, migrate } from '../src/cli/commands.ts';
+import { addUser, createWorkspace, importApp, migrate, setupPilot } from '../src/cli/commands.ts';
 import { createPool } from '../src/engine/db.ts';
 import { buildServer } from '../src/engine/server.ts';
 
@@ -45,6 +45,37 @@ export async function setup(specText?: string, serverOpts: Partial<Parameters<ty
    await app.ready();
    return {
       pool, app, ws, schema, base: `/r/${ws}/emp`,
+      close: async () => {
+         await app.close();
+         await pool.end();
+         const a = new pg.Client({ connectionString: ADMIN_URL });
+         await a.connect();
+         await a.query(`drop database ${dbName} with (force)`);
+         await a.query(`drop role if exists ws_${ws}`).catch(() => {});
+         await a.end();
+      },
+   };
+}
+
+/** The pilot app (examples/demo-permintaan) in its own database: users admin, budi, sari, dodi, gudang (+ tamu without a role). */
+export async function setupPilotEnv(): Promise<Env> {
+   const tag = randomBytes(4).toString('hex');
+   const dbName = `rpx_p_${tag}`;
+   const admin = new pg.Client({ connectionString: ADMIN_URL });
+   await admin.connect();
+   await admin.query(`create database ${dbName}`);
+   await admin.end();
+   const url = new URL(ADMIN_URL);
+   url.pathname = `/${dbName}`;
+   const pool = createPool(url.toString());
+   const ws = `p${tag}`;
+   await migrate(pool);
+   await setupPilot(pool, 'rahasia-123', ws);
+   await addUser(pool, ws, 'tamu', 'rahasia-123');
+   const app = buildServer({ pool, secret: 'x'.repeat(40), loginRateLimit: 1000 });
+   await app.ready();
+   return {
+      pool, app, ws, schema: 'apx_demo', base: `/r/${ws}/demo`,
       close: async () => {
          await app.close();
          await pool.end();

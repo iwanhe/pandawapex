@@ -22,7 +22,8 @@ services:
 
   setup:
     build: .
-    command: ["node", "src/cli/rpx.ts", "demo", "setup"]
+    # aplikasi contoh emp (/r/demo/emp) dan pilot DEMO Permintaan Barang (/r/pandawa/demo)
+    command: ["sh", "-c", "node src/cli/rpx.ts demo setup && node src/cli/rpx.ts pilot setup"]
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
       RPX_DEMO_USER: ${RPX_DEMO_USER:-admin}

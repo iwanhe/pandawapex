@@ -3,7 +3,7 @@ import { parseArgs } from 'node:util';
 import { readFileSync } from 'node:fs';
 import { createPool } from '../engine/db.ts';
 import { SpecError } from '../spec/import.ts';
-import { addUser, createWorkspace, importApp, migrate } from './commands.ts';
+import { addUser, createWorkspace, importApp, migrate, PILOT_USERS, setupPilot } from './commands.ts';
 
 const USAGE = `rpx <command>
 
@@ -14,6 +14,8 @@ const USAGE = `rpx <command>
   user add --ws <name> --username <u> --password <p> [--group <g>]
   demo setup                                         migrate + workspace "demo" + contoh data + app emp + user
                                                      (RPX_DEMO_USER, RPX_DEMO_PASSWORD); aman dijalankan ulang
+  pilot setup                                        migrate + workspace "pandawa" + aplikasi DEMO Permintaan Barang
+                                                     (port dari APEX) + user per role (RPX_DEMO_PASSWORD)
 
 Environment: DATABASE_URL (owner/superuser connection for these admin commands)`;
 
@@ -63,6 +65,12 @@ async function main(): Promise<number> {
          await addUser(pool, 'demo', user, password, ['SDM']);
          await addUser(pool, 'demo', 'tamu', password);
          console.log(`demo ready: app ${r.appId}; users "${user}" (grup SDM) and "tamu" (hanya lihat), same password. Open /r/demo/emp`);
+      } else if (cmd === 'pilot' && sub === 'setup') {
+         const password = process.env.RPX_DEMO_PASSWORD ?? '';
+         if (password.length < 10) throw new Error('RPX_DEMO_PASSWORD must be set (at least 10 characters)');
+         await migrate(pool, m => console.log(m));
+         const r = await setupPilot(pool, password);
+         console.log(`pilot ready: app ${r.appId} (${r.pages} pages); users ${PILOT_USERS.map(([u, role]) => `${u} (${role})`).join(', ')}, same password. Open /r/pandawa/demo`);
       } else if (cmd === 'user' && sub === 'add') {
          await addUser(pool, need(values.ws, '--ws'), need(values.username, '--username'), need(values.password, '--password'), values.group ?? []);
          console.log(`user ${values.username} saved`);

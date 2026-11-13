@@ -1,0 +1,687 @@
+# Demo Permintaan Barang (DEMO): port dari aplikasi APEX Tim PANDAWA (APEXlang + export f170134) ke pandawapex.
+# Database: examples/demo-permintaan/install.sql. Catatan porting dan celah: PORTING.md.
+# Import: npm run rpx -- pilot setup   (atau: rpx app import examples/demo-permintaan/app.yaml --ws pandawa)
+app: demo
+name: Demo Permintaan Barang
+version: "1.0"
+parsing_schema: apx_demo
+home_page: 100
+timezone: Asia/Jakarta
+
+# APEX: authorization scheme aplikasi APP_USERS. Semua scheme memanggil apx_demo_sec_pkg (PL/pgSQL).
+# once_per_page_view: perubahan role oleh admin langsung berlaku tanpa login ulang.
+authorization_scheme: app_users
+authorization:
+  - name: app_users
+    type: fn_boolean
+    source: "return apx_demo_sec_pkg.has_any_role();"
+    evaluation: once_per_page_view
+    error_msg: "Akses ditolak: akun Anda belum didaftarkan di aplikasi ini. Hubungi admin."
+  - name: admin_rights
+    type: fn_boolean
+    source: "return apx_demo_sec_pkg.has_role('ADMIN');"
+    evaluation: once_per_page_view
+    error_msg: "Akses ditolak: hanya untuk role ADMIN."
+  - name: master_data
+    type: fn_boolean
+    source: "return apx_demo_sec_pkg.has_role('WAREHOUSE');"
+    evaluation: once_per_page_view
+    error_msg: "Akses ditolak: hanya untuk role WAREHOUSE."
+  - name: requester
+    type: fn_boolean
+    source: "return apx_demo_sec_pkg.has_role('REQUESTER') or apx_demo_sec_pkg.has_role('MANAGER');"
+    evaluation: once_per_page_view
+    error_msg: "Akses ditolak: hanya untuk role REQUESTER/MANAGER."
+
+lovs:
+  YES_NO:
+    static:
+      - { display: Ya, return: "Y" }
+      - { display: Tidak, return: "N" }
+  DEMO_ROLES:
+    sql: select role_code || ' - ' || role_name as d, role_code as r from apx_demo_roles order by role_code
+  APX_DEMO_DEPARTMENTS:
+    sql: select dept_code || ' - ' || dept_name as d, department_id as r from apx_demo_departments where active_yn = 'Y' order by 1
+  APX_DEMO_ITEMS:
+    sql: select item_code || ' - ' || item_name || ' (' || uom || ')' as d, item_id as r from apx_demo_items where active_yn = 'Y' order by 1
+  ITEMS_CATEGORY:
+    static:
+      - { display: Alat Tulis Kantor, return: ATK }
+      - { display: Perangkat IT, return: IT }
+      - { display: Consumables, return: CONSUMABLE }
+  APX_DEMO_REQUESTS:
+    sql: select request_no || ' - ' || purpose as d, request_id as r from apx_demo_requests where status in ('DRAFT', 'REJECTED') order by 1
+  REQUESTS_STATUS:
+    static:
+      - { display: Draft, return: DRAFT }
+      - { display: Submitted, return: SUBMITTED }
+      - { display: Approved, return: APPROVED }
+      - { display: Rejected, return: REJECTED }
+      - { display: Cancelled, return: CANCELLED }
+      - { display: Fulfilled, return: FULFILLED }
+      - { display: Closed, return: CLOSED }
+
+navigation:
+  - { label: Home, icon: house, page: 100 }
+  - { label: Approval Inbox, icon: inbox, page: 190 }
+  - label: Master Data
+    icon: layout-grid
+    page: 200
+    children:
+      - { label: Departments, page: 200 }
+      - { label: Items, page: 210 }
+  - label: Transaksi
+    icon: file-text
+    page: 300
+    children:
+      - { label: Permintaan Barang, page: 300 }
+      - { label: Detail Permintaan, page: 302 }
+      - { label: Baris Permintaan, page: 310 }
+  - label: Reports
+    icon: list
+    page: 400
+    children:
+      - { label: Rekap Permintaan, page: 400 }
+  - label: Administration
+    icon: settings
+    page: 500
+    authorization: admin_rights
+    children:
+      - { label: Users & Roles, page: 500, authorization: admin_rights }
+      - { label: Document Types & Approval, page: 510, authorization: admin_rights }
+
+pages:
+  # ---------------------------------------------------------------- Home
+  - page: 100
+    alias: home
+    name: Home
+    regions:
+      - static_id: app_name
+        title: Demo Permintaan Barang
+        type: static
+        source: { html: "<p>Template Pandawa APEXlang - data dummy.</p>" }
+      - static_id: kpi
+        title: Ringkasan
+        type: classic_report
+        source: { sql: "select kpi_1, kpi_2, kpi_3 from apx_demo_dash_kpi_v" }
+        columns:
+          - { name: KPI_1, label: Approval Menunggu Anda, data_type: number }
+          - { name: KPI_2, label: Permintaan Draft, data_type: number }
+          - { name: KPI_3, label: Menunggu Approval, data_type: number }
+      - static_id: chart_1
+        title: Permintaan per Status
+        type: chart
+        col_span: 6
+        chart: { type: pie, format: integer, value_label: Jumlah }
+        source: { sql: "select label, value from apx_demo_dash_c1_s1_v order by label" }
+      - static_id: chart_2
+        title: Nilai per Department
+        type: chart
+        col_span: 6
+        new_row: false
+        chart: { type: bar, format: integer, value_label: Total (Rp) }
+        source: { sql: "select label, value from apx_demo_dash_c2_s1_v order by label" }
+
+  # ---------------------------------------------------------------- Approval
+  - page: 190
+    alias: approval-inbox
+    name: Approval Inbox
+    breadcrumb_parent: 100
+    regions:
+      - static_id: approvals
+        title: Approval Inbox
+        type: interactive_report
+        page_size: 50
+        empty_text: Tidak ada data.
+        sort: { column: APPROVAL_ID, dir: desc }
+        source:
+          sql: |
+            select approval_id, doc_name, doc_no, approval_level, approver_role, amount, requested_by, requested_on,
+                   status, can_act_yn, acted_by, acted_on, note
+              from apx_demo_approvals_v
+        columns:
+          - { name: APPROVAL_ID, label: ID, hidden: true, data_type: number }
+          - { name: DOC_NAME, label: Jenis Dokumen }
+          - { name: DOC_NO, label: No. Dokumen, link: { page: 191, items: { P191_APPROVAL_ID: "#APPROVAL_ID#" }, clear_cache: "191" } }
+          - { name: APPROVAL_LEVEL, label: Level, data_type: number }
+          - { name: APPROVER_ROLE, label: Role Approver }
+          - { name: AMOUNT, label: Nilai, data_type: number, format: integer }
+          - { name: REQUESTED_BY, label: Diajukan Oleh }
+          - { name: REQUESTED_ON, label: Diajukan, data_type: date, format: datetime }
+          - { name: STATUS, label: Status }
+          - { name: CAN_ACT_YN, label: Bisa Saya Proses? }
+          - { name: ACTED_BY, label: Diproses Oleh }
+          - { name: ACTED_ON, label: Diproses, data_type: date, format: datetime }
+          - { name: NOTE, label: Catatan }
+
+  - page: 191
+    alias: approval
+    name: Approval
+    mode: modal
+    dialog_size: md
+    breadcrumb_parent: 190
+    regions:
+      - static_id: approval
+        title: Approval
+        type: form
+        source: { table: apx_demo_approvals_v }
+        items:
+          - { name: P191_APPROVAL_ID, type: hidden, source: { column: approval_id, pk: true } }
+          - { name: P191_DOC_NAME, type: display_only, label: Jenis Dokumen, col_span: 6, source: { column: doc_name } }
+          - { name: P191_DOC_NO, type: display_only, label: No. Dokumen, col_span: 6, source: { column: doc_no } }
+          - { name: P191_APPROVAL_LEVEL, type: display_only, label: Level, col_span: 6, source: { column: approval_level } }
+          - { name: P191_APPROVER_ROLE, type: display_only, label: Role Approver, col_span: 6, source: { column: approver_role } }
+          - { name: P191_AMOUNT, type: display_only, label: Nilai, col_span: 6, format: integer, source: { column: amount } }
+          - { name: P191_REQUESTED_BY, type: display_only, label: Diajukan Oleh, col_span: 6, source: { column: requested_by } }
+          - { name: P191_STATUS, type: display_only, label: Status, col_span: 6, source: { column: status } }
+          - { name: P191_CAN_ACT_YN, type: display_only, label: Bisa Saya Proses, col_span: 6, source: { column: can_act_yn } }
+          - { name: P191_NOTE, type: textarea, label: Catatan (wajib bila Reject), max_length: 1000 }
+        buttons:
+          - { name: CANCEL, label: Close, action: close_dialog, style: ghost }
+          - name: REJECT
+            label: Reject
+            style: danger
+            confirm: Tolak dokumen ini?
+            condition: { sql_expression: "apx_demo_approval_pkg.can_act_yn(:P191_APPROVAL_ID::bigint) = 'Y'" }
+          - name: APPROVE
+            label: Approve
+            hot: true
+            condition: { sql_expression: "apx_demo_approval_pkg.can_act_yn(:P191_APPROVAL_ID::bigint) = 'Y'" }
+    processes:
+      - { name: init_approval_form, type: form_init, region: approval }
+      - name: call_approve
+        type: plpgsql
+        when_button: APPROVE
+        code: "call apx_demo_approval_pkg.approve(p_approval_id => :P191_APPROVAL_ID::bigint, p_note => :P191_NOTE);"
+        success_msg: Dokumen disetujui.
+        error_msg: Approval gagal.
+      - name: call_reject
+        type: plpgsql
+        when_button: REJECT
+        code: "call apx_demo_approval_pkg.reject(p_approval_id => :P191_APPROVAL_ID::bigint, p_note => :P191_NOTE);"
+        success_msg: Dokumen ditolak.
+        error_msg: Penolakan gagal.
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [APPROVE, REJECT] } }
+    branches:
+      - { page: 190 }
+
+  # ---------------------------------------------------------------- Master data
+  - page: 200
+    alias: departments
+    name: Departments
+    breadcrumb_parent: 100
+    regions:
+      - static_id: departments
+        title: Departments
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: DEPT_CODE }
+        source: { sql: "select department_id, dept_code, dept_name, active_yn, updated_by, updated_on from apx_demo_departments_v" }
+        columns:
+          - { name: DEPARTMENT_ID, label: ID, hidden: true, data_type: number }
+          - { name: DEPT_CODE, label: Kode, link: { page: 201, items: { P201_DEPARTMENT_ID: "#DEPARTMENT_ID#" }, clear_cache: "201" } }
+          - { name: DEPT_NAME, label: Nama Department }
+          - { name: ACTIVE_YN, label: Aktif }
+          - { name: UPDATED_BY, label: Diubah Oleh }
+          - { name: UPDATED_ON, label: Diubah, data_type: date, format: datetime }
+        buttons:
+          - { name: CREATE, label: Create, hot: true, action: redirect, position: header, target: { page: 201, clear_cache: "201" }, authorization: master_data }
+
+  - page: 201
+    alias: department
+    name: Department
+    mode: modal
+    dialog_size: md
+    authorization: master_data
+    breadcrumb_parent: 200
+    regions:
+      - static_id: departments
+        title: Department
+        type: form
+        source: { table: apx_demo_departments }
+        items:
+          - { name: P201_DEPARTMENT_ID, type: hidden, source: { column: department_id, pk: true } }
+          - { name: P201_DEPT_CODE, type: text, label: Kode, required: true, max_length: 20, source: { column: dept_code } }
+          - { name: P201_DEPT_NAME, type: text, label: Nama Department, required: true, max_length: 100, source: { column: dept_name } }
+          - { name: P201_ACTIVE_YN, type: select, label: Aktif, lov: YES_NO, null_display: "- Pilih -", default: "Y", source: { column: active_yn } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - { name: DELETE, label: Delete, style: danger, confirm: "Hapus data ini?", condition: { item_not_null: P201_DEPARTMENT_ID } }
+          - { name: SAVE, label: Apply Changes, hot: true, condition: { item_not_null: P201_DEPARTMENT_ID } }
+          - { name: CREATE, label: Create, hot: true, condition: { item_null: P201_DEPARTMENT_ID } }
+    processes:
+      - { name: init_departments_form, type: form_init, region: departments }
+      - { name: save_departments, type: form_dml, region: departments }
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [DELETE, SAVE, CREATE] } }
+    branches:
+      - { page: 200 }
+
+  - page: 210
+    alias: items
+    name: Items
+    breadcrumb_parent: 100
+    regions:
+      - static_id: items
+        title: Items
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: ITEM_CODE }
+        source: { sql: "select item_id, item_code, item_name, category, uom, std_price, active_yn, updated_by, updated_on from apx_demo_items_v" }
+        columns:
+          - { name: ITEM_ID, label: ID, hidden: true, data_type: number }
+          - { name: ITEM_CODE, label: Kode Item, link: { page: 211, items: { P211_ITEM_ID: "#ITEM_ID#" }, clear_cache: "211" } }
+          - { name: ITEM_NAME, label: Nama Item }
+          - { name: CATEGORY, label: Kategori }
+          - { name: UOM, label: Satuan }
+          - { name: STD_PRICE, label: Harga Standar, data_type: number, format: integer }
+          - { name: ACTIVE_YN, label: Aktif }
+          - { name: UPDATED_BY, label: Diubah Oleh }
+          - { name: UPDATED_ON, label: Diubah, data_type: date, format: datetime }
+        buttons:
+          - { name: CREATE, label: Create, hot: true, action: redirect, position: header, target: { page: 211, clear_cache: "211" }, authorization: master_data }
+
+  - page: 211
+    alias: item
+    name: Item
+    mode: modal
+    dialog_size: md
+    authorization: master_data
+    breadcrumb_parent: 210
+    regions:
+      - static_id: items
+        title: Item
+        type: form
+        source: { table: apx_demo_items }
+        items:
+          - { name: P211_ITEM_ID, type: hidden, source: { column: item_id, pk: true } }
+          - { name: P211_ITEM_CODE, type: text, label: Kode Item, required: true, max_length: 30, col_span: 6, source: { column: item_code } }
+          - { name: P211_ITEM_NAME, type: text, label: Nama Item, required: true, max_length: 200, col_span: 6, source: { column: item_name } }
+          - { name: P211_CATEGORY, type: select, label: Kategori, required: true, lov: ITEMS_CATEGORY, null_display: "- Pilih -", col_span: 6, source: { column: category } }
+          - { name: P211_UOM, type: text, label: Satuan, required: true, max_length: 10, col_span: 6, source: { column: uom } }
+          - { name: P211_STD_PRICE, type: number, label: Harga Standar, required: true, default: "0", col_span: 6, source: { column: std_price } }
+          - { name: P211_ACTIVE_YN, type: select, label: Aktif, lov: YES_NO, null_display: "- Pilih -", default: "Y", col_span: 6, source: { column: active_yn } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - { name: DELETE, label: Delete, style: danger, confirm: "Hapus data ini?", condition: { item_not_null: P211_ITEM_ID } }
+          - { name: SAVE, label: Apply Changes, hot: true, condition: { item_not_null: P211_ITEM_ID } }
+          - { name: CREATE, label: Create, hot: true, condition: { item_null: P211_ITEM_ID } }
+    processes:
+      - { name: init_items_form, type: form_init, region: items }
+      - { name: save_items, type: form_dml, region: items }
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [DELETE, SAVE, CREATE] } }
+    branches:
+      - { page: 210 }
+
+  # ---------------------------------------------------------------- Transaksi
+  - page: 300
+    alias: requests
+    name: Permintaan Barang
+    breadcrumb_parent: 100
+    regions:
+      - static_id: requests
+        title: Permintaan Barang
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: REQUEST_NO }
+        source:
+          sql: |
+            select request_id, request_no, department_id_dsp, request_date, need_date, purpose, status, updated_by, updated_on
+              from apx_demo_requests_v
+        columns:
+          - { name: REQUEST_ID, label: ID, hidden: true, data_type: number }
+          - { name: REQUEST_NO, label: No. Permintaan Barang, link: { page: 301, items: { P301_REQUEST_ID: "#REQUEST_ID#" }, clear_cache: "301" } }
+          - { name: DEPARTMENT_ID_DSP, label: Department }
+          - { name: REQUEST_DATE, label: Tanggal, data_type: date, format: date }
+          - { name: NEED_DATE, label: Dibutuhkan Tanggal, data_type: date, format: date }
+          - { name: PURPOSE, label: Keperluan }
+          - { name: STATUS, label: Status }
+          - { name: UPDATED_BY, label: Diubah Oleh }
+          - { name: UPDATED_ON, label: Diubah, data_type: date, format: datetime }
+        buttons:
+          - { name: CREATE, label: Create, hot: true, action: redirect, position: header, target: { page: 301, clear_cache: "301" }, authorization: requester }
+
+  - page: 301
+    alias: request
+    name: Permintaan Barang
+    mode: modal
+    dialog_size: md
+    authorization: requester
+    breadcrumb_parent: 300
+    regions:
+      - static_id: requests
+        title: Permintaan Barang
+        type: form
+        source: { table: apx_demo_requests }
+        items:
+          - { name: P301_REQUEST_ID, type: hidden, source: { column: request_id, pk: true } }
+          - { name: P301_REQUEST_NO, type: display_only, label: No. Permintaan Barang, col_span: 6, source: { column: request_no } }
+          # status hanya bisa diubah setelah approved (APPROVED -> FULFILLED/CLOSED); approval lewat Submit for Approval
+          - name: P301_STATUS
+            type: select
+            label: Status
+            col_span: 6
+            lov: REQUESTS_STATUS
+            null_display: "- Pilih -"
+            default: DRAFT
+            help: Status operasional setelah approved. Approval lewat Submit for Approval.
+            read_only: { sql_expression: "coalesce(:P301_STATUS, 'DRAFT') not in ('APPROVED', 'FULFILLED', 'CLOSED')" }
+            source: { column: status }
+          - name: P301_DEPARTMENT_ID
+            type: select
+            label: Department
+            required: true
+            col_span: 6
+            lov: APX_DEMO_DEPARTMENTS
+            null_display: "- Pilih -"
+            read_only: { sql_expression: "coalesce(:P301_STATUS, 'DRAFT') not in ('DRAFT', 'REJECTED')" }
+            source: { column: department_id }
+          - { name: P301_REQUEST_DATE, type: date, label: Tanggal, required: true, col_span: 6, source: { column: request_date } }
+          - name: P301_NEED_DATE
+            type: date
+            label: Dibutuhkan Tanggal
+            col_span: 6
+            read_only: { sql_expression: "coalesce(:P301_STATUS, 'DRAFT') not in ('DRAFT', 'REJECTED')" }
+            source: { column: need_date }
+          - name: P301_PURPOSE
+            type: text
+            label: Keperluan
+            required: true
+            max_length: 300
+            read_only: { sql_expression: "coalesce(:P301_STATUS, 'DRAFT') not in ('DRAFT', 'REJECTED')" }
+            source: { column: purpose }
+          - { name: P301_NOTES, type: textarea, label: Catatan, max_length: 1000, source: { column: notes } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - name: DELETE
+            label: Delete
+            style: danger
+            confirm: Hapus data ini?
+            condition: { sql_expression: ":P301_REQUEST_ID is not null and coalesce(:P301_STATUS, 'DRAFT') = 'DRAFT'" }
+          - name: SAVE
+            label: Apply Changes
+            hot: true
+            condition: { sql_expression: ":P301_REQUEST_ID is not null and coalesce(:P301_STATUS, 'DRAFT') not in ('SUBMITTED', 'CANCELLED', 'CLOSED')" }
+          - { name: CREATE, label: Create, hot: true, condition: { item_null: P301_REQUEST_ID } }
+          - name: SUBMIT
+            label: Submit for Approval
+            hot: true
+            confirm: Ajukan dokumen ini untuk approval? Setelah diajukan dokumen terkunci.
+            condition: { sql_expression: ":P301_REQUEST_ID is not null and coalesce(:P301_STATUS, 'DRAFT') in ('DRAFT', 'REJECTED')" }
+    computations:
+      # APEX: default "select trunc(sysdate) from dual"
+      - { item: P301_REQUEST_DATE, type: sql_expression, expression: "current_date", condition: { item_null: P301_REQUEST_DATE } }
+    validations:
+      - name: need_date_after_request_date
+        type: sql_expression
+        expression: ":P301_NEED_DATE is null or :P301_NEED_DATE::date >= :P301_REQUEST_DATE::date"
+        error_msg: Tanggal dibutuhkan tidak boleh sebelum tanggal permintaan.
+        item: P301_NEED_DATE
+        condition: { request_in: [SAVE, CREATE, SUBMIT] }
+    processes:
+      - { name: init_requests_form, type: form_init, region: requests }
+      - { name: save_requests, type: form_dml, region: requests }
+      - name: call_submit_requests
+        type: plpgsql
+        when_button: SUBMIT
+        code: "call apx_demo_approval_pkg.submit(p_doc_type => 'REQ', p_doc_id => :P301_REQUEST_ID::bigint);"
+        success_msg: Dokumen diajukan untuk approval.
+        error_msg: Pengajuan gagal.
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [DELETE, SAVE, CREATE, SUBMIT] } }
+    branches:
+      - { page: 300 }
+
+  # Master-detail (versi export f170134): daftar kiri, header + baris kanan, pilihan di P302_REQUEST_ID
+  - page: 302
+    alias: request-detail
+    name: Detail Permintaan
+    breadcrumb_parent: 300
+    regions:
+      - static_id: master
+        title: Daftar Permintaan Barang
+        type: classic_report
+        col_span: 4
+        page_size: 15
+        empty_text: Belum ada Permintaan Barang.
+        source: { sql: "select request_id, request_no, department_id_dsp, status from apx_demo_requests_v order by request_no desc" }
+        columns:
+          - { name: REQUEST_ID, hidden: true }
+          - { name: REQUEST_NO, label: Permintaan Barang, link: { page: 302, items: { P302_REQUEST_ID: "#REQUEST_ID#" } } }
+          - { name: DEPARTMENT_ID_DSP, label: Department }
+          - { name: STATUS, label: Status }
+        items:
+          - { name: P302_REQUEST_ID, type: hidden }
+      - static_id: pilih
+        type: static
+        col_span: 8
+        new_row: false
+        source: { html: "<p>Pilih Permintaan Barang di daftar kiri untuk melihat detailnya.</p>" }
+        condition: { item_null: P302_REQUEST_ID }
+      - static_id: header
+        title: Permintaan Barang
+        type: classic_report
+        col_span: 8
+        new_row: false
+        condition: { item_not_null: P302_REQUEST_ID }
+        source:
+          sql: |
+            select request_id, request_no, department_id_dsp, request_date, need_date, purpose, status
+              from apx_demo_requests_v
+             where request_id = :P302_REQUEST_ID::bigint
+        columns:
+          - { name: REQUEST_ID, hidden: true }
+          - { name: REQUEST_NO, label: No. Permintaan Barang }
+          - { name: DEPARTMENT_ID_DSP, label: Department }
+          - { name: REQUEST_DATE, label: Tanggal, format: date }
+          - { name: NEED_DATE, label: Dibutuhkan Tanggal, format: date }
+          - { name: PURPOSE, label: Keperluan }
+          - { name: STATUS, label: Status }
+        buttons:
+          - { name: EDIT_HEADER, label: Edit, action: redirect, target: { page: 301, items: { P301_REQUEST_ID: "&P302_REQUEST_ID." }, clear_cache: "301" } }
+      - static_id: lines
+        title: Baris Permintaan
+        type: classic_report
+        col_span: 8
+        new_row: false
+        page_size: 100
+        empty_text: Belum ada Baris Permintaan.
+        condition: { item_not_null: P302_REQUEST_ID }
+        source:
+          sql: |
+            select line_id, item_id_dsp, qty, unit_price, line_amount
+              from apx_demo_request_lines_v
+             where request_id = :P302_REQUEST_ID::bigint
+             order by line_id
+        columns:
+          - { name: LINE_ID, hidden: true }
+          - { name: ITEM_ID_DSP, label: Item, link: { page: 311, items: { P311_LINE_ID: "#LINE_ID#" }, clear_cache: "311" } }
+          - { name: QTY, label: Qty, data_type: number, format: number }
+          - { name: UNIT_PRICE, label: Harga Satuan, data_type: number, format: integer }
+          - { name: LINE_AMOUNT, label: Jumlah, data_type: number, format: integer }
+        buttons:
+          - name: CREATE_REQUEST_LINES
+            label: Tambah baris
+            action: redirect
+            target: { page: 311, items: { P311_REQUEST_ID: "&P302_REQUEST_ID." }, clear_cache: "311" }
+            condition: { sql_exists: "select 1 from apx_demo_requests where request_id = :P302_REQUEST_ID::bigint and status in ('DRAFT', 'REJECTED')" }
+            authorization: requester
+
+  - page: 310
+    alias: request-lines
+    name: Baris Permintaan
+    breadcrumb_parent: 100
+    regions:
+      - static_id: request_lines
+        title: Baris Permintaan
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: LINE_ID }
+        source:
+          sql: |
+            select line_id, request_id_dsp, item_id_dsp, qty, unit_price, line_amount, updated_by, updated_on
+              from apx_demo_request_lines_v
+        columns:
+          - { name: LINE_ID, label: ID, hidden: true, data_type: number }
+          - { name: REQUEST_ID_DSP, label: No. Permintaan }
+          - { name: ITEM_ID_DSP, label: Item, link: { page: 311, items: { P311_LINE_ID: "#LINE_ID#" }, clear_cache: "311" } }
+          - { name: QTY, label: Qty, data_type: number, format: number }
+          - { name: UNIT_PRICE, label: Harga Satuan, data_type: number, format: integer }
+          - { name: LINE_AMOUNT, label: Jumlah, data_type: number, format: integer }
+          - { name: UPDATED_BY, label: Diubah Oleh }
+          - { name: UPDATED_ON, label: Diubah, data_type: date, format: datetime }
+        buttons:
+          - { name: CREATE, label: Create, hot: true, action: redirect, position: header, target: { page: 311, clear_cache: "311" }, authorization: requester }
+
+  - page: 311
+    alias: request-line
+    name: Baris Permintaan
+    mode: modal
+    dialog_size: md
+    authorization: requester
+    breadcrumb_parent: 310
+    regions:
+      - static_id: request_lines
+        title: Baris Permintaan
+        type: form
+        source: { table: apx_demo_request_lines }
+        items:
+          - { name: P311_LINE_ID, type: hidden, source: { column: line_id, pk: true } }
+          - { name: P311_REQUEST_ID, type: select, label: No. Permintaan, required: true, lov: APX_DEMO_REQUESTS, null_display: "- Pilih -", source: { column: request_id } }
+          - { name: P311_ITEM_ID, type: select, label: Item, required: true, lov: APX_DEMO_ITEMS, null_display: "- Pilih -", source: { column: item_id } }
+          - { name: P311_QTY, type: number, label: Qty, required: true, col_span: 4, source: { column: qty } }
+          - { name: P311_UNIT_PRICE, type: number, label: Harga Satuan, required: true, default: "0", col_span: 4, source: { column: unit_price } }
+          - { name: P311_LINE_AMOUNT, type: display_only, label: Jumlah, format: integer, col_span: 4, source: { column: line_amount } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - { name: DELETE, label: Delete, style: danger, confirm: "Hapus data ini?", condition: { item_not_null: P311_LINE_ID } }
+          - { name: SAVE, label: Apply Changes, hot: true, condition: { item_not_null: P311_LINE_ID } }
+          - { name: CREATE, label: Create, hot: true, condition: { item_null: P311_LINE_ID } }
+    processes:
+      - { name: init_request_lines_form, type: form_init, region: request_lines }
+      - { name: save_request_lines, type: form_dml, region: request_lines }
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [DELETE, SAVE, CREATE] } }
+    branches:
+      - { page: 310 }
+
+  # ---------------------------------------------------------------- Reports
+  - page: 400
+    alias: rekap-permintaan
+    name: Rekap Permintaan
+    breadcrumb_parent: 100
+    regions:
+      - static_id: rekap
+        title: Rekap Permintaan
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: REQUEST_NO }
+        source: { sql: "select request_no, dept_name, request_date, purpose, line_count, total_amount, status from apx_demo_request_summary_v" }
+        columns:
+          - { name: REQUEST_NO, label: No. Permintaan }
+          - { name: DEPT_NAME, label: Department }
+          - { name: REQUEST_DATE, label: Tanggal, data_type: date, format: date }
+          - { name: PURPOSE, label: Keperluan }
+          - { name: LINE_COUNT, label: Jml Baris, data_type: number }
+          - { name: TOTAL_AMOUNT, label: Total, data_type: number, format: integer }
+          - { name: STATUS, label: Status }
+
+  # ---------------------------------------------------------------- Administration
+  - page: 500
+    alias: users-roles
+    name: Users & Roles
+    authorization: admin_rights
+    breadcrumb_parent: 100
+    regions:
+      - static_id: user_roles
+        title: Users & Roles
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: USERNAME }
+        source: { sql: "select user_role_id, username, role_code, role_name, created_by, created_on from apx_demo_user_roles_v" }
+        columns:
+          - { name: USER_ROLE_ID, label: ID, hidden: true, data_type: number }
+          - { name: USERNAME, label: Username, link: { page: 501, items: { P501_USER_ROLE_ID: "#USER_ROLE_ID#" }, clear_cache: "501" } }
+          - { name: ROLE_CODE, label: Role }
+          - { name: ROLE_NAME, label: Nama Role }
+          - { name: CREATED_BY, label: Dibuat Oleh }
+          - { name: CREATED_ON, label: Dibuat, data_type: date, format: datetime }
+        buttons:
+          - { name: CREATE, label: Create, hot: true, action: redirect, position: header, target: { page: 501, clear_cache: "501" } }
+
+  - page: 501
+    alias: user-role
+    name: User Role
+    mode: modal
+    dialog_size: md
+    authorization: admin_rights
+    breadcrumb_parent: 500
+    regions:
+      - static_id: user_role
+        title: User Role
+        type: form
+        source: { table: apx_demo_user_roles }
+        items:
+          - { name: P501_USER_ROLE_ID, type: hidden, source: { column: user_role_id, pk: true } }
+          - { name: P501_USERNAME, type: text, label: Username, required: true, max_length: 255, help: Nama akun login pandawapex (huruf besar/kecil sama saja)., source: { column: username } }
+          - { name: P501_ROLE_CODE, type: select, label: Role, required: true, lov: DEMO_ROLES, null_display: "- Pilih -", source: { column: role_code } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - { name: DELETE, label: Delete, style: danger, confirm: "Hapus data ini?", condition: { item_not_null: P501_USER_ROLE_ID } }
+          - { name: SAVE, label: Apply Changes, hot: true, condition: { item_not_null: P501_USER_ROLE_ID } }
+          - { name: CREATE, label: Create, hot: true, condition: { item_null: P501_USER_ROLE_ID } }
+    computations:
+      # APEX: default "select :APP_USER from dual"
+      - { item: P501_USERNAME, type: sql_expression, expression: "upper(:APP_USER)", condition: { item_null: P501_USER_ROLE_ID } }
+    processes:
+      - { name: init_user_role_form, type: form_init, region: user_role }
+      - { name: save_user_role, type: form_dml, region: user_role }
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [DELETE, SAVE, CREATE] } }
+    branches:
+      - { page: 500 }
+
+  - page: 510
+    alias: document-types
+    name: Document Types & Approval
+    authorization: admin_rights
+    breadcrumb_parent: 100
+    regions:
+      - static_id: doc_types
+        title: Document Types & Approval
+        type: interactive_report
+        empty_text: Tidak ada data.
+        sort: { column: DOC_TYPE }
+        source: { sql: "select doc_type, doc_name, prefix, approver1_role, approver2_role, level2_limit from apx_demo_doc_types" }
+        columns:
+          - { name: DOC_TYPE, label: Kode, link: { page: 511, items: { P511_DOC_TYPE: "#DOC_TYPE#" }, clear_cache: "511" } }
+          - { name: DOC_NAME, label: Dokumen }
+          - { name: PREFIX, label: Prefix Nomor }
+          - { name: APPROVER1_ROLE, label: Approver 1 }
+          - { name: APPROVER2_ROLE, label: Approver 2 }
+          - { name: LEVEL2_LIMIT, label: Approver 2 bila nilai >, data_type: number, format: integer }
+
+  - page: 511
+    alias: document-type
+    name: Document Type
+    mode: modal
+    dialog_size: md
+    authorization: admin_rights
+    breadcrumb_parent: 510
+    regions:
+      - static_id: doc_type
+        title: Document Type
+        type: form
+        source: { table: apx_demo_doc_types }
+        items:
+          - { name: P511_DOC_TYPE, type: hidden, source: { column: doc_type, pk: true } }
+          - { name: P511_DOC_NAME, type: text, label: Nama Dokumen, required: true, max_length: 100, col_span: 6, source: { column: doc_name } }
+          - { name: P511_PREFIX, type: text, label: Prefix Nomor, required: true, max_length: 10, col_span: 6, source: { column: prefix } }
+          - { name: P511_APPROVER1_ROLE, type: select, label: Approver Level 1, lov: DEMO_ROLES, null_display: "- Tanpa approval -", col_span: 6, source: { column: approver1_role } }
+          - { name: P511_APPROVER2_ROLE, type: select, label: Approver Level 2, lov: DEMO_ROLES, null_display: "- Tidak ada -", col_span: 6, source: { column: approver2_role } }
+          - { name: P511_LEVEL2_LIMIT, type: number, label: Level 2 bila nilai melebihi, required: true, col_span: 6, source: { column: level2_limit } }
+        buttons:
+          - { name: CANCEL, label: Cancel, action: close_dialog, style: ghost }
+          - { name: SAVE, label: Apply Changes, hot: true, condition: { item_not_null: P511_DOC_TYPE } }
+    processes:
+      - { name: init_document_type_form, type: form_init, region: doc_type }
+      - { name: save_document_type, type: form_dml, region: doc_type }
+      - { name: close_dialog, type: close_dialog, condition: { request_in: [SAVE] } }
+    branches:
+      - { page: 510 }

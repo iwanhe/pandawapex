@@ -62,6 +62,7 @@ export class Evaluator {
       if (cond.item_null) return st(cond.item_null) === null;
       if (cond.item_equals) return st(cond.item_equals.item) === cond.item_equals.value;
       if (cond.request_equals !== undefined) return this.request === cond.request_equals;
+      if (cond.request_in) return cond.request_in.includes(this.request);
       const sql = cond.sql_expression ?? cond.sql_exists;
       if (sql) {
          const wrap = cond.sql_expression ? (q: string) => `select coalesce((${q})::boolean, false)` : (q: string) => `select exists (${q})`;

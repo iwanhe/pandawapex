@@ -120,3 +120,20 @@ Bug baru: **4** (S1 ×1, S3 ×2, S4 ×1), semuanya **fixed** dengan tes yang gag
 Satu tes e2e baru (F04-I1) sempat gagal di run penuh karena bergantung pada jumlah karyawan yang diubah spec lain; diperbaiki dengan
 membandingkan ke database.
 
+## Pilot DEMO Permintaan Barang (2026-11-13)
+
+| case | flow | type | yang diharapkan | auto | hasil |
+| --- | --- | --- | --- | --- | --- |
+| PILOT-H1 | F04 | happy: permintaan → baris → submit → approve | nomor REQ-YYYY-NNNN, status SUBMITTED lalu APPROVED; axe bersih di report, dialog baris, inbox | e2e, int | ✅ |
+| PILOT-H2 | F04 | happy: approval 2 level | > 10 jt: MANAGER lalu DIRECTOR; manager tidak bisa mengambil langkah direktur (tombol tidak ada, POST 400) | int | ✅ |
+| PILOT-H3 | F04 | happy: home | KPI, chart pie & bar dengan tabel alternatif; axe bersih | e2e, int | ✅ |
+| PILOT-E1 | F04 | edge: submit tanpa baris | "Permintaan belum memiliki baris item.", status tetap DRAFT | int | ✅ |
+| PILOT-E2 | F04 | edge: terkunci setelah submit | field tampil sebagai teks, nilai kiriman diabaikan, Apply/Submit tidak ada; baris tidak bisa diubah | int | ✅ |
+| PILOT-E3 | F04 | edge: setelah approved | hanya status yang bisa diubah (APPROVED → FULFILLED), keperluan tetap | int | ✅ |
+| PILOT-E4 | F04 | edge: reject | tanpa catatan ditolak; dengan catatan → REJECTED, bisa diubah dan diajukan lagi | int | ✅ |
+| PILOT-N1 | F07 | negatif: maker-checker | manager tidak bisa menyetujui permintaannya sendiri | int | ✅ |
+| PILOT-N2 | F07 | negatif: tanpa role | user tanpa role ditolak scheme aplikasi; role baru dari admin berlaku di page view berikutnya | int | ✅ |
+| PILOT-N3 | F07 | negatif: menu & tombol per role | Administration hanya ADMIN, Create item hanya WAREHOUSE, form permintaan bukan untuk WAREHOUSE | int | ✅ |
+
+Run: integrasi 93/93, e2e 72/72 (2 di-skip). Bug baru dari axe: tabel scroll tidak bisa difokus keyboard, diperbaiki (lihat build-log).
+
