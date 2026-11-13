@@ -1,0 +1,33 @@
+{
+  "name": "pandawapex",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Low-code runtime ala Oracle APEX di atas PostgreSQL (internal KCSI / Tim PANDAWA)",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "node --watch src/engine/main.ts",
+    "start": "node src/engine/main.ts",
+    "rpx": "node src/cli/rpx.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "design:tokens": "python3 replica/design/build_tokens.py && cp replica/design/tokens.css replica/design/components.css src/client/"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/formbody": "^9.0.1",
+    "@node-rs/argon2": "^2.2.2",
+    "ajv": "^8.20.0",
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "playwright-core": "^1.65.0",
+    "typescript": "~5.9"
+  }
+}

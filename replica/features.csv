@@ -1,34 +1,34 @@
 feature,area,priority,original,clone,notes
-Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,no,parsing schema per app; role PG terpisah per workspace
+Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,yes,"M0: rpx ws create (role ws_*, grants, default privileges)"
 Login developer per workspace,workspace,must,yes,no,S01
-Kelola developer dan end user (accounts),workspace,must,yes,no,S19
+Kelola developer dan end user (accounts),workspace,must,yes,partial,M1: end user via CLI rpx user add; developer accounts & UI belum
 Daftar aplikasi + create/delete app,builder,must,yes,no,S03
 Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 klik
 Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
 Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
-Application properties + substitution strings,builder,must,yes,no,S13
+Application properties + substitution strings,builder,must,yes,partial,"M1: lewat spec YAML (substitutions, timezone); belum ada UI"
 Application items & computations on login,builder,must,yes,no,S14
-List of Values static & SQL,shared components,must,yes,no,S09
-Authentication: built-in accounts,security,must,yes,no,hash argon2/bcrypt
+List of Values static & SQL,shared components,must,yes,partial,M1: LOV inline per item (static/SQL) untuk select; shared LOV belum
+Authentication: built-in accounts,security,must,yes,yes,"M1: argon2id, lock setelah 5 gagal, session baru saat login"
 Authentication: OIDC/social sign-in,security,must,yes,no,untuk SSO KCSI (Entra ID/Google)
 Authorization schemes (exists SQL / function boolean / group),security,must,yes,no,S11; evaluation point
-Navigation menu + breadcrumb,shared components,must,yes,no,S12
-Render page dari metadata (regions + grid layout),runtime,must,yes,no,core engine
-Accept page: computations > validations > processes > branches,runtime,must,yes,no,urutan eksekusi sesuai docs page processing
-Session state per item + clear cache via URL,runtime,must,yes,no,F09
-Bind variable :ITEM ke parameter PostgreSQL ($n),runtime,must,yes,no,parser SQL bukan string replace; anti SQL injection
-Substitution &ITEM. dengan escape filters,runtime,must,yes,no,HTML/ATTR/JS/RAW
-URL scheme ramah (app/page/params) + checksum,runtime,must,yes,no,Session State Protection
-Form region: init (fetch by PK) + DML process,regions,must,yes,no,PK wajib (tidak ada ROWID di PG)
+Navigation menu + breadcrumb,shared components,must,yes,partial,M1: menu dari spec + breadcrumb parent; kondisi/otorisasi per entri belum
+Render page dari metadata (regions + grid layout),runtime,must,yes,yes,M1
+Accept page: computations > validations > processes > branches,runtime,must,yes,partial,"M1: validations, processes, branches; computations belum (M2)"
+Session state per item + clear cache via URL,runtime,must,yes,yes,M1
+Bind variable :ITEM ke parameter PostgreSQL ($n),runtime,must,yes,yes,M1: $n::text (bind selalu text seperti VARCHAR2)
+Substitution &ITEM. dengan escape filters,runtime,must,yes,partial,M1: &ITEM. selalu di-escape HTML; filter !RAW/!JS/!ATTR belum
+URL scheme ramah (app/page/params) + checksum,runtime,must,yes,yes,M1: HMAC per session; argumen dibuang dari URL setelah diterapkan
+Form region: init (fetch by PK) + DML process,regions,must,yes,yes,M1: insert/update/delete; tombol DELETE/HAPUS = delete
 Lost-update detection pada Form,regions,must,yes,no,checksum baris atau kolom version
-Classic Report dengan pagination,regions,must,yes,no,
+Classic Report dengan pagination,regions,must,yes,yes,M1
 Interactive Report: search + sort + filter + pagination,regions,must,yes,no,hard part #1
 Interactive Report: download CSV/XLSX,regions,must,yes,no,
-Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,no,
+Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,partial,"M1: text, number, textarea, date, select, hidden, display_only, password; popup LOV/switch/radio/checkbox belum"
 Cascading LOV (parent items),items,must,yes,no,
-Validasi deklaratif + inline error,runtime,must,yes,no,F04 edge
+Validasi deklaratif + inline error,runtime,must,yes,yes,"M1: required, not_null, sql_expression, sql_exists/not_exists, regex"
 Modal dialog page + close dialog + refresh parent,runtime,must,yes,no,F04 core loop
-Success/error notification,runtime,must,yes,no,
+Success/error notification,runtime,must,yes,yes,"M1: pesan sukses sekali tampil, ringkasan error difokuskan"
 Interactive Grid editable (add/update/delete),regions,should,yes,no,hard part #4
 Dynamic Actions: show/hide/set value/refresh/submit,runtime,should,yes,no,hard part #5
 Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return,runtime,should,yes,no,
@@ -38,13 +38,13 @@ IR control break + aggregate + highlight,regions,should,yes,no,
 Faceted search,regions,should,yes,no,
 Cards region,regions,should,yes,no,
 File upload item,items,should,yes,no,simpan ke bytea atau object storage
-Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,no,F08; git-friendly; padanan konsep APEXlang dengan format sendiri
+Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,partial,M0: import + validasi JSON Schema/semantik; export belum
 Page locking antar developer,builder,should,yes,no,
 Developer Toolbar + session state viewer,runtime,should,yes,no,S26
 Debug messages per page view,runtime,should,yes,no,S28
 Activity log (page views + timing),runtime,should,yes,no,
 Collections (padanan APEX_COLLECTION) di jsonb,runtime,should,yes,no,
-Error handling function + pesan ramah,runtime,should,yes,no,
+Error handling function + pesan ramah,runtime,should,yes,partial,M1: halaman error ramah + kode referensi; error handling function per app belum
 Theme/template engine sendiri (page/region/report/button),ui,should,yes,no,design system dari /replica-design
 Translations berbasis text message,ui,should,yes,no,fitur 26.1; ID/EN untuk subsidiary
 Charts region,regions,could,yes,no,pakai library open source (mis. ECharts) bukan Oracle JET
