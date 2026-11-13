@@ -103,3 +103,28 @@ Lebih sulit dari perkiraan:
   dialihkan (303) ke URL bersih; peringatan (mis. "harus angka") dibawa lewat session agar tetap terlihat setelah redirect.
 - **Esc di dalam iframe** tidak sampai ke `<dialog>` induk. Halaman dialog meneruskannya lewat `postMessage`.
 - `exceljs` membawa dependensi `uuid` lama dengan kerentanan moderat. Diganti XLSX buatan sendiri (± 60 baris) di atas `fflate`.
+
+## M3: item & daftar pilihan (2026-11-13), done
+
+| ID | status | belum ada | catatan |
+| --- | --- | --- | --- |
+| Item types | done | file upload, rich text, shuttle, select one bergaya combobox | `popup_lov`, `radio`, `checkbox`, `checkbox_group`, `switch`, `datetime`, `display_only` dengan `format`; radio/checkbox group memakai `<fieldset><legend>`, switch = `role="switch"` |
+| Shared LOV | done | LOV dinamis dengan kolom tambahan (multi-column popup) | `lovs:` di tingkat app → `rpx.lovs` / `rpx.lov_entries`; item memakai `lov: NAMA` |
+| Cascading LOV | done | — | `cascade: [ITEM]`; `GET …/:page/field/:item` merender ulang field anak dengan nilai parent saat itu, nilai anak dikosongkan, cucu ikut berantai |
+| Popup LOV | done | multi-select | `GET …/:page/lov/:item?q=&p=` (25 per halaman, `ilike` literal, `<mark>`), dialog `sm` dengan combobox + listbox, panah/Enter/Esc, fokus kembali ke field |
+| Cek nilai di server | done | — | nilai list harus ada di daftar (juga untuk SQL LOV), angka, tanggal, tanggal-jam, nilai checkbox/switch |
+| Validasi baru | done | — | `fn_boolean`, `fn_returns_error`, `is_numeric`, `is_date`, `is_timestamp` |
+| Format tanggal & zona waktu | partial | format mask bebas (`DD-MON-YYYY` dst.) | `datetime-local` + `timezone` app (`set_config('timezone')` per request); tampilan `date`/`datetime` di display only & report |
+
+Verifikasi: `npm test` 79/79 (+13 di `test/m3.test.ts`), e2e +6 (F04-I1..I3 desktop & 390 px, axe bersih dengan dialog LOV terbuka),
+screenshot page 4 dan dialog LOV (desktop, 390 px). Contoh: page 2 (switch, radio, checkbox group, shared LOV) dan page 4 "Mutasi"
+(popup LOV yang mengikuti departemen asal, jabatan yang mengikuti departemen tujuan, validasi function body).
+
+Lebih sulit dari perkiraan:
+- **Browser tidak mengirim apa pun** untuk checkbox yang tidak dicentang atau radio yang tidak dipilih. Karena daftar item yang dirender
+  ikut ditandatangani (`__ps`), server tahu item itu ada di form, jadi "tidak terkirim" bisa diartikan kosong / `off_value` dengan aman.
+- **Parent cascade dari URL** adalah celah: kalau LOV difilter item tersembunyi (mis. departemen milik user), nilai parent di query string
+  bisa melebarkan daftar. Hanya parent yang memang bisa diubah user (bukan hidden, display only, atau restricted) yang diterima.
+- **Bentuk SQL LOV tidak diketahui** (1 atau 2 kolom, nama kolom bebas). Kolomnya dibaca sekali lewat `limit 0`, disimpan per versi spec,
+  lalu pencarian dan cek keanggotaan dibungkus di sekitarnya.
+- **Atribut `hidden`** kalah oleh `display: inline-flex` milik `.r-btn`; ditambah aturan global `[hidden] { display: none !important }`.

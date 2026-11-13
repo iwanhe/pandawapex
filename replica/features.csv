@@ -8,7 +8,7 @@ Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
 Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
 Application properties + substitution strings,builder,must,yes,partial,"M1: lewat spec YAML (substitutions, timezone); belum ada UI"
 Application items & computations on login,builder,must,yes,partial,"M2: application items + computations (on_new_session, after_authentication, before_header, after_submit; static/item/sql/plpgsql_fn) lewat spec; UI builder di Fase 2"
-List of Values static & SQL,shared components,must,yes,partial,M1: LOV inline per item (static/SQL) untuk select; shared LOV belum
+List of Values static & SQL,shared components,must,yes,yes,M3: LOV inline per item atau bersama (lovs: NAMA) — static/SQL; nilai yang dikirim harus ada di daftar
 Authentication: built-in accounts,security,must,yes,yes,"M1: argon2id, lock setelah 5 gagal, session baru saat login"
 Authentication: OIDC/social sign-in,security,must,yes,yes,"Backend: OIDC code+PKCE, provisioning, grup dari klaim, batas domain; tested dengan mock IdP"
 Authorization schemes (exists SQL / function boolean / group),security,must,yes,yes,"M2: group_member, exists/not_exists SQL, fn_boolean; once_per_session/page_view/always; app, page, region, item, button, menu; link & tombol ke page terlarang otomatis disembunyikan"
@@ -24,8 +24,8 @@ Lost-update detection pada Form,regions,must,yes,yes,Backend: hash baris bertand
 Classic Report dengan pagination,regions,must,yes,yes,M1
 Interactive Report: search + sort + filter + pagination,regions,must,yes,yes,"M4: cari semua kolom, sort per kolom (aria-sort), filter angka/tanggal/teks dengan chip, paging; state diingat per session; refresh region tanpa reload"
 Interactive Report: download CSV/XLSX,regions,must,yes,yes,"M4: CSV (BOM, anti formula-injection) dan XLSX tanpa library spreadsheet; filter & sort sama dengan layar, batas max_download_rows"
-Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,partial,"M1: text, number, textarea, date, select, hidden, display_only, password; popup LOV/switch/radio/checkbox belum"
-Cascading LOV (parent items),items,must,yes,no,
+Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,yes,"M3: text, number, textarea, date, datetime, select, popup LOV (cari + keyboard), radio, checkbox, checkbox group, switch, hidden, display only (format), password; angka/tanggal dicek di server"
+Cascading LOV (parent items),items,must,yes,yes,"M3: cascade: [ITEM] — field anak dirender ulang server saat parent berubah, nilainya dikosongkan; parent tersembunyi/terkunci tidak bisa ditimpa dari URL"
 Validasi deklaratif + inline error,runtime,must,yes,yes,"M1: required, not_null, sql_expression, sql_exists/not_exists, regex"
 Modal dialog page + close dialog + refresh parent,runtime,must,yes,yes,"M4: page mode modal (dialog + iframe), close_dialog, region utama di-refresh di tempat; tanpa JS tetap jalan sebagai halaman biasa"
 Success/error notification,runtime,must,yes,yes,"M1: pesan sukses sekali tampil, ringkasan error difokuskan"

@@ -118,7 +118,13 @@ export function formFields(body: string): Record<string, string> {
    for (const m of body.matchAll(/<input\b[^>]*>/g)) {
       const name = /name="([^"]*)"/.exec(m[0])?.[1];
       if (!name || /type="(submit|button)"/.test(m[0])) continue;
-      out[name] = unescape(/value="([^"]*)"/.exec(m[0])?.[1] ?? '');
+      const value = unescape(/value="([^"]*)"/.exec(m[0])?.[1] ?? '');
+      // like a browser: only ticked boxes / the chosen radio are sent; several ticked boxes join with ':'
+      if (/type="(checkbox|radio)"/.test(m[0])) {
+         if (/\schecked\b/.test(m[0])) out[name] = name in out ? `${out[name]}:${value}` : value;
+         continue;
+      }
+      out[name] = value;
    }
    for (const m of body.matchAll(/<select\b[^>]*name="([^"]*)"[^>]*>([\s\S]*?)<\/select>/g)) {
       out[m[1]] = unescape(/<option value="([^"]*)" selected>/.exec(m[2])?.[1] ?? '');

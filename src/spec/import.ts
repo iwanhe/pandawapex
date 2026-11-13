@@ -12,8 +12,10 @@ export interface Target { page: number; items?: Record<string, string>; clear_ca
 export interface LovSpec { static?: { display: string; return: string }[]; sql?: string; null_display?: string }
 export interface ItemSpec {
    name: string; type: string; label?: string; help?: string; placeholder?: string; required?: boolean;
-   col_span?: number; source?: { column: string; pk?: boolean }; default?: string; lov?: LovSpec;
+   col_span?: number; source?: { column: string; pk?: boolean }; default?: string; lov?: LovSpec | string;
    protection?: string; max_length?: number; authorization?: string; condition?: Condition;
+   cascade?: string[]; null_display?: string; on_value?: string; off_value?: string; inline?: boolean;
+   format?: 'number' | 'integer' | 'date' | 'datetime';
 }
 export interface ButtonSpec {
    name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect' | 'close_dialog'; target?: Target;
@@ -36,7 +38,7 @@ export interface RegionSpec {
    condition?: Condition; authorization?: string;
 }
 export interface ValidationSpec {
-   name: string; type: string; expression?: string; error_msg: string; item?: string; when_button?: string; condition?: Condition;
+   name: string; type: string; expression?: string; error_msg?: string; item?: string; when_button?: string; condition?: Condition;
 }
 export interface ProcessSpec {
    name: string; point?: string; type: string; region?: string; code?: string;
@@ -56,7 +58,11 @@ export interface AppSpec {
    substitutions?: Record<string, string>; authentication?: string | AuthSpec; navigation?: NavSpec[]; pages: PageSpec[];
    authorization?: AuthzSpec[]; authorization_scheme?: string;
    application_items?: { name: string; protection?: string }[]; computations?: ComputationSpec[];
+   lovs?: Record<string, LovSpec>;
 }
+
+/** item types that take their choices from a list of values */
+export const LOV_ITEM_TYPES = ['select', 'popup_lov', 'radio', 'checkbox_group'];
 export interface OidcSpec {
    issuer: string; client_id: string; client_secret_env: string; scopes?: string; username_claim?: string;
    groups_claim?: string; allowed_domains?: string[]; provision?: boolean; button_label?: string;
@@ -110,8 +116,16 @@ function checkSemantics(spec: AppSpec): void {
             if (itemPage.has(it.name)) p.push(`item ${it.name}: name is used twice (item names are unique per app)`);
             itemPage.set(it.name, page.page);
             if (!it.name.startsWith(`P${page.page}_`)) p.push(`item ${it.name}: page items must be named P${page.page}_...`);
-            if (it.lov && !['select', 'radio'].includes(it.type)) p.push(`item ${it.name}: lov only applies to select/radio`);
-            if (['select', 'radio'].includes(it.type) && !it.lov) p.push(`item ${it.name}: ${it.type} needs a lov`);
+            const lovItem = LOV_ITEM_TYPES.includes(it.type);
+            if (it.lov && !lovItem) p.push(`item ${it.name}: lov only applies to ${LOV_ITEM_TYPES.join('/')}`);
+            if (lovItem && !it.lov) p.push(`item ${it.name}: ${it.type} needs a lov`);
+            if (typeof it.lov === 'string' && !spec.lovs?.[it.lov]) p.push(`item ${it.name}: shared lov "${it.lov}" is not defined in lovs`);
+            if (it.cascade && !lovItem) p.push(`item ${it.name}: cascade only applies to items with a lov`);
+            if ((it.on_value !== undefined || it.off_value !== undefined) && !['checkbox', 'switch'].includes(it.type)) {
+               p.push(`item ${it.name}: on_value / off_value only apply to checkbox and switch`);
+            }
+            if ((it.on_value ?? 'Y') === (it.off_value ?? 'N')) p.push(`item ${it.name}: on_value and off_value must differ`);
+            if (it.format && it.type !== 'display_only') p.push(`item ${it.name}: format only applies to display_only`);
             if (it.source && r.type !== 'form') p.push(`item ${it.name}: source.column only allowed inside a form region`);
             if (r.type === 'interactive_report') p.push(`item ${it.name}: interactive reports have their own search; put items in another region`);
          }
@@ -131,9 +145,31 @@ function checkSemantics(spec: AppSpec): void {
          if (pr.type === 'plpgsql' && !pr.code) p.push(`page ${page.page} process ${pr.name}: plpgsql needs code`);
       }
       for (const v of page.validations ?? []) {
-         if (v.type !== 'not_null' && !v.expression) p.push(`page ${page.page} validation ${v.name}: needs expression`);
-         if (v.type === 'not_null' && !v.item) p.push(`page ${page.page} validation ${v.name}: not_null needs item`);
+         const itemRule = ['not_null', 'is_numeric', 'is_date', 'is_timestamp'].includes(v.type);
+         if (!itemRule && !v.expression) p.push(`page ${page.page} validation ${v.name}: needs expression`);
+         if (itemRule && !v.item) p.push(`page ${page.page} validation ${v.name}: ${v.type} needs item`);
+         if (v.type !== 'fn_returns_error' && !v.error_msg) p.push(`page ${page.page} validation ${v.name}: needs error_msg`);
       }
+   }
+   for (const page of spec.pages) {
+      const onPage = new Map<string, ItemSpec>();
+      for (const r of page.regions ?? []) for (const it of r.items ?? []) onPage.set(it.name, it);
+      for (const it of onPage.values()) {
+         for (const parent of it.cascade ?? []) {
+            if (parent === it.name) p.push(`item ${it.name}: cannot cascade from itself`);
+            else if (!onPage.has(parent)) p.push(`item ${it.name}: cascade parent ${parent} is not an item on page ${page.page}`);
+         }
+      }
+      // a cycle would reload forever in the browser
+      const state = new Map<string, 1 | 2>();
+      const visit = (n: string, path: string[]): void => {
+         if (state.get(n) === 2) return;
+         if (state.get(n) === 1) { p.push(`items ${[...path, n].join(' -> ')}: cascade forms a cycle`); return; }
+         state.set(n, 1);
+         for (const parent of onPage.get(n)?.cascade ?? []) if (onPage.has(parent)) visit(parent, [...path, n]);
+         state.set(n, 2);
+      };
+      for (const n of onPage.keys()) visit(n, []);
    }
    const checkTarget = (where: string, t: Target) => {
       const target = pages.get(t.page);
@@ -246,6 +282,21 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
       authzIds.set(a.name, r.rows[0].id);
    }
    const authz = (name: string | undefined) => (name ? authzIds.get(name)! : null);
+
+   // shared lists of values
+   const lovIds = new Map<string, string>();
+   for (const [name, l] of Object.entries(spec.lovs ?? {})) {
+      const r = await c.query(
+         `insert into rpx.lovs (app_id, name, lov_type, source, attributes) values ($1, $2, $3, $4, $5) returning id`,
+         [appId, name, l.sql ? 'sql' : 'static', l.sql ?? null, { null_display: l.null_display ?? null }]);
+      lovIds.set(name, r.rows[0].id);
+      let seq = 10;
+      for (const e of l.static ?? []) {
+         await c.query('insert into rpx.lov_entries (lov_id, display_value, return_value, seq) values ($1, $2, $3, $4)',
+            [r.rows[0].id, e.display, e.return, seq]);
+         seq += 10;
+      }
+   }
    await c.query('update rpx.applications set authz_scheme_id = $2 where id = $1', [appId, authz(spec.authorization_scheme)]);
 
    for (const ai of spec.application_items ?? []) {
@@ -326,15 +377,19 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          for (const it of r.items ?? []) {
             await c.query(
                `insert into rpx.items (app_id, page_id, region_id, name, item_type, label, seq, grid, source, default_value
-                                     , inline_lov, is_required, protection, attributes, condition, authz_scheme_id)
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+                                     , inline_lov, is_required, protection, attributes, condition, authz_scheme_id
+                                     , lov_id, cascade_parents, format_mask)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
                [appId, pageId, regionId, it.name, it.type, it.label ?? null, iseq, { col_span: it.col_span ?? 12 },
                 it.source ? { type: 'db_column', column: it.source.column.toLowerCase(), pk: it.source.pk ?? false } : null,
                 it.default !== undefined ? { type: 'static', value: it.default } : null,
-                it.lov ?? null, it.required ?? false,
+                typeof it.lov === 'object' ? it.lov : null, it.required ?? false,
                 it.protection === 'restricted' ? 'restricted' : it.protection === 'unrestricted' ? 'unrestricted' : 'checksum_session',
-                { help: it.help ?? null, placeholder: it.placeholder ?? null, max_length: it.max_length ?? null },
-                it.condition ?? null, authz(it.authorization)]);
+                { help: it.help ?? null, placeholder: it.placeholder ?? null, max_length: it.max_length ?? null,
+                  null_display: it.null_display ?? null, on_value: it.on_value ?? null, off_value: it.off_value ?? null,
+                  inline: it.inline ?? false },
+                it.condition ?? null, authz(it.authorization),
+                typeof it.lov === 'string' ? lovIds.get(it.lov)! : null, it.cascade ?? [], it.format ?? null]);
             iseq += 10;
             items++;
          }
@@ -353,7 +408,7 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          await c.query(
             `insert into rpx.validations (page_id, name, val_type, expression, error_msg, associated_item, when_button, seq, condition)
              values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [pageId, v.name, v.type, v.expression ?? null, v.error_msg, v.item ?? null, v.when_button ?? null, vseq, v.condition ?? null]);
+            [pageId, v.name, v.type, v.expression ?? null, v.error_msg ?? 'Data tidak valid.', v.item ?? null, v.when_button ?? null, vseq, v.condition ?? null]);
          vseq += 10;
       }
       let pseq = 10;

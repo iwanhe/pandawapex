@@ -16,10 +16,22 @@ export interface ItemDef {
    id: string; name: string; type: string; label: string | null; regionId: string | null;
    colSpan: number; required: boolean; protection: string;
    column: string | null; pk: boolean; defaultValue: string | null;
-   lov: { static?: { display: string; return: string }[]; sql?: string; null_display?: string } | null;
+   /** inline or shared list of values; `key` identifies it (for caches) */
+   lov: LovDef | null;
+   /** text of the empty choice: null = no empty choice */
+   nullDisplay: string | null;
+   /** parent items: when one changes, the list is reloaded and the value cleared */
+   cascade: string[];
+   /** checkbox / switch */
+   onValue: string; offValue: string;
+   /** radio / checkbox group laid out side by side */
+   inline: boolean;
+   /** display_only formatting */
+   format: string | null;
    help: string | null; placeholder: string | null; maxLength: number | null;
    authzId: string | null; condition: Condition | null;
 }
+export interface LovDef { key: string; static?: { display: string; return: string }[]; sql?: string }
 export interface ButtonDef {
    name: string; label: string; action: string; target: Target | null; hot: boolean; position: string;
    confirm: string | null; style: string; regionId: string | null; condition: Condition | null; authzId: string | null;
@@ -93,6 +105,14 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       `select c.* from rpx.region_columns c join rpx.regions r on r.id = c.region_id join rpx.pages p on p.id = r.page_id
        where p.app_id = $1 order by c.seq`, [appId])).rows;
    const itemsQ = (await pool.query('select * from rpx.items where app_id = $1 order by seq', [appId])).rows;
+   const lovQ = (await pool.query('select * from rpx.lovs where app_id = $1', [appId])).rows;
+   const lovEntQ = (await pool.query(
+      `select e.* from rpx.lov_entries e join rpx.lovs l on l.id = e.lov_id where l.app_id = $1 order by e.seq`, [appId])).rows;
+   const shared = new Map<string, { lov: LovDef; nullDisplay: string | null }>(lovQ.map(l => [l.id, {
+      lov: l.lov_type === 'sql' ? { key: `lov:${l.name}`, sql: l.source }
+         : { key: `lov:${l.name}`, static: lovEntQ.filter(e => e.lov_id === l.id).map(e => ({ display: e.display_value, return: e.return_value })) },
+      nullDisplay: l.attributes?.null_display ?? null,
+   }]));
    const btnQ = (await pool.query(
       `select b.* from rpx.buttons b join rpx.pages p on p.id = b.page_id where p.app_id = $1 order by b.seq`, [appId])).rows;
    const valQ = (await pool.query(
@@ -106,13 +126,23 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       `select e.* from rpx.nav_entries e join rpx.nav_lists l on l.id = e.list_id
        where l.app_id = $1 and l.name = 'navigation_menu' order by e.seq`, [appId])).rows;
 
-   const item = (r: any): ItemDef => ({
-      id: r.id, name: r.name, type: r.item_type, label: r.label, regionId: r.region_id,
-      colSpan: r.grid?.col_span ?? 12, required: r.is_required, protection: r.protection,
-      column: r.source?.column ?? null, pk: !!r.source?.pk, defaultValue: r.default_value?.value ?? null,
-      lov: r.inline_lov, help: r.attributes?.help ?? null, placeholder: r.attributes?.placeholder ?? null,
-      maxLength: r.attributes?.max_length ?? null, authzId: r.authz_scheme_id, condition: r.condition,
-   });
+   const item = (r: any): ItemDef => {
+      const sh = r.lov_id ? shared.get(r.lov_id)! : null;
+      const lov: LovDef | null = sh ? sh.lov
+         : r.inline_lov ? { key: `item:${r.name}`, static: r.inline_lov.static, sql: r.inline_lov.sql } : null;
+      // empty choice: item setting, else the lov's, else "" for optional items (required items get none)
+      const nd = r.attributes?.null_display ?? r.inline_lov?.null_display ?? sh?.nullDisplay ?? null;
+      return {
+         id: r.id, name: r.name, type: r.item_type, label: r.label, regionId: r.region_id,
+         colSpan: r.grid?.col_span ?? 12, required: r.is_required, protection: r.protection,
+         column: r.source?.column ?? null, pk: !!r.source?.pk, defaultValue: r.default_value?.value ?? null,
+         lov, nullDisplay: nd ?? (r.is_required ? null : ''), cascade: r.cascade_parents ?? [],
+         onValue: r.attributes?.on_value ?? 'Y', offValue: r.attributes?.off_value ?? 'N', inline: !!r.attributes?.inline,
+         format: r.format_mask ?? null,
+         help: r.attributes?.help ?? null, placeholder: r.attributes?.placeholder ?? null,
+         maxLength: r.attributes?.max_length ?? null, authzId: r.authz_scheme_id, condition: r.condition,
+      };
+   };
    const button = (r: any): ButtonDef => ({
       name: r.name, label: r.label, action: r.action, target: r.target, hot: r.is_hot, position: r.position,
       confirm: r.confirm_msg, style: r.attributes?.style ?? 'normal', regionId: r.region_id, condition: r.condition,

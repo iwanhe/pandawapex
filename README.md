@@ -55,6 +55,8 @@ SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/back
 - **Substitusi** `&ITEM.` selalu di-escape. Gunakan `&ITEM!RAW.` hanya untuk HTML yang memang Anda percaya.
 - **Modal**: `mode: modal` pada page membuat link ke page itu terbuka sebagai dialog. Tambahkan proses `{ type: close_dialog }` agar setelah simpan dialog tertutup dan daftar di belakangnya ter-refresh; tombol `action: close_dialog` = Batal.
 - **Interactive Report**: `type: interactive_report` + `source.sql`. Kolom bisa diberi `searchable`, `sortable`, `format: number|integer|date`; unduhan CSV/Excel dibatasi `max_download_rows` (default 10.000).
+- **Item & daftar pilihan (M3)**: `select`, `popup_lov` (dialog pencarian), `radio`, `checkbox_group` (nilai digabung `:`), `checkbox`/`switch` (`on_value`/`off_value`, default `Y`/`N`), `date`, `datetime`, `display_only` (`format`). Daftar pilihan ditulis langsung di item (`lov: { sql: ... }` / `static`) atau sekali di `lovs:` lalu dipakai dengan namanya (`lov: DEPARTEMEN`). `cascade: [P4_DEPT]` memuat ulang daftar anak saat parent berubah. Server selalu menolak nilai yang tidak ada di daftar, angka yang bukan angka, dan tanggal yang tidak valid.
+- **Validasi**: selain `not_null`, `regex`, `sql_*`, ada `fn_boolean` (isi fungsi PL/pgSQL, `return true` = valid), `fn_returns_error` (mengembalikan teks error atau `null`), `is_numeric`, `is_date`, `is_timestamp`.
 
 ## Tes
 

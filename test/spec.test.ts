@@ -19,7 +19,7 @@ function problems(yaml: string): string[] {
 test('the example spec is valid', () => {
    const spec = parseSpec(example);
    assert.equal(spec.app, 'emp');
-   assert.equal(spec.pages.length, 3);
+   assert.equal(spec.pages.length, 4);
 });
 
 test('schema errors: unknown keys and bad item names', () => {

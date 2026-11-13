@@ -5,13 +5,14 @@ import { itemsMessage, sign, urlMessage, verify } from './checksum.ts';
 import { enterUserCode, leaveUserCode, quoteIdent, quoteQualified, readUserCodeItems, toText } from './db.ts';
 import { Evaluator, runComputations } from './guard.ts';
 import { formatValue, renderInteractiveReport } from './ir.ts';
+import { absentMeansEmpty, checkValue, itemsHtml, postedValue, typeChecks } from './items.ts';
 import { attrIf, html, raw, type SafeHtml } from './html.ts';
 import type { ButtonDef, ItemDef, NavDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
 import {
    AFTER_AUTH_KEY, bindValues, clearPages, consumeSubmitToken, FLASH_KEY, issueSubmitToken, NEW_SESSION_KEY, saveState, takeFlash,
 } from './session.ts';
 import { alert, dialogDocument, icon, shell } from './templates.ts';
-import { inSavepoint, pgMessage, runSql, substitute, syncItems, userCtx, values, type Ctx } from './usercode.ts';
+import { inSavepoint, pgMessage, runFunctionBody, runSql, substitute, syncItems, userCtx, values, type Ctx } from './usercode.ts';
 
 export type { Ctx } from './usercode.ts';
 export { substitute } from './usercode.ts';
@@ -436,71 +437,6 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
    </div>`;
 }
 
-async function lovOptions(v: View, it: ItemDef): Promise<{ display: string; ret: string }[] | Error> {
-   if (!it.lov) return [];
-   if (it.lov.static) return it.lov.static.map(o => ({ display: o.display, ret: o.return }));
-   const c = v.ev.c;
-   const r = await inSavepoint(c, () => runSql(c, v.ctx, it.lov!.sql!));
-   if (!r.ok) return r.error;
-   return r.value.rows.map(row => ({ display: toText(row[0]) ?? '', ret: toText(row[1] ?? row[0]) ?? '' }));
-}
-
-async function itemsHtml(v: View, items: ItemDef[], bar = false): Promise<SafeHtml> {
-   const { ctx, rs, ev, rendered } = v;
-   const out: SafeHtml[] = [];
-   for (const it of items) {
-      if (!(await ev.allows(it))) continue;
-      rendered.items.add(it.name);
-      const val = ctx.session.state.get(it.name) ?? '';
-      if (it.type === 'hidden') {
-         out.push(html`<input type="hidden" name="${it.name}" id="${it.name}" value="${val}">`);
-         continue;
-      }
-      const err = rs.errors?.find(e => e.item === it.name);
-      const errId = `${it.name}_error`, helpId = `${it.name}_help`;
-      const described = [it.help ? helpId : '', err ? errId : ''].filter(Boolean).join(' ');
-      const common = html` id="${it.name}" name="${it.name}"${attrIf('required', it.required)}${err ? raw(' aria-invalid="true"') : ''}${described ? html` aria-describedby="${described}"` : ''}`;
-      let control: SafeHtml;
-      switch (it.type) {
-         case 'textarea':
-            control = html`<textarea class="r-input"${common}${it.placeholder ? html` placeholder="${it.placeholder}"` : ''}${it.maxLength ? html` maxlength="${it.maxLength}"` : ''}>${val}</textarea>`;
-            break;
-         case 'select': {
-            const opts = await lovOptions(v, it);
-            if (opts instanceof Error) {
-               control = html`<select class="r-input" disabled${common}><option>Daftar pilihan gagal dimuat</option></select>`;
-               out.push(html`<div class="r-field r-col-${it.colSpan}">${label(it)}${control}<span class="r-error-text">${icon('circle-x')} ${pgMessage(opts)}</span></div>`);
-               continue;
-            }
-            const nullOpt = it.lov?.null_display ?? (it.required ? null : '');
-            control = html`<select class="r-input"${common}>
-               ${nullOpt !== null ? html`<option value="">${nullOpt}</option>` : ''}
-               ${opts.map(o => html`<option value="${o.ret}"${attrIf('selected', o.ret === val)}>${o.display}</option>`)}
-            </select>`;
-            break;
-         }
-         case 'display_only':
-            control = html`<div class="r-display" id="${it.name}">${val}</div>`;
-            break;
-         default: {
-            const type = it.type === 'date' ? 'date' : it.type === 'password' ? 'password' : 'text';
-            const numeric = it.type === 'number';
-            control = html`<input class="r-input${numeric ? ' r-num' : ''}" type="${type}"${numeric ? raw(' inputmode="decimal"') : ''}${common} value="${it.type === 'password' ? '' : val}"${it.placeholder ? html` placeholder="${it.placeholder}"` : ''}${it.maxLength ? html` maxlength="${it.maxLength}"` : ''}>`;
-         }
-      }
-      out.push(html`<div class="r-field${bar ? '' : ` r-col-${it.colSpan}`}">${label(it)}${control}
-         ${it.help ? html`<span class="r-help" id="${helpId}">${it.help}</span>` : ''}
-         ${err ? html`<span class="r-error-text" id="${errId}">${icon('circle-x')} ${err.message}</span>` : ''}</div>`);
-   }
-   return html`${out}`;
-}
-
-function label(it: ItemDef): SafeHtml {
-   const text = it.label ?? it.name;
-   if (it.type === 'display_only') return html`<span class="r-label">${text}</span>`;
-   return html`<label class="r-label" for="${it.name}">${text}${it.required ? html`<span class="r-label__req" aria-hidden="true">*</span>` : ''}</label>`;
-}
-
 /** Button markup, or null when its authorization/condition fails or it points to a page the user may not open. */
 async function buttonHtml(v: View, b: ButtonDef): Promise<SafeHtml | null> {
    if (!(await v.ev.allows(b))) return null;
@@ -544,9 +480,9 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
    const posted: Record<string, string | null> = {};
    for (const it of page.items) {
       if (!rendered.items.has(it.name) || it.type === 'display_only' || it.protection === 'restricted') continue;
-      if (!(it.name in body)) continue;
-      const val = body[it.name];
-      posted[it.name] = typeof val === 'string' ? (val.trim() === '' ? null : val) : null;
+      // unticked boxes and unchosen radio groups are not sent at all: for those, absent means empty / off
+      if (!(it.name in body) && !absentMeansEmpty(it)) continue;
+      posted[it.name] = postedValue(it, (body as Record<string, unknown>)[it.name]);
    }
    await saveState(ctx.pool, ctx.session, posted);
 
@@ -652,6 +588,10 @@ async function validate(ev: Evaluator, page: PageDef, request: string, rendered:
          } else if (it.maxLength !== null && x !== null && [...x].length > it.maxLength) {
             // the browser's maxlength is only a hint (and counts UTF-16 units); the server counts characters
             errors.push({ item: it.name, message: `${it.label ?? it.name} maksimal ${it.maxLength} karakter.` });
+         } else if (it.type !== 'hidden' && it.type !== 'display_only') {
+            // type of the value, and list items only accept values from their list
+            const problem = await checkValue(c, ctx, it, x);
+            if (problem) errors.push(problem);
          }
       }
    }
@@ -666,6 +606,21 @@ async function validate(ev: Evaluator, page: PageDef, request: string, rendered:
       if (rule.type === 'regex') {
          const x = rule.item ? val(rule.item) : null;
          if (x !== null && !new RegExp(rule.expression!).test(x)) errors.push({ item: rule.item, message: rule.errorMsg });
+         continue;
+      }
+      if (rule.type === 'is_numeric' || rule.type === 'is_date' || rule.type === 'is_timestamp') {
+         const x = rule.item ? val(rule.item) : null;
+         if (x !== null && typeChecks[rule.type](x, rule.item!)) errors.push({ item: rule.item, message: rule.errorMsg });
+         continue;
+      }
+      if (rule.type === 'fn_boolean' || rule.type === 'fn_returns_error') {
+         // PL/pgSQL function body: boolean (true = valid), or the error text (null = valid)
+         const r = await inSavepoint(c, () => runFunctionBody(c, ctx, rule.expression!, rule.type === 'fn_boolean' ? 'boolean' : 'text'));
+         if (!r.ok) errors.push({ item: rule.item, message: `${rule.errorMsg} (${pgMessage(r.error)})` });
+         else if (rule.type === 'fn_boolean' && r.value !== true) errors.push({ item: rule.item, message: rule.errorMsg });
+         else if (rule.type === 'fn_returns_error' && r.value !== null && r.value !== '') {
+            errors.push({ item: rule.item, message: substitute(String(r.value), values(ctx), false) });
+         }
          continue;
       }
       // sql rules: an expression over an empty item is skipped ("required" covers emptiness)

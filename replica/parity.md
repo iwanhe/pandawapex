@@ -1,5 +1,9 @@
 # Parity: pandawapex vs Oracle APEX (2026-11-13)
 
+> **Update setelah M3 (item & LOV):** feature parity **53.3**, must-have **22/30**, runtime saja **63.5**, **must-have runtime 93.8**.
+> Sisa must-have hampir semuanya builder (Fase 2) dan akun developer. Cakupan komponen APEX nyata (sensus 35 aplikasi contoh Oracle,
+> lihat bagian "Sensus komponen") naik dari 74.5% ke **77.6%**; celah terbesar kini **Dynamic Actions** (1.492 komponen, 0%).
+>
 > **Update setelah modal + Interactive Report:** feature parity **48.9**, must-have **19/30**, runtime saja **58.1**,
 > **must-have runtime 85.4** (target 80 tercapai). Sisa must-have: builder (Fase 2), item & LOV lengkap (M3), akun developer.
 >
@@ -26,6 +30,36 @@ untuk must-have-nya. Tapi angka keseluruhannya memang 36%, bukan lebih.
 
 Yang **sudah layak**: menjalankan aplikasi CRUD sederhana (report + form + validasi + proses PL/pgSQL) dari spec YAML,
 dengan login akun lokal atau SSO, di instalasi lokal. Itu cukup untuk pilot internal, bukan untuk menggantikan aplikasi PANDAWA.
+
+## Sensus komponen: aplikasi contoh Oracle APEX 26.2
+
+Sumber: `github.com/oracle/apex` cabang 26.2, folder `sample-apps` dan `starter-apps` (lisensi UPL 1.0, format APEXlang `.apx`).
+Hanya metadata yang dibaca: `tools/apex_census.py` menghitung setiap komponen per `type:` lalu memberi skor berbobot frekuensi
+pemakaian. Tidak ada kode, CSS, ikon, atau nama yang disalin ke pandawapex.
+
+```bash
+git clone --depth 1 -b 26.2 https://github.com/oracle/apex ../oracle-apex
+python3 tools/apex_census.py ../oracle-apex/sample-apps ../oracle-apex/starter-apps
+```
+
+35 aplikasi, 17.369 komponen. Cakupan berbobot: **74.5% → 77.6%** setelah M3.
+
+| jenis | jumlah | sebelum M3 | setelah M3 | celah terbesar |
+| --- | ---: | ---: | ---: | --- |
+| page item | 3.894 | 83.4% | **96.0%** | select one (48, parsial lewat popup LOV), file browse, rich text |
+| validasi | 346 | 85.8% | **99.1%** | column regexp (IG) |
+| computation | 391 | 99.5% | 99.5% | — |
+| proses | 1.689 | 89.8% | 89.8% | IG DML 42, invoke API 40, human task 37, workflow 21 |
+| region | 6.249 | 67.1% | 67.1% | list 199, chart 189, region display selector 153, dynamic content 113, content row 108, IG 72, cards 71 |
+| **dynamic action** | 1.492 | 0% | 0% | click 544, after close dialog 441, page load 95 |
+| tombol, application item | 3.308 | 100% | 100% | — |
+
+Arti untuk urutan kerja: setelah item, celah runtime terbesar adalah **Dynamic Actions**. Sepertiga di antaranya
+(`apexafterclosedialog`, 441) sudah dicakup perilaku bawaan pandawapex: setelah dialog ditutup, isi page di-refresh.
+Sisanya kebanyakan klik tombol → set value / show-hide / refresh / execute server code.
+
+Repo yang sama berguna untuk dua hal lain: (1) instal aplikasinya di instance APEX milik KCSI untuk mengambil screenshot
+pembanding layout diff (lihat bawah), (2) bahan uji konverter `.apx` → spec YAML di Fase 2.
 
 ## Layout diff: kenapa belum ada angkanya
 
