@@ -296,3 +296,18 @@ a.r-card:hover { border-color: var(--r-color-accent); color: inherit; }
   .r-shell { display: block; }
   .r-region { box-shadow: none; }
 }
+
+/* ---------- runtime additions (M1) ---------- */
+.r-header__user { display: flex; align-items: center; gap: var(--r-space-4); margin: 0; }
+.r-header__name { display: inline-flex; align-items: center; gap: var(--r-space-2); color: var(--r-color-nav-text-muted); font-size: var(--r-text-sm-size); }
+@media (max-width: 639px) { .r-header__name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+.r-error-page__msg { margin: 0; }
+.r-error-page__code { text-align: center; margin-top: var(--r-space-4); }
+.r-messages { display: flex; flex-direction: column; gap: var(--r-space-3); margin-bottom: var(--r-space-6); }
+.r-messages:empty { display: none; }
+.r-messages [data-error-summary]:focus { outline: 2px solid var(--r-color-focus); outline-offset: 2px; }
+.r-region__items { padding: var(--r-space-5); border-bottom: 1px solid var(--r-color-border); }
+.r-region__items-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--r-space-4); }
+.r-region__items-bar .r-field { flex: 1 1 260px; max-width: 420px; }
+.r-region__static > :first-child { margin-top: 0; }
+.r-region__static > :last-child { margin-bottom: 0; }
