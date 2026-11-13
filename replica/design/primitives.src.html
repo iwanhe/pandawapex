@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rpx · Primitives</title>
+<style>/*{{fonts}}*/</style>
+<style>/*{{tokens.css}}*/</style>
+<style>/*{{components.css}}*/</style>
+<style>
+  /* gallery-only helpers (not part of the system) */
+  .g-section { margin-bottom: var(--r-space-8); }
+  .g-h { margin: 0 0 var(--r-space-4); font-size: var(--r-text-xs-size); letter-spacing: .06em; text-transform: uppercase; color: var(--r-color-text-muted); font-weight: 600; }
+  .g-stack { display: flex; flex-direction: column; gap: var(--r-space-4); }
+  .g-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--r-space-3); }
+  .g-sw { border: 1px solid var(--r-color-border); border-radius: var(--r-radius-md); overflow: hidden; background: var(--r-color-surface); font-size: var(--r-text-xs-size); }
+  .g-sw i { display: block; height: 40px; }
+  .g-sw span { display: block; padding: var(--r-space-2) var(--r-space-3); }
+  .g-demo-dialog { position: static; display: flex; margin: 0; box-shadow: var(--r-shadow-dialog); }
+  .r-devbar.g-static { position: static; transform: none; display: inline-flex; }
+  .g-menu-wrap { position: relative; display: inline-block; }
+  .g-menu-wrap .r-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; }
+</style>
+</head>
+<body>
+<a class="r-skip" href="#main">Lompat ke konten</a>
+<div class="r-shell">
+  <header class="r-header">
+    <button class="r-btn r-btn--ghost r-btn--icon" aria-label="Tampilkan/sembunyikan navigasi" aria-expanded="true">{{icon:menu}}</button>
+    <a class="r-header__app" href="#">Gudang Tembakau</a>
+    <span class="r-header__spacer"></span>
+    <button class="r-btn r-btn--ghost r-btn--icon" aria-label="Notifikasi">{{icon:bell}}</button>
+    <button class="r-btn r-btn--ghost">{{icon:user}} iwan.h {{icon:chevron-down}}</button>
+  </header>
+
+  <nav class="r-nav" aria-label="Navigasi utama">
+    <ul>
+      <li><a href="#">{{icon:house}}<span class="r-nav__label">Beranda</span></a></li>
+      <li><a href="#" aria-current="page">{{icon:list}}<span class="r-nav__label">Penerimaan Barang</span></a></li>
+      <li><a href="#">{{icon:layout-grid}}<span class="r-nav__label">Lokasi Rak</span></a></li>
+      <li><a href="#">{{icon:file-text}}<span class="r-nav__label">Laporan</span></a>
+        <ul>
+          <li><a href="#"><span class="r-nav__label">Stok per Grade</span></a></li>
+          <li><a href="#"><span class="r-nav__label">Mutasi Harian</span></a></li>
+        </ul>
+      </li>
+      <li><a href="#">{{icon:settings}}<span class="r-nav__label">Pengaturan</span></a></li>
+    </ul>
+  </nav>
+
+  <main class="r-main" id="main">
+    <nav class="r-breadcrumb" aria-label="Breadcrumb"><ol><li><a href="#">Beranda</a></li><li aria-current="page">Penerimaan Barang</li></ol></nav>
+    <div class="r-page-head">
+      <h1>Penerimaan Barang</h1>
+      <div class="r-page-head__actions">
+        <button class="r-btn">{{icon:download}} Ekspor</button>
+        <button class="r-btn r-btn--primary">{{icon:plus}} Penerimaan Baru</button>
+      </div>
+    </div>
+
+    <!-- =================== Interactive Report =================== -->
+    <section class="g-section">
+      <h2 class="g-h">Interactive Report: toolbar, filter chip, sort, baris terpilih, paginasi</h2>
+      <div class="r-region">
+        <div class="r-ir-toolbar">
+          <label class="r-search"><span class="r-sr-only">Cari di laporan</span>{{icon:search}}<input class="r-input" type="search" placeholder="Cari nomor, pemasok, grade…" value="Kudus"></label>
+          <select class="r-input" style="width:auto" aria-label="Kolom pencarian"><option>Semua kolom</option><option>Pemasok</option></select>
+          <div class="r-ir-toolbar__end">
+            <div class="g-menu-wrap">
+              <button class="r-btn" aria-haspopup="menu" aria-expanded="true">Aksi {{icon:chevron-down}}</button>
+              <div class="r-menu" role="menu" aria-label="Aksi laporan">
+                <button role="menuitem">{{icon:columns-3}} Pilih kolom</button>
+                <button role="menuitem">{{icon:filter}} Filter</button>
+                <button role="menuitem">{{icon:arrow-up-down}} Urutkan</button>
+                <div role="separator"></div>
+                <button role="menuitem">{{icon:save}} Simpan tampilan</button>
+                <button role="menuitem">{{icon:download}} Unduh CSV / XLSX</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="r-chips" aria-label="Filter aktif">
+          <span class="r-chip">Gudang = Kudus <button aria-label="Hapus filter Gudang = Kudus">{{icon:x}}</button></span>
+          <span class="r-chip">Berat ≥ 1.000 kg <button aria-label="Hapus filter Berat">{{icon:x}}</button></span>
+        </div>
+        <div class="r-table-wrap">
+          <table class="r-table">
+            <caption class="r-sr-only">Daftar penerimaan barang</caption>
+            <thead>
+              <tr>
+                <th scope="col" aria-sort="descending"><button class="r-sort">No. Penerimaan {{icon:arrow-up}}</button></th>
+                <th scope="col"><button class="r-sort">Tanggal</button></th>
+                <th scope="col"><button class="r-sort">Pemasok</button></th>
+                <th scope="col"><button class="r-sort">Grade</button></th>
+                <th scope="col" class="r-num"><button class="r-sort">Berat (kg)</button></th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="r-sr-only">Aksi baris</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><a class="r-cell-link" href="#">RCV-2026-01184</a></td><td>12-11-2026</td><td>KUD Sumber Rejeki</td><td>A2</td><td class="r-num">1.240,50</td><td><span class="r-badge r-badge--success">Diterima</span></td><td><button class="r-btn r-btn--ghost r-btn--sm r-btn--icon" aria-label="Aksi untuk RCV-2026-01184">{{icon:ellipsis}}</button></td></tr>
+              <tr aria-selected="true"><td><a class="r-cell-link" href="#">RCV-2026-01183</a></td><td>12-11-2026</td><td>CV Daun Emas</td><td>B1</td><td class="r-num">2.015,00</td><td><span class="r-badge r-badge--warning">Menunggu QC</span></td><td><button class="r-btn r-btn--ghost r-btn--sm r-btn--icon" aria-label="Aksi untuk RCV-2026-01183">{{icon:ellipsis}}</button></td></tr>
+              <tr><td><a class="r-cell-link" href="#">RCV-2026-01179</a></td><td>11-11-2026</td><td>KUD Sumber Rejeki</td><td>A1</td><td class="r-num">1.008,75</td><td><span class="r-badge r-badge--danger">Ditolak</span></td><td><button class="r-btn r-btn--ghost r-btn--sm r-btn--icon" aria-label="Aksi untuk RCV-2026-01179">{{icon:ellipsis}}</button></td></tr>
+              <tr><td><a class="r-cell-link" href="#">RCV-2026-01176</a></td><td>10-11-2026</td><td>PT Tani Makmur</td><td>A2</td><td class="r-num">3.420,00</td><td><span class="r-badge r-badge--info">Draf</span></td><td><button class="r-btn r-btn--ghost r-btn--sm r-btn--icon" aria-label="Aksi untuk RCV-2026-01176">{{icon:ellipsis}}</button></td></tr>
+            </tbody>
+            <tfoot><tr><td colspan="4">Total</td><td class="r-num">7.684,25</td><td colspan="2"></td></tr></tfoot>
+          </table>
+        </div>
+        <div class="r-pagination">
+          <span>Baris 1–4 dari 4</span>
+          <div class="r-pagination__nav">
+            <button class="r-btn r-btn--sm r-btn--icon" aria-label="Halaman sebelumnya" disabled>{{icon:chevron-left}}</button>
+            <button class="r-btn r-btn--sm r-btn--icon" aria-label="Halaman berikutnya" disabled>{{icon:chevron-right}}</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== Form + Dialog =================== -->
+    <div class="r-row">
+      <section class="g-section r-col-6">
+        <h2 class="g-h">Form region: state field</h2>
+        <form class="r-region" novalidate>
+          <div class="r-region__header"><h3 class="r-region__title">Detail Penerimaan</h3></div>
+          <div class="r-region__body">
+            <div class="r-form">
+              <div class="r-field r-col-6"><label class="r-label" for="f1">Pemasok<span class="r-label__req" aria-hidden="true">*</span></label>
+                <div class="r-input-group"><input id="f1" class="r-input" value="CV Daun Emas" required aria-describedby="f1h"><button type="button" class="r-btn r-btn--icon" aria-label="Pilih pemasok dari daftar">{{icon:search}}</button></div>
+                <span class="r-help" id="f1h">Popup LOV: cari dari master pemasok</span></div>
+              <div class="r-field r-col-6"><label class="r-label" for="f2">Tanggal terima<span class="r-label__req" aria-hidden="true">*</span></label>
+                <div class="r-input-group"><input id="f2" class="r-input is-focus" value="12-11-2026" required><button type="button" class="r-btn r-btn--icon" aria-label="Buka kalender">{{icon:calendar}}</button></div></div>
+              <div class="r-field r-col-6"><label class="r-label" for="f3">Grade</label>
+                <select id="f3" class="r-input"><option>B1, Daun tengah</option></select></div>
+              <div class="r-field r-col-6"><label class="r-label" for="f4">Berat bersih (kg)<span class="r-label__req" aria-hidden="true">*</span></label>
+                <input id="f4" class="r-input r-num" value="-15" aria-invalid="true" aria-describedby="f4e" required>
+                <span class="r-error-text" id="f4e">{{icon:circle-x}} Berat harus lebih dari 0</span></div>
+              <div class="r-field r-col-6"><label class="r-label" for="f5">Dibuat oleh</label>
+                <input id="f5" class="r-input" value="iwan.h" readonly></div>
+              <div class="r-field r-col-6"><label class="r-label" for="f6">Gudang</label>
+                <input id="f6" class="r-input" value="Kudus" disabled></div>
+              <div class="r-field r-col-12"><label class="r-label" for="f7">Catatan</label>
+                <textarea id="f7" class="r-input" placeholder="Catatan QC, kondisi karung, dsb."></textarea></div>
+              <fieldset class="r-choice-group r-choice-group--inline r-col-12"><legend class="r-label">Metode timbang</legend>
+                <label class="r-choice"><input type="radio" name="m" checked> Timbangan digital</label>
+                <label class="r-choice"><input type="radio" name="m"> Manual</label>
+                <label class="r-choice"><input type="checkbox" checked> Sudah disegel</label>
+              </fieldset>
+              <div class="r-field r-col-12"><label class="r-switch"><input type="checkbox" role="switch" checked> Kirim notifikasi ke QC</label></div>
+              <div class="r-field r-col-12"><span class="r-label" id="f8l">Lampiran surat jalan</span>
+                <div class="r-file" aria-labelledby="f8l">{{icon:upload}}<span>Tarik berkas ke sini atau <a href="#">pilih berkas</a></span><span class="r-help">PDF/JPG, maks. 10 MB</span></div></div>
+            </div>
+          </div>
+          <div class="r-region__footer">
+            <button type="button" class="r-btn r-btn--ghost">Batal</button>
+            <button type="button" class="r-btn r-btn--danger">{{icon:trash-2}} Hapus</button>
+            <button type="button" class="r-btn r-btn--primary" aria-busy="true">Simpan</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="g-section r-col-6 g-stack">
+        <h2 class="g-h">Notifikasi</h2>
+        <div class="r-alert r-alert--success" role="status"><span class="r-alert__icon">{{icon:circle-check}}</span><div class="r-alert__body"><p class="r-alert__title">Penerimaan RCV-2026-01184 tersimpan.</p></div><button class="r-btn r-btn--ghost r-btn--sm r-btn--icon" aria-label="Tutup">{{icon:x}}</button></div>
+        <div class="r-alert r-alert--danger" role="alert"><span class="r-alert__icon">{{icon:circle-x}}</span><div class="r-alert__body"><p class="r-alert__title">2 kesalahan perlu diperbaiki</p><ul><li><a href="#f4">Berat bersih: harus lebih dari 0</a></li><li><a href="#f1">Pemasok: wajib diisi</a></li></ul></div></div>
+        <div class="r-alert r-alert--warning" role="status"><span class="r-alert__icon">{{icon:triangle-alert}}</span><div class="r-alert__body">Data ini diubah pengguna lain sejak Anda membukanya. Muat ulang sebelum menyimpan.</div></div>
+        <div class="r-alert r-alert--info" role="status"><span class="r-alert__icon">{{icon:info}}</span><div class="r-alert__body">Laporan menampilkan maksimal 10.000 baris. Persempit filter untuk melihat sisanya.</div></div>
+
+        <h2 class="g-h" style="margin-top:var(--r-space-5)">Tombol</h2>
+        <div class="r-btn-group">
+          <button class="r-btn r-btn--primary">Simpan</button>
+          <button class="r-btn">Batal</button>
+          <button class="r-btn r-btn--ghost">Reset</button>
+          <button class="r-btn r-btn--danger">Hapus</button>
+          <button class="r-btn" disabled>Nonaktif</button>
+          <button class="r-btn r-btn--primary" aria-busy="true">Memproses</button>
+        </div>
+        <div class="r-btn-group">
+          <button class="r-btn r-btn--sm">Kecil</button>
+          <button class="r-btn r-btn--lg r-btn--primary">{{icon:plus}} Besar</button>
+          <button class="r-btn r-btn--icon" aria-label="Edit">{{icon:pencil}}</button>
+        </div>
+        <div class="r-btn-group">
+          <span class="r-badge">Draf</span><span class="r-badge r-badge--success">Diterima</span><span class="r-badge r-badge--warning">Menunggu</span><span class="r-badge r-badge--danger">Ditolak</span><span class="r-badge r-badge--info">Info</span>
+        </div>
+
+        <h2 class="g-h" style="margin-top:var(--r-space-5)">Dialog modal + popup LOV</h2>
+        <div class="r-dialog r-dialog--sm g-demo-dialog" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+          <div class="r-dialog__header"><h2 class="r-dialog__title" id="dlgT">Pilih Pemasok</h2><button class="r-btn r-btn--ghost r-btn--icon" aria-label="Tutup dialog">{{icon:x}}</button></div>
+          <div class="r-dialog__body">
+            <label class="r-search" style="max-width:none"><span class="r-sr-only">Cari pemasok</span>{{icon:search}}<input class="r-input" type="search" value="daun"></label>
+            <ul class="r-lov-list" role="listbox" aria-label="Hasil pemasok">
+              <li role="option" aria-selected="true"><span>CV <mark>Daun</mark> Emas</span><span class="r-muted r-mono">SUP-0031</span></li>
+              <li role="option"><span>UD <mark>Daun</mark> Hijau Lestari</span><span class="r-muted r-mono">SUP-0107</span></li>
+            </ul>
+          </div>
+          <div class="r-dialog__footer"><span class="r-help">2 hasil</span><div class="r-dialog__footer-end"><button class="r-btn">Batal</button><button class="r-btn r-btn--primary">Pilih</button></div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- =================== Cards + facets + empty + loading =================== -->
+    <div class="r-row">
+      <section class="g-section r-col-3">
+        <h2 class="g-h">Faceted search</h2>
+        <div class="r-region"><div class="r-region__body r-facets">
+          <fieldset class="r-facet"><legend>Gudang</legend>
+            <label class="r-choice"><input type="checkbox" checked> Kudus <span class="r-facet__count">128</span></label>
+            <label class="r-choice"><input type="checkbox"> Temanggung <span class="r-facet__count">64</span></label>
+            <label class="r-choice"><input type="checkbox"> Jember <span class="r-facet__count">31</span></label>
+          </fieldset>
+          <fieldset class="r-facet"><legend>Status</legend>
+            <label class="r-choice"><input type="checkbox"> Kosong <span class="r-facet__count">12</span></label>
+            <label class="r-choice"><input type="checkbox" checked> Terisi <span class="r-facet__count">116</span></label>
+          </fieldset>
+        </div></div>
+      </section>
+      <section class="g-section r-col-9">
+        <h2 class="g-h">Cards region</h2>
+        <div class="r-cards">
+          <a class="r-card" href="#"><h3 class="r-card__title">Rak K-01-A</h3><span class="r-muted">Grade A2 · 14 karung</span><div class="r-card__meta"><span>Kudus</span><span class="r-badge r-badge--success">Terisi</span></div></a>
+          <a class="r-card" href="#"><h3 class="r-card__title">Rak K-01-B</h3><span class="r-muted">Grade B1 · 9 karung</span><div class="r-card__meta"><span>Kudus</span><span class="r-badge r-badge--success">Terisi</span></div></a>
+          <a class="r-card" href="#"><h3 class="r-card__title">Rak K-02-A</h3><span class="r-muted">Belum ada isi</span><div class="r-card__meta"><span>Kudus</span><span class="r-badge">Kosong</span></div></a>
+        </div>
+        <div class="r-row" style="margin-top:var(--r-grid-gap)">
+          <div class="r-col-6 r-region">
+            <div class="r-region__header"><h3 class="r-region__title">Laporan tanpa data</h3></div>
+            <div class="r-empty">{{icon:inbox}}<p class="r-empty__title">Tidak ada penerimaan yang cocok</p><p style="margin:0">Ubah atau hapus filter untuk melihat data.</p><button class="r-btn r-btn--sm">Hapus semua filter</button></div>
+          </div>
+          <div class="r-col-6 r-region" aria-busy="true">
+            <div class="r-region__header"><h3 class="r-region__title">Region sedang dimuat ulang</h3></div>
+            <div class="r-region__body"><table class="r-table r-table--compact"><tbody><tr><td>Grade A1</td><td class="r-num">4.210</td></tr><tr><td>Grade A2</td><td class="r-num">8.775</td></tr><tr><td>Grade B1</td><td class="r-num">2.015</td></tr></tbody></table></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="g-section">
+      <h2 class="g-h">Developer toolbar (runtime, hanya developer; aslinya fixed di bawah layar)</h2>
+<div class="r-devbar g-static" role="toolbar" aria-label="Developer toolbar">
+  <button class="r-btn r-btn--sm">{{icon:pencil}} Edit page 3</button>
+  <button class="r-btn r-btn--sm">{{icon:database}} Session</button>
+  <button class="r-btn r-btn--sm">{{icon:bug}} Debug</button>
+</div>
+    </section>
+
+    <!-- =================== Colour roles =================== -->
+    <section class="g-section">
+      <h2 class="g-h">Color roles (tokens.json)</h2>
+      <div class="g-swatches">{{swatches}}</div>
+    </section>
+  </main>
+</div>
+
+</body>
+</html>

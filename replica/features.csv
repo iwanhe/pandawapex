@@ -1,0 +1,75 @@
+feature,area,priority,original,clone,notes
+Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,no,parsing schema per app; role PG terpisah per workspace
+Login developer per workspace,workspace,must,yes,no,S01
+Kelola developer dan end user (accounts),workspace,must,yes,no,S19
+Daftar aplikasi + create/delete app,builder,must,yes,no,S03
+Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 klik
+Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
+Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
+Application properties + substitution strings,builder,must,yes,no,S13
+Application items & computations on login,builder,must,yes,no,S14
+List of Values static & SQL,shared components,must,yes,no,S09
+Authentication: built-in accounts,security,must,yes,no,hash argon2/bcrypt
+Authentication: OIDC/social sign-in,security,must,yes,no,untuk SSO KCSI (Entra ID/Google)
+Authorization schemes (exists SQL / function boolean / group),security,must,yes,no,S11; evaluation point
+Navigation menu + breadcrumb,shared components,must,yes,no,S12
+Render page dari metadata (regions + grid layout),runtime,must,yes,no,core engine
+Accept page: computations > validations > processes > branches,runtime,must,yes,no,urutan eksekusi sesuai docs page processing
+Session state per item + clear cache via URL,runtime,must,yes,no,F09
+Bind variable :ITEM ke parameter PostgreSQL ($n),runtime,must,yes,no,parser SQL bukan string replace; anti SQL injection
+Substitution &ITEM. dengan escape filters,runtime,must,yes,no,HTML/ATTR/JS/RAW
+URL scheme ramah (app/page/params) + checksum,runtime,must,yes,no,Session State Protection
+Form region: init (fetch by PK) + DML process,regions,must,yes,no,PK wajib (tidak ada ROWID di PG)
+Lost-update detection pada Form,regions,must,yes,no,checksum baris atau kolom version
+Classic Report dengan pagination,regions,must,yes,no,
+Interactive Report: search + sort + filter + pagination,regions,must,yes,no,hard part #1
+Interactive Report: download CSV/XLSX,regions,must,yes,no,
+Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,no,
+Cascading LOV (parent items),items,must,yes,no,
+Validasi deklaratif + inline error,runtime,must,yes,no,F04 edge
+Modal dialog page + close dialog + refresh parent,runtime,must,yes,no,F04 core loop
+Success/error notification,runtime,must,yes,no,
+Interactive Grid editable (add/update/delete),regions,should,yes,no,hard part #4
+Dynamic Actions: show/hide/set value/refresh/submit,runtime,should,yes,no,hard part #5
+Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return,runtime,should,yes,no,
+Page Designer: layout grid drag-drop,builder,should,yes,no,
+IR saved reports (private/public/default),regions,should,yes,no,F05
+IR control break + aggregate + highlight,regions,should,yes,no,
+Faceted search,regions,should,yes,no,
+Cards region,regions,should,yes,no,
+File upload item,items,should,yes,no,simpan ke bytea atau object storage
+Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,no,F08; git-friendly; padanan konsep APEXlang dengan format sendiri
+Page locking antar developer,builder,should,yes,no,
+Developer Toolbar + session state viewer,runtime,should,yes,no,S26
+Debug messages per page view,runtime,should,yes,no,S28
+Activity log (page views + timing),runtime,should,yes,no,
+Collections (padanan APEX_COLLECTION) di jsonb,runtime,should,yes,no,
+Error handling function + pesan ramah,runtime,should,yes,no,
+Theme/template engine sendiri (page/region/report/button),ui,should,yes,no,design system dari /replica-design
+Translations berbasis text message,ui,should,yes,no,fitur 26.1; ID/EN untuk subsidiary
+Charts region,regions,could,yes,no,pakai library open source (mis. ECharts) bukan Oracle JET
+IR chart view / group by / pivot,regions,could,yes,no,
+Master-detail IG,regions,could,yes,no,
+SQL Workshop: SQL Commands,sql workshop,could,yes,no,S17
+SQL Workshop: Object Browser,sql workshop,could,yes,no,S18
+REST data source (region dari REST API),data sources,could,yes,no,
+Email via SMTP (padanan APEX_MAIL),runtime,could,yes,no,
+Diff antar versi spec aplikasi,lifecycle,could,yes,no,
+Template components / custom plugin API,extensibility,could,yes,no,
+Importer APEXlang .apx,lifecycle,could,yes,no,hanya jika lisensi APEXlang mengizinkan pihak ketiga
+Converter aplikasi APEX lama ke spec replika,migration,could,yes,no,termasuk translasi PL/SQL→PL/pgSQL; proyek terpisah
+AI: buat page dari bahasa natural,ai,could,yes,no,fase lanjut
+Kompatibilitas penuh PL/SQL dan Oracle SQL,runtime,skip,yes,skip,database target PostgreSQL; kode user ditulis PL/pgSQL
+Parity seluruh package APEX_* PL/SQL API,runtime,skip,yes,skip,hanya padanan inti
+Universal Theme / Iris style / Font APEX,ui,skip,yes,skip,aset milik Oracle; buat design system sendiri
+Format export SQL APEX (f100.sql),lifecycle,skip,yes,skip,format internal Oracle
+VPD / Real Application Security,security,skip,yes,skip,fitur Oracle DB; di PG pakai Row Level Security bila perlu
+ORDS REST enabling / RESTful Services module,data sources,skip,yes,skip,di luar slice; PostgREST bila perlu
+Oracle Spatial / vector tile Map region,regions,skip,yes,skip,fitur Oracle DB
+AI Agents / NL Interactive Report,ai,skip,yes,skip,di luar slice; bergantung provider AI
+Workflow & Approvals (Human Tasks),business process,skip,yes,skip,di luar slice
+Automations (scheduler),business process,skip,yes,skip,di luar slice; pg_cron bila perlu
+Progressive Web App,ui,skip,yes,skip,di luar slice
+Data Reporter / Search Configurations,regions,skip,yes,skip,di luar slice
+Nama dan branding Oracle APEX,brand,skip,yes,skip,butuh nama sendiri (/replica-brand)
+Instance cloud oracleapex.com / OCI APEX Service,hosting,skip,yes,skip,layanan Oracle
