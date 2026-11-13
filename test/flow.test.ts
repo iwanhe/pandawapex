@@ -71,6 +71,22 @@ describe('F04: login -> report -> form -> save', () => {
       assert.equal((r.body.match(/aria-invalid="true"/g) ?? []).length, 2);
    });
 
+   test('BUG-001: max_length is enforced by the server, counting characters (not bytes)', async () => {
+      const b = new Browser(env);
+      await b.login();
+      const list = await b.open(`${env.base}/1`);
+      const blank = await b.open(links(list.body, 'r-btn r-btn--primary')[0]);
+      const f = { ...formFields(blank.body), P2_DEPTNO: '1', P2_TGL_MASUK: '2026-01-05', P2_GAJI: '1000', P2_AKTIF: 'Y', REQUEST: 'SIMPAN' };
+      const tooLong = await b.post(`${env.base}/2`, { ...f, P2_NAMA: 'P'.repeat(121) });
+      assert.equal(tooLong.statusCode, 422);
+      assert.match(tooLong.body, /Nama lengkap maksimal 120 karakter\./);
+      // 120 characters including multi-byte ones is fine
+      // the re-rendered form carries a fresh submission token
+      const ok = await b.post(`${env.base}/2`, { ...f, __sid: formFields(tooLong.body).__sid, P2_NAMA: 'É😀'.repeat(60) });
+      assert.equal(ok.statusCode, 303);
+      await env.pool.query(`delete from ${env.schema}.karyawan where nama = $1`, ['É😀'.repeat(60)]);
+   });
+
    test('create via "Tambah" then delete', async () => {
       const b = new Browser(env);
       await b.login();
@@ -179,6 +195,19 @@ describe('security', () => {
       }
    });
 
+   test('BUG-004: the same form submission cannot be processed twice (double POST / replay)', async () => {
+      const b = new Browser(env);
+      await b.login();
+      const blank = await b.open(links((await b.open(`${env.base}/1`)).body, 'r-btn r-btn--primary')[0]);
+      const f = { ...formFields(blank.body), P2_NAMA: 'Kirim Dobel', P2_TGL_MASUK: '2026-01-01', P2_GAJI: '1', P2_AKTIF: 'Y', REQUEST: 'SIMPAN' };
+      const [r1, r2] = await Promise.all([b.post(`${env.base}/2`, f), b.post(`${env.base}/2`, f)]);
+      assert.deepEqual([r1.statusCode, r2.statusCode].sort(), [303, 409]);
+      assert.equal((await b.post(`${env.base}/2`, f)).statusCode, 409, 'a later replay is refused too');
+      const n = await env.pool.query(`select count(*)::int as n from ${env.schema}.karyawan where nama = 'Kirim Dobel'`);
+      assert.equal(n.rows[0].n, 1);
+      await env.pool.query(`delete from ${env.schema}.karyawan where nama = 'Kirim Dobel'`);
+   });
+
    test('login attempts are rate limited per IP', async () => {
       const strict = buildServer({ pool: env.pool, secret: 'x'.repeat(40), loginRateLimit: 2 });
       await strict.ready();
@@ -263,8 +292,9 @@ describe('lost update', () => {
       const { __rv_form, ...noToken } = rb.fields;
       assert.ok(__rv_form);
       assert.equal((await b.post(`${env.base}/2`, { ...noToken, REQUEST: 'SIMPAN' })).statusCode, 422);
+      const again = await openRow(b, 'Dewi Lestari');
       const forged = `${'A'.repeat(32)}.${'B'.repeat(32)}`;
-      assert.equal((await b.post(`${env.base}/2`, { ...rb.fields, __rv_form: forged, REQUEST: 'SIMPAN' })).statusCode, 422);
+      assert.equal((await b.post(`${env.base}/2`, { ...again.fields, __rv_form: forged, REQUEST: 'SIMPAN' })).statusCode, 422);
    });
 });
 
