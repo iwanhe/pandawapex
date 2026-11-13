@@ -197,7 +197,8 @@
         "action": {
           "enum": [
             "submit",
-            "redirect"
+            "redirect",
+            "close_dialog"
           ]
         },
         "target": {
@@ -258,6 +259,20 @@
         },
         "link": {
           "$ref": "#/definitions/target"
+        },
+        "searchable": {
+          "type": "boolean"
+        },
+        "sortable": {
+          "type": "boolean"
+        },
+        "format": {
+          "enum": [
+            "number",
+            "integer",
+            "date"
+          ],
+          "description": "display only: number = id-ID grouping, up to 2 decimals; integer; date = DD-MM-YYYY"
         }
       }
     },
@@ -280,7 +295,8 @@
           "enum": [
             "static",
             "classic_report",
-            "form"
+            "form",
+            "interactive_report"
           ]
         },
         "template": {
@@ -342,6 +358,11 @@
         },
         "authorization": {
           "$ref": "#/definitions/authzRef"
+        },
+        "max_download_rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
         }
       }
     },
@@ -405,7 +426,8 @@
             "form_init",
             "form_dml",
             "plpgsql",
-            "clear_cache"
+            "clear_cache",
+            "close_dialog"
           ]
         },
         "region": {
@@ -792,6 +814,20 @@
             "items": {
               "$ref": "#/definitions/computation"
             }
+          },
+          "mode": {
+            "enum": [
+              "normal",
+              "modal"
+            ],
+            "description": "modal: opens in a dialog over the calling page"
+          },
+          "dialog_size": {
+            "enum": [
+              "sm",
+              "md",
+              "lg"
+            ]
           }
         }
       }

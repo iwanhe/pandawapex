@@ -53,6 +53,8 @@ SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/back
 - **Computations**: app (`on_new_session`, `after_authentication`, `before_header`) dan page (`before_header` setelah form init, `after_submit` sebelum validasi). Tipe `plpgsql_fn` adalah isi fungsi dengan `return ...;`.
 - **Kondisi**: `condition: { item_equals: { item: P1_MODE, value: edit } }`, `request_equals`, `sql_exists`, `sql_expression`, `item_null`, `item_not_null`, `never`.
 - **Substitusi** `&ITEM.` selalu di-escape. Gunakan `&ITEM!RAW.` hanya untuk HTML yang memang Anda percaya.
+- **Modal**: `mode: modal` pada page membuat link ke page itu terbuka sebagai dialog. Tambahkan proses `{ type: close_dialog }` agar setelah simpan dialog tertutup dan daftar di belakangnya ter-refresh; tombol `action: close_dialog` = Batal.
+- **Interactive Report**: `type: interactive_report` + `source.sql`. Kolom bisa diberi `searchable`, `sortable`, `format: number|integer|date`; unduhan CSV/Excel dibatasi `max_download_rows` (default 10.000).
 
 ## Tes
 

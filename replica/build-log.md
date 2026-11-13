@@ -84,3 +84,22 @@ Lebih sulit dari perkiraan:
   di dalam savepoint. Butuh hak TEMP di database untuk role `ws_*` (default PostgreSQL: ada).
 - Urutan before-header sengaja dibuat: form init → default item → computations, supaya computation bisa memakai baris yang baru diambil
   (contoh: masa kerja dari tanggal masuk).
+
+## M4 (dimajukan): modal dialog + Interactive Report (2026-11-13), done
+
+| ID | status | belum ada | catatan |
+| --- | --- | --- | --- |
+| S23 sebagai modal | done | ukuran dialog bisa diubah user | `mode: modal`: link (`data-dialog`) membuka `<dialog>` + iframe `?dialog=1`; `close_dialog` menutup lalu me-refresh `#main` di tempat (pesan sukses tampil); Batal / Esc menutup tanpa menyimpan; session habis di dalam dialog membawa seluruh jendela ke login. Tanpa JS tetap jalan sebagai halaman biasa |
+| S21 Interactive Report | done (dasar) | saved reports, highlight, control break, aggregate, chart, pilih kolom | cari semua kolom, sort per kolom (`aria-sort`), filter angka/tanggal/teks/boolean + chip, paging, atur ulang, state per session, refresh region via fetch + live region |
+| S21 download | done | — | CSV (BOM, netralisasi formula `= + - @`), XLSX (zip XML via `fflate`, angka sebagai angka, header beku), batas `max_download_rows` |
+| Format kolom | partial | format mask lengkap (M3) | `format: number | integer | date` untuk tampilan saja (id-ID) |
+
+Verifikasi: `npm test` 66/66 (+13: sort/filter/injeksi/unduhan/dialog), e2e 58/58 lulus, 2 di-skip (F04 ditulis ulang untuk dialog + F05 IR), screenshot S21, S21-390, S23-dialog, S23-dialog-390, tanpa console error.
+
+Lebih sulit dari perkiraan:
+- **Form bersarang.** Seluruh page adalah satu form POST, jadi kontrol pencarian/filter IR (GET) tidak boleh ada di dalamnya.
+  Solusinya: form GET kosong di luar form utama, dan input memakai atribut `form="…"`.
+- **Perintah report di URL.** `?daftar__fc=…` yang dimuat ulang akan menambah filter dua kali. Perintah diterapkan sekali lalu
+  dialihkan (303) ke URL bersih; peringatan (mis. "harus angka") dibawa lewat session agar tetap terlihat setelah redirect.
+- **Esc di dalam iframe** tidak sampai ke `<dialog>` induk. Halaman dialog meneruskannya lewat `postMessage`.
+- `exceljs` membawa dependensi `uuid` lama dengan kerentanan moderat. Diganti XLSX buatan sendiri (± 60 baris) di atas `fflate`.

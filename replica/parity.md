@@ -1,5 +1,8 @@
 # Parity: pandawapex vs Oracle APEX (2026-11-13)
 
+> **Update setelah modal + Interactive Report:** feature parity **48.9**, must-have **19/30**, runtime saja **58.1**,
+> **must-have runtime 85.4** (target 80 tercapai). Sisa must-have: builder (Fase 2), item & LOV lengkap (M3), akun developer.
+>
 > **Update setelah M2:** feature parity **42.4** (dari 35.9), must-have **16/30** (dari 12), runtime saja **50.0**, must-have runtime **72.9** (dari 62.5).
 > Authorization schemes, computations, escape filter, dan menu berotorisasi selesai. Berikutnya: modal dialog dan Interactive Report.
 

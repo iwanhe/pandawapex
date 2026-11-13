@@ -80,3 +80,20 @@ Setiap tes e2e otomatis gagal bila ada console error atau respons 5xx, dan layar
 - Zona waktu / DST: belum ada kolom waktu (timestamptz) di contoh. `tgl_masuk` bertipe `date`. Dites saat item datetime masuk (M3).
 - Screen reader sungguhan (NVDA/VoiceOver): baru dicek otomatis lewat axe dan label/role di selector. Pengecekan manual masih diperlukan.
 - Data user lain: aplikasi contoh tidak punya kepemilikan baris, jadi semua user melihat semua karyawan (by design). Isolasi antar-session dites lewat checksum/CSRF/lost update.
+
+## Tambahan setelah modal + Interactive Report (2026-11-13)
+
+| case | flow | type | yang diharapkan | auto | hasil |
+| --- | --- | --- | --- | --- | --- |
+| F04-H1..E9 | F04 | semua kasus F04 di atas, kini lewat **dialog** | sama, plus dialog tertutup dan daftar ter-refresh di tempat | e2e | ✅ |
+| F04-E6' | F04 | edge: Esc / Batal | dialog tertutup tanpa menyimpan, fokus kembali ke link baris | e2e | ✅ |
+| F04-E7' | F04 | edge: session habis di dalam dialog | seluruh jendela ke login, setelah login kembali ke daftar | e2e, int | ✅ |
+| F05-H1 | F05 | happy | sort kolom (aria-sort), filter via panel → chip, unduh CSV, hapus chip | e2e, int | ✅ |
+| F05-H2 | F05 | happy | XLSX valid, angka tersimpan sebagai angka | int | ✅ |
+| F05-E1 | F05 | edge: nilai filter salah | pesan "harus angka" tampil setelah redirect, sekali | e2e, int | ✅ |
+| F05-E2 | F05 | edge: tanpa hasil | empty state + tautan hapus pencarian & filter | e2e | ✅ |
+| F05-N1 | F05 | negatif: injeksi | `%`, `' or 1=1 --`, kolom sort/filter palsu tidak berpengaruh | int | ✅ |
+| F05-N2 | F05 | negatif: formula di CSV | sel `=…`/`-…` diawali `'` | int | ✅ |
+| F05-N3 | F05 | negatif: unduh tanpa session / region salah | 303 ke login / 404 | int | ✅ |
+
+Run terakhir: e2e 58/58 lulus, 2 di-skip (60 kasus), integrasi 66/66.

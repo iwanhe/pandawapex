@@ -1,24 +1,26 @@
 // F09: navigation and session state between pages (links with items, checksums, paging, search state).
-import { test, expect, login, axe, APP } from './fixtures.ts';
+import { test, expect, login, axe, APP, searchReport, dialogFrame } from './fixtures.ts';
 
 test.describe('F09 navigation & session state', () => {
-   test('F09-H1 row link opens the form, breadcrumb goes back, search is remembered', async ({ page }) => {
+   test('F09-H1 row link opens the dialog; closing it keeps the search; the address bar stays clean', async ({ page }) => {
       await login(page);
-      await page.getByLabel('Cari nama').fill('a');
-      await page.getByRole('button', { name: 'Cari', exact: true }).click();
+      await searchReport(page, 'a');
       await page.getByRole('row').nth(1).getByRole('link').click();
-      await expect(page).toHaveURL(`${APP}/2`);                       // item arguments dropped from the address bar
-      await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Karyawan' }).click();
-      await expect(page.getByLabel('Cari nama')).toHaveValue('a');
+      const form = await dialogFrame(page);
+      await form.getByRole('button', { name: 'Batal' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+      await expect(page).toHaveURL(`${APP}/1`);
+      await page.reload();
+      await expect(page.getByLabel('Cari di Daftar karyawan')).toHaveValue('a');
    });
 
    test('F09-H2 paging forward and back', async ({ page }) => {
       await login(page);
-      await expect(page.getByText(/^Baris 1–5/)).toBeVisible();
+      await expect(page.locator('.r-pagination > span')).toHaveText(/^Baris 1–5/);
       await page.getByRole('link', { name: 'Halaman berikutnya' }).click();
-      await expect(page.getByText(/^Baris 6–/)).toBeVisible();
+      await expect(page.locator('.r-pagination > span')).toHaveText(/^Baris 6–/);
       await page.getByRole('link', { name: 'Halaman sebelumnya' }).click();
-      await expect(page.getByText(/^Baris 1–5/)).toBeVisible();
+      await expect(page.locator('.r-pagination > span')).toHaveText(/^Baris 1–5/);
    });
 
    test('F09-H3 navigation menu marks the current page; static page substitutes &APP_USER.', async ({ page }) => {
@@ -33,8 +35,7 @@ test.describe('F09 navigation & session state', () => {
 
    test('F09-E1 empty search result shows the empty state', async ({ page }) => {
       await login(page);
-      await page.getByLabel('Cari nama').fill('zzz-tidak-ada');
-      await page.getByRole('button', { name: 'Cari', exact: true }).click();
+      await searchReport(page, 'zzz-tidak-ada');
       await expect(page.getByText('Tidak ada data yang cocok')).toBeVisible();
       expect(await axe(page), 'empty state a11y').toEqual([]);
    });

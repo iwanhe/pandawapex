@@ -48,12 +48,30 @@ export async function empno(db: pg.Pool, nama: string): Promise<number> {
    return (await db.query(`select empno from ${E2E.schema}.karyawan where nama = $1`, [nama])).rows[0]?.empno;
 }
 
-/** Open the edit form of an employee from the report (searching first, so paging does not matter). */
+/** Search the interactive report (region refresh, no page load). */
+export async function searchReport(page: Page, text: string) {
+   const box = page.getByLabel('Cari di Daftar karyawan');
+   await box.fill(text);
+   await Promise.all([
+      page.waitForResponse(r => r.url().includes('daftar__q=') ),
+      box.press('Enter'),
+   ]);
+   await expect(page.getByLabel('Cari di Daftar karyawan')).toHaveValue(text);
+}
+
+/** Open the edit dialog of an employee from the report; returns the dialog's frame. */
 export async function openEmployee(page: Page, nama: string) {
    await page.goto(`${APP}/1`);
-   await page.getByLabel('Cari nama').fill(nama);
-   await page.getByRole('button', { name: 'Cari', exact: true }).click();
+   await searchReport(page, nama);
    const row = page.getByRole('row').filter({ hasText: nama });
+   await expect(row).toHaveCount(1);
    await row.getByRole('link').first().click();
-   await expect(page.getByRole('heading', { level: 1, name: 'Form karyawan' })).toBeVisible();
+   return dialogFrame(page);
+}
+
+export async function dialogFrame(page: Page) {
+   await expect(page.getByRole('dialog', { name: 'Form karyawan' })).toBeVisible();
+   const frame = page.frameLocator('dialog iframe');
+   await expect(frame.getByLabel('Nama lengkap')).toBeVisible();
+   return frame;
 }

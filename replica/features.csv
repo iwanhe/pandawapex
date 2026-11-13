@@ -22,12 +22,12 @@ URL scheme ramah (app/page/params) + checksum,runtime,must,yes,yes,M1: HMAC per 
 Form region: init (fetch by PK) + DML process,regions,must,yes,yes,M1: insert/update/delete; tombol DELETE/HAPUS = delete
 Lost-update detection pada Form,regions,must,yes,yes,Backend: hash baris bertanda tangan + SELECT FOR UPDATE; update & delete
 Classic Report dengan pagination,regions,must,yes,yes,M1
-Interactive Report: search + sort + filter + pagination,regions,must,yes,no,hard part #1
-Interactive Report: download CSV/XLSX,regions,must,yes,no,
+Interactive Report: search + sort + filter + pagination,regions,must,yes,yes,"M4: cari semua kolom, sort per kolom (aria-sort), filter angka/tanggal/teks dengan chip, paging; state diingat per session; refresh region tanpa reload"
+Interactive Report: download CSV/XLSX,regions,must,yes,yes,"M4: CSV (BOM, anti formula-injection) dan XLSX tanpa library spreadsheet; filter & sort sama dengan layar, batas max_download_rows"
 Item types inti: text/number/date/select/popup LOV/switch/textarea/hidden/display only,items,must,yes,partial,"M1: text, number, textarea, date, select, hidden, display_only, password; popup LOV/switch/radio/checkbox belum"
 Cascading LOV (parent items),items,must,yes,no,
 Validasi deklaratif + inline error,runtime,must,yes,yes,"M1: required, not_null, sql_expression, sql_exists/not_exists, regex"
-Modal dialog page + close dialog + refresh parent,runtime,must,yes,no,F04 core loop
+Modal dialog page + close dialog + refresh parent,runtime,must,yes,yes,"M4: page mode modal (dialog + iframe), close_dialog, region utama di-refresh di tempat; tanpa JS tetap jalan sebagai halaman biasa"
 Success/error notification,runtime,must,yes,yes,"M1: pesan sukses sekali tampil, ringkasan error difokuskan"
 Interactive Grid editable (add/update/delete),regions,should,yes,no,hard part #4
 Dynamic Actions: show/hide/set value/refresh/submit,runtime,should,yes,no,hard part #5
