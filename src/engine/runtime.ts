@@ -4,12 +4,13 @@ import { translateBinds, wrapDoBlock } from './bind.ts';
 import { itemsMessage, sign, urlMessage, verify } from './checksum.ts';
 import { enterUserCode, leaveUserCode, quoteIdent, quoteQualified, readUserCodeItems, toText } from './db.ts';
 import { Evaluator, runComputations } from './guard.ts';
+import { formatValue, renderInteractiveReport } from './ir.ts';
 import { attrIf, html, raw, type SafeHtml } from './html.ts';
 import type { ButtonDef, ItemDef, NavDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
 import {
    AFTER_AUTH_KEY, bindValues, clearPages, consumeSubmitToken, FLASH_KEY, issueSubmitToken, NEW_SESSION_KEY, saveState, takeFlash,
 } from './session.ts';
-import { alert, icon, shell } from './templates.ts';
+import { alert, dialogDocument, icon, shell } from './templates.ts';
 import { inSavepoint, pgMessage, runSql, substitute, syncItems, userCtx, values, type Ctx } from './usercode.ts';
 
 export type { Ctx } from './usercode.ts';
@@ -51,13 +52,25 @@ function rowSubstitute(text: string, row: Record<string, string | null>): string
    });
 }
 
-function targetUrl(ctx: Ctx, t: Target, row?: Record<string, string | null>): string {
+export function targetUrl(ctx: Ctx, t: Target, row?: Record<string, string | null>): string {
    const vals = values(ctx);
    const items: Record<string, string> = {};
    for (const [k, v] of Object.entries(t.items ?? {})) {
       items[k] = substitute(row ? rowSubstitute(v, row) : v, vals, false);
    }
    return pageUrl(ctx, t.page, items, t.clear_cache ?? '');
+}
+
+/** Extra attributes for a link to a modal page: rpx.js opens it in a dialog (without JS it opens as a page). */
+export function dialogAttrs(ctx: Ctx, t: Target): SafeHtml {
+   const target = ctx.app.pages.get(t.page);
+   if (!target || target.mode !== 'modal') return html``;
+   return html` data-dialog="${target.dialogSize}" data-dialog-title="${substitute(target.title ?? target.name, values(ctx), false)}"`;
+}
+
+/** Where a page without JS returns to when its dialog is closed: the breadcrumb parent, else home. */
+function dialogReturnPage(ctx: Ctx, page: PageDef): number {
+   return page.breadcrumbParent ?? ctx.app.homePage;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +121,10 @@ export interface RenderState {
    /** signed row-version tokens per form region (static id), carried through re-renders */
    rowVersions?: Record<string, string>;
    query?: Record<string, string>;
+   /** rendered inside the dialog iframe of the calling page */
+   dialog?: boolean;
+   /** set while rendering: an interactive report applied search/sort/filter parameters from the URL */
+   irParamsApplied?: boolean;
 }
 
 /** Apply URL arguments (clear cache + item values) after checking the checksum. */
@@ -131,7 +148,7 @@ export async function applyUrlArgs(ctx: Ctx, page: PageDef, query: Record<string
    await saveState(ctx.pool, ctx.session, items);
 }
 
-interface View {
+export interface View {
    ctx: Ctx;
    page: PageDef;
    ev: Evaluator;
@@ -139,9 +156,13 @@ interface View {
    rendered: Rendered;
    /** target page -> allowed, so links/buttons to pages the user may not open are not offered */
    allowed: Map<number, boolean>;
+   /** GET forms of interactive reports; rendered after the page's POST form (forms cannot nest) */
+   extraForms: SafeHtml[];
+   /** session state to persist after rendering */
+   changes: Record<string, string | null>;
 }
 
-async function canOpen(v: View, no: number): Promise<boolean> {
+export async function canOpen(v: View, no: number): Promise<boolean> {
    if (!v.allowed.has(no)) v.allowed.set(no, await v.ev.pageAllowed(no));
    return v.allowed.get(no)!;
 }
@@ -157,7 +178,7 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
    let parentAllowed = false;
    const rendered: Rendered = { items: new Set(), buttons: new Set() };
    const ev = new Evaluator(c, ctx);
-   const v: View = { ctx, page, ev, rs, rendered, allowed: new Map() };
+   const v: View = { ctx, page, ev, rs, rendered, allowed: new Map(), extraForms: [], changes: stateChanges };
    try {
       await c.query('begin');
       await enterUserCode(c, userCtx(ctx));
@@ -231,17 +252,21 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
    }
 
    const title = substitute(page.title ?? page.name, values(ctx), false);
+   const formBody = html`<form method="post" action="${appBase(ctx.app)}/${page.no}${rs.dialog ? '?dialog=1' : ''}" novalidate>
+         <input type="hidden" name="__csrf" value="${ctx.session.csrf}">
+         <input type="hidden" name="__sid" value="${await issueSubmitToken(ctx.pool, ctx.session, page.no)}">
+         <input type="hidden" name="__ps" value="${formState(ctx, page, rendered)}">
+         ${layout(regionsHtml)}
+      </form>${v.extraForms}`;
+   if (rs.dialog) {
+      return dialogDocument(`${title} · ${ctx.app.name}`, html`<div class="r-messages">${msgs}</div>`, formBody).value;
+   }
    const out = shell({
       app: ctx.app, page, nav, parentAllowed, username: ctx.session.appUserId ? ctx.session.username : null, csrf: ctx.session.csrf,
       logoutUrl: `${appBase(ctx.app)}/logout`, pageUrl: no => pageUrl(ctx, no), title,
       headerActions: headerButtons.length ? html`<div class="r-page-head__actions">${headerButtons}</div>` : html``,
       messages: html`<div class="r-messages">${msgs}</div>`,
-      body: html`<form method="post" action="${appBase(ctx.app)}/${page.no}" novalidate>
-         <input type="hidden" name="__csrf" value="${ctx.session.csrf}">
-         <input type="hidden" name="__sid" value="${await issueSubmitToken(ctx.pool, ctx.session, page.no)}">
-         <input type="hidden" name="__ps" value="${formState(ctx, page, rendered)}">
-         ${layout(regionsHtml)}
-      </form>`,
+      body: formBody,
    });
    return out.value;
 }
@@ -319,6 +344,9 @@ async function renderRegion(v: View, r: RegionDef): Promise<SafeHtml> {
    if (r.type === 'classic_report') {
       body = await classicReport(v, r);
       flush = true;
+   } else if (r.type === 'interactive_report') {
+      body = await renderInteractiveReport(v, r);
+      flush = true;
    } else if (r.type === 'form') {
       const rv = rs.rowVersions?.[r.staticId];
       body = html`${rv ? html`<input type="hidden" name="__rv_${r.staticId}" value="${rv}">` : ''}<div class="r-form">${await itemsHtml(v, r.items)}</div>`;
@@ -327,7 +355,7 @@ async function renderRegion(v: View, r: RegionDef): Promise<SafeHtml> {
       body = r.items.length ? html`${content}<div class="r-form">${await itemsHtml(v, r.items)}</div>` : content;
    }
    const footer: SafeHtml[] = [];
-   if (r.type !== 'classic_report') {
+   if (r.type !== 'classic_report' && r.type !== 'interactive_report') {
       for (const b of r.buttons.filter(b => b.position !== 'header')) {
          const h = await buttonHtml(v, b);
          if (h) footer.push(h);
@@ -335,7 +363,7 @@ async function renderRegion(v: View, r: RegionDef): Promise<SafeHtml> {
    }
    const titleId = `r-${r.staticId}-title`;
    const plain = r.template === 'plain';
-   return html`<section class="r-region${plain ? ' r-region--plain' : ''}" id="${r.staticId}"${r.title && !plain ? html` aria-labelledby="${titleId}"` : ''}>
+   return html`<section class="r-region${plain ? ' r-region--plain' : ''}" id="${r.staticId}"${r.type === 'interactive_report' ? raw(' data-ir') : ''}${r.title && !plain ? html` aria-labelledby="${titleId}"` : ''}>
       ${r.title && !plain ? html`<div class="r-region__header"><h2 class="r-region__title" id="${titleId}">${r.title}</h2></div>` : ''}
       <div class="r-region__body${flush ? ' r-region__body--flush' : ''}">${body}</div>
       ${footer.length ? html`<div class="r-region__footer">${footer}</div>` : ''}
@@ -373,7 +401,7 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
    const hasMore = result.rows.length > size;
    const cols = r.columns.length
       ? r.columns.filter(col => !col.hidden && fields.includes(col.name))
-      : fields.map(f => ({ name: f, label: f, dataType: 'text', isPk: false, hidden: false, link: null }));
+      : fields.map(f => ({ name: f, label: f, dataType: 'text', isPk: false, hidden: false, link: null, format: null as string | null }));
    // a link to a page the user may not open is shown as plain text
    const linkOk = new Map<string, boolean>();
    for (const col of cols) if (col.link) linkOk.set(col.name, await canOpen(v, col.link.page));
@@ -393,8 +421,8 @@ async function classicReport(v: View, r: RegionDef): Promise<SafeHtml> {
        <caption class="r-sr-only">${r.title ?? r.staticId}</caption>
        <thead><tr>${cols.map(col => html`<th scope="col"${col.dataType === 'number' ? raw(' class="r-num"') : ''}>${col.label}</th>`)}</tr></thead>
        <tbody>${rows.map(row => html`<tr>${cols.map(col => {
-          const val = row[col.name] ?? '';
-          const cell = col.link && linkOk.get(col.name) ? html`<a class="r-cell-link" href="${targetUrl(ctx, col.link, row)}">${val}</a>` : html`${val}`;
+          const val = formatValue(row[col.name] ?? null, col.format);
+          const cell = col.link && linkOk.get(col.name) ? html`<a class="r-cell-link" href="${targetUrl(ctx, col.link, row)}"${dialogAttrs(ctx, col.link)}>${val}</a>` : html`${val}`;
           return html`<td${col.dataType === 'number' ? raw(' class="r-num"') : ''}>${cell}</td>`;
        })}</tr>`)}</tbody>
      </table>
@@ -480,7 +508,13 @@ async function buttonHtml(v: View, b: ButtonDef): Promise<SafeHtml | null> {
    const ic = b.style === 'danger' ? icon('trash-2') : b.position === 'header' && b.hot ? icon('plus') : html``;
    if (b.action === 'redirect' && b.target) {
       if (!(await canOpen(v, b.target.page))) return null;
-      return html`<a class="${cls}" href="${targetUrl(v.ctx, b.target)}">${ic}${b.label}</a>`;
+      return html`<a class="${cls}" href="${targetUrl(v.ctx, b.target)}"${dialogAttrs(v.ctx, b.target)}>${ic}${b.label}</a>`;
+   }
+   if (b.action === 'close_dialog') {
+      // in the dialog: closes it without saving; without JS / opened as a page: back to the calling page
+      return v.rs.dialog
+         ? html`<button type="button" class="${cls}" data-dialog-cancel>${ic}${b.label}</button>`
+         : html`<a class="${cls}" href="${pageUrl(v.ctx, dialogReturnPage(v.ctx, v.page))}">${ic}${b.label}</a>`;
    }
    v.rendered.buttons.add(b.name);
    return html`<button type="submit" class="${cls}" name="REQUEST" value="${b.name}"${b.confirm ? html` data-confirm="${b.confirm}"` : ''}>${ic}${b.label}</button>`;
@@ -489,9 +523,9 @@ async function buttonHtml(v: View, b: ButtonDef): Promise<SafeHtml | null> {
 // ---------------------------------------------------------------------------
 // ACCEPT (POST)
 // ---------------------------------------------------------------------------
-export type AcceptResult = { redirect: string } | { html: string; status: number };
+export type AcceptResult = { redirect: string } | { html: string; status: number } | { closeDialog: true };
 
-export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, string>): Promise<AcceptResult> {
+export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, string>, dialog = false): Promise<AcceptResult> {
    const request = typeof body.REQUEST === 'string' ? body.REQUEST : '';
 
    // 1. the signed form state: which items/buttons were rendered + protected hidden values unchanged
@@ -542,7 +576,7 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
       await ev.flush();
    }
    if (errors.length) {
-      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, errors, rowVersions: postedVersions(page, body) }) };
+      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, errors, rowVersions: postedVersions(page, body), dialog }) };
    }
 
    // 5. processes and branch choice (one transaction, developer code as the workspace role)
@@ -553,11 +587,13 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
    const ev = new Evaluator(c, ctx, request);
    let failed: { title: string; detail: string } | null = null;
    let target: Target = { page: page.no };
+   let closeDialog = false;
    try {
       await c.query('begin');
       await enterUserCode(c, userCtx(ctx));
       for (const p of page.processes.filter(p => p.point === 'after_submit' && (!p.whenButton || p.whenButton === request))) {
          if (!(await ev.holds(p.condition))) continue;
+         if (p.type === 'close_dialog') { closeDialog = true; continue; }
          try {
             const ch = await runProcess(c, ctx, page, p, request, body);
             changes = { ...changes, ...ch };
@@ -570,7 +606,8 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
             break;
          }
       }
-      if (!failed) {
+      if (!failed && !(closeDialog && dialog)) {
+         if (closeDialog) target = { page: dialogReturnPage(ctx, page) };
          for (const b of page.branches) {
             if ((b.whenButton && b.whenButton !== request) || !(await ev.holds(b.condition))) continue;
             target = b.target;
@@ -590,13 +627,14 @@ export async function acceptPage(ctx: Ctx, page: PageDef, body: Record<string, s
       // the failed transaction changed nothing, so neither does session state
       ctx.session.state.clear();
       for (const [k, val] of before) ctx.session.state.set(k, val);
-      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, processError: failed, rowVersions: postedVersions(page, body) }) };
+      return { status: 422, html: await renderPage(ctx, page, { runBeforeHeader: false, processError: failed, rowVersions: postedVersions(page, body), dialog }) };
    }
    await saveState(ctx.pool, ctx.session, changes);
    if (messages.length) {
       const vals = values(ctx);
       await saveState(ctx.pool, ctx.session, { [FLASH_KEY]: messages.map(m => substitute(m, vals, false)).join(' ') });
    }
+   if (closeDialog && dialog) return { closeDialog: true };
    return { redirect: targetUrl(ctx, target) };
 }
 

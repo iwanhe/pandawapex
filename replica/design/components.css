@@ -316,3 +316,33 @@ a.r-card:hover { border-color: var(--r-color-accent); color: inherit; }
 .r-region__static > :last-child { margin-bottom: 0; }
 .r-btn--block { display: flex; width: 100%; }
 .r-login .r-divider { margin: var(--r-space-6) 0; }
+
+/* ---------- modal pages (M4) ---------- */
+.r-dialog__frame { display: block; width: 100%; height: 240px; border: 0; border-radius: 0 0 var(--r-radius-lg) var(--r-radius-lg); }
+.r-dialog[open] { overflow: hidden; }
+body.r-in-dialog { background: var(--r-color-surface); }
+.r-dialog-page { padding: var(--r-space-5) var(--r-space-6) 0; }
+.r-in-dialog .r-region { border: 0; box-shadow: none; }
+.r-in-dialog .r-region__header { display: none; }
+.r-in-dialog .r-region__body { padding: 0 0 var(--r-space-5); }
+.r-in-dialog .r-region__footer { position: sticky; bottom: 0; margin: 0 calc(-1 * var(--r-space-6)); padding: var(--r-space-4) var(--r-space-6); border-radius: 0; }
+@media (max-width: 639px) {
+  .r-dialog { width: 100vw; max-width: 100vw; max-height: 100dvh; height: 100dvh; margin: 0; border-radius: 0; }
+  .r-dialog__frame { height: calc(100dvh - 64px) !important; }
+}
+
+/* ---------- interactive report (M4) ---------- */
+.r-chip a { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--r-color-text-muted); }
+.r-chip a:hover { background: var(--r-color-surface-sunken); color: var(--r-color-text); }
+.r-ir-filter { position: relative; }
+.r-ir-filter > summary { list-style: none; }
+.r-ir-filter > summary::-webkit-details-marker { display: none; }
+.r-ir-filter__panel { position: absolute; z-index: var(--r-z-popover); top: calc(100% + var(--r-space-2)); left: 0; display: flex; flex-direction: column; gap: var(--r-space-4); width: min(320px, calc(100vw - 32px)); padding: var(--r-space-5); background: var(--r-color-surface); border: 1px solid var(--r-color-border); border-radius: var(--r-radius-md); box-shadow: var(--r-shadow-pop); }
+.r-ir-problem { padding: var(--r-space-3) var(--r-space-5) 0; }
+th .r-sort { color: inherit; text-decoration: none; }
+th .r-sort:hover { text-decoration: underline; }
+.r-region[data-ir] .r-empty .r-btn { margin-top: var(--r-space-2); }
+@media (max-width: 639px) {
+  .r-ir-toolbar__end { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .r-ir-filter__panel { position: fixed; left: var(--r-space-4); right: var(--r-space-4); top: auto; width: auto; }
+}

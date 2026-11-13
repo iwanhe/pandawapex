@@ -16,7 +16,7 @@ export interface ItemSpec {
    protection?: string; max_length?: number; authorization?: string; condition?: Condition;
 }
 export interface ButtonSpec {
-   name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect'; target?: Target;
+   name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect' | 'close_dialog'; target?: Target;
    style?: string; confirm?: string; position?: string; condition?: Condition; authorization?: string;
 }
 export interface Condition {
@@ -25,9 +25,12 @@ export interface Condition {
 }
 export interface AuthzSpec { name: string; type: string; source: string; evaluation?: string; error_msg?: string }
 export interface ComputationSpec { item: string; point?: string; type: string; expression: string; condition?: Condition }
-export interface ColumnSpec { name: string; label?: string; data_type?: string; is_pk?: boolean; hidden?: boolean; link?: Target }
+export interface ColumnSpec {
+   name: string; label?: string; data_type?: string; is_pk?: boolean; hidden?: boolean; link?: Target; searchable?: boolean; sortable?: boolean; format?: 'number' | 'integer' | 'date';
+}
 export interface RegionSpec {
-   static_id: string; title?: string; type: 'static' | 'classic_report' | 'form'; template?: string;
+   static_id: string; title?: string; type: 'static' | 'classic_report' | 'form' | 'interactive_report'; template?: string;
+   max_download_rows?: number;
    col_span?: number; new_row?: boolean; source?: { sql?: string; table?: string; html?: string };
    page_size?: number; empty_text?: string; columns?: ColumnSpec[]; items?: ItemSpec[]; buttons?: ButtonSpec[];
    condition?: Condition; authorization?: string;
@@ -46,7 +49,7 @@ export interface NavSpec {
 export interface PageSpec {
    page: number; alias?: string; name: string; title?: string; requires_auth?: boolean; breadcrumb_parent?: number;
    regions?: RegionSpec[]; validations?: ValidationSpec[]; processes?: ProcessSpec[]; branches?: BranchSpec[];
-   authorization?: string; computations?: ComputationSpec[];
+   authorization?: string; computations?: ComputationSpec[]; mode?: 'normal' | 'modal'; dialog_size?: 'sm' | 'md' | 'lg';
 }
 export interface AppSpec {
    app: string; name: string; version?: string; parsing_schema: string; home_page?: number; timezone?: string;
@@ -98,7 +101,7 @@ function checkSemantics(spec: AppSpec): void {
       for (const r of page.regions ?? []) {
          if (regionIds.has(r.static_id)) p.push(`page ${page.page}: duplicate region static_id "${r.static_id}"`);
          regionIds.add(r.static_id);
-         if (r.type === 'classic_report' && !r.source?.sql) p.push(`page ${page.page} region ${r.static_id}: classic_report needs source.sql`);
+         if ((r.type === 'classic_report' || r.type === 'interactive_report') && !r.source?.sql) p.push(`page ${page.page} region ${r.static_id}: ${r.type} needs source.sql`);
          if (r.type === 'form') {
             if (!r.source?.table) p.push(`page ${page.page} region ${r.static_id}: form needs source.table`);
             if (!(r.items ?? []).some(i => i.source?.pk)) p.push(`page ${page.page} region ${r.static_id}: form needs an item with source.pk = true`);
@@ -110,12 +113,14 @@ function checkSemantics(spec: AppSpec): void {
             if (it.lov && !['select', 'radio'].includes(it.type)) p.push(`item ${it.name}: lov only applies to select/radio`);
             if (['select', 'radio'].includes(it.type) && !it.lov) p.push(`item ${it.name}: ${it.type} needs a lov`);
             if (it.source && r.type !== 'form') p.push(`item ${it.name}: source.column only allowed inside a form region`);
+            if (r.type === 'interactive_report') p.push(`item ${it.name}: interactive reports have their own search; put items in another region`);
          }
          const btn = new Set<string>();
          for (const b of r.buttons ?? []) {
             if (btn.has(b.name)) p.push(`page ${page.page}: duplicate button ${b.name}`);
             btn.add(b.name);
             if (b.action === 'redirect' && !b.target) p.push(`button ${b.name}: redirect needs target`);
+            if (b.action === 'close_dialog' && page.mode !== 'modal') p.push(`button ${b.name}: close_dialog only makes sense on a modal page`);
          }
       }
       for (const pr of page.processes ?? []) {
@@ -284,11 +289,12 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
    let regions = 0, items = 0;
    for (const page of spec.pages) {
       const pg_ = await c.query(
-         `insert into rpx.pages (app_id, page_no, alias, name, title, requires_auth, attributes, authz_scheme_id)
-          values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
+         `insert into rpx.pages (app_id, page_no, alias, name, title, requires_auth, attributes, authz_scheme_id, page_mode)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
          [appId, page.page, page.alias ?? null, page.name, page.title ?? null,
           auth.scheme === 'no_auth' ? false : page.requires_auth ?? true,
-          { breadcrumb_parent: page.breadcrumb_parent ?? null }, authz(page.authorization)]);
+          { breadcrumb_parent: page.breadcrumb_parent ?? null, dialog_size: page.dialog_size ?? 'md' }, authz(page.authorization),
+          page.mode ?? 'normal']);
       const pageId: string = pg_.rows[0].id;
       await insertComputations(page.computations ?? [], pageId, 'before_header');
       const regionIds = new Map<string, string>();
@@ -301,7 +307,8 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
              values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
             [pageId, r.title ?? r.static_id, r.static_id, r.type, sourceType, source, rseq,
              { col_span: r.col_span ?? 12, new_row: r.new_row ?? true }, r.template ?? 'standard',
-             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null }, r.condition ?? null, authz(r.authorization)]);
+             { title: r.title ?? null, page_size: r.page_size ?? 15, empty_text: r.empty_text ?? null, max_download_rows: r.max_download_rows ?? 10000 },
+             r.condition ?? null, authz(r.authorization)]);
          rseq += 10;
          regions++;
          const regionId: string = reg.rows[0].id;
@@ -309,10 +316,10 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
          let cseq = 10;
          for (const col of r.columns ?? []) {
             await c.query(
-               `insert into rpx.region_columns (region_id, name, label, data_type, is_pk, hidden, link, seq)
-                values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+               `insert into rpx.region_columns (region_id, name, label, data_type, is_pk, hidden, link, seq, searchable, sortable, format_mask)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
                [regionId, col.name.toUpperCase(), col.label ?? col.name, col.data_type ?? 'text', col.is_pk ?? false,
-                col.hidden ?? false, col.link ?? null, cseq]);
+                col.hidden ?? false, col.link ?? null, cseq, col.searchable ?? true, col.sortable ?? true, col.format ?? null]);
             cseq += 10;
          }
          let iseq = 10;

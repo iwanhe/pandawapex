@@ -36,30 +36,25 @@ pages:
     regions:
       - static_id: daftar
         title: Daftar karyawan
-        type: classic_report
+        type: interactive_report
         page_size: 5
         empty_text: Belum ada karyawan. Tambahkan dengan tombol "Tambah karyawan".
         source:
           sql: |
-            select k.empno, k.nama, k.jabatan, d.nama as departemen, k.tgl_masuk
-                 , replace(to_char(k.gaji, 'FM999,999,999,990'), ',', '.') as gaji
+            select k.empno, k.nama, k.jabatan, d.nama as departemen, k.tgl_masuk, k.gaji
                  , case when k.aktif then 'Aktif' else 'Nonaktif' end as status
             from karyawan k
             left join departemen d on d.deptno = k.deptno
-            where (:P1_CARI is null or k.nama ilike '%' || :P1_CARI || '%')
             order by k.nama
         columns:
           - { name: EMPNO, label: "No.", is_pk: true, data_type: number, link: { page: 2, items: { P2_EMPNO: "#EMPNO#" }, clear_cache: "2" } }
           - { name: NAMA, label: Nama }
           - { name: JABATAN, label: Jabatan }
           - { name: DEPARTEMEN, label: Departemen }
-          - { name: TGL_MASUK, label: Tanggal masuk, data_type: date }
-          - { name: GAJI, label: Gaji (Rp), data_type: number }
+          - { name: TGL_MASUK, label: Tanggal masuk, data_type: date, format: date }
+          - { name: GAJI, label: Gaji (Rp), data_type: number, format: integer }
           - { name: STATUS, label: Status }
-        items:
-          - { name: P1_CARI, type: text, label: Cari nama, placeholder: "contoh: Dewi", col_span: 6, protection: unrestricted }
         buttons:
-          - { name: CARI, label: Cari }
           - { name: TAMBAH, label: Tambah karyawan, hot: true, action: redirect, position: header, target: { page: 2, clear_cache: "2" }, authorization: pengelola_sdm }
 
   - page: 2
@@ -67,6 +62,8 @@ pages:
     name: Form karyawan
     breadcrumb_parent: 1
     authorization: pengelola_sdm
+    mode: modal                   # dibuka sebagai dialog di atas daftar; tanpa JS tetap terbuka sebagai halaman
+    dialog_size: md
     regions:
       - static_id: form
         title: Data karyawan
@@ -97,7 +94,7 @@ pages:
                 - { display: Nonaktif, return: N }
           - { name: P2_MASA_KERJA, type: display_only, label: Masa kerja, col_span: 6, condition: { item_not_null: P2_EMPNO } }
         buttons:
-          - { name: BATAL, label: Batal, action: redirect, style: ghost, target: { page: 1 } }
+          - { name: BATAL, label: Batal, action: close_dialog, style: ghost }
           - { name: HAPUS, label: Hapus, style: danger, confirm: "Hapus data karyawan ini?", condition: { item_not_null: P2_EMPNO } }
           - { name: SIMPAN, label: Simpan, hot: true }
     validations:
@@ -120,6 +117,7 @@ pages:
     processes:
       - { name: ambil_data, type: form_init, region: form }
       - { name: simpan_data, type: form_dml, region: form, success_msg: "Data karyawan &P2_NAMA. tersimpan." }
+      - { name: tutup, type: close_dialog }
     branches:
       - { page: 1 }
 

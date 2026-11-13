@@ -109,22 +109,22 @@ describe('F04: login -> report -> form -> save', () => {
       assert.equal((await env.pool.query(`select count(*)::int as n from ${env.schema}.karyawan where empno = $1`, [id])).rows[0].n, 0);
    });
 
-   test('search item filters the report; empty result shows the empty state', async () => {
+   test('report search (interactive report) filters; empty result shows the empty state', async () => {
       const b = new Browser(env);
       await b.login();
-      const p1 = await b.open(`${env.base}/1`);
-      await b.post(`${env.base}/1`, { ...formFields(p1.body), P1_CARI: 'dewi', REQUEST: 'CARI' });
+      const r = await b.get(`${env.base}/1?daftar__q=dewi`);
+      assert.equal(r.statusCode, 303, 'report commands redirect to the clean URL');
+      assert.equal(r.headers.location, `${env.base}/1`);
       const found = await b.open(`${env.base}/1`);
       assert.equal(links(found.body).length, 1);
-      await b.post(`${env.base}/1`, { ...formFields(found.body), P1_CARI: 'zzz', REQUEST: 'CARI' });
-      const none = await b.open(`${env.base}/1`);
+      const none = await b.open(`${env.base}/1?daftar__q=zzz`);
       assert.match(none.body, /Tidak ada data yang cocok/);
    });
 
    test('pagination', async () => {
       const b = new Browser(env);
       await b.login();
-      const p2 = await b.open(`${env.base}/1?p_daftar=2`);
+      const p2 = await b.open(`${env.base}/1?daftar__p=2`);
       assert.match(p2.body, /Baris 6–7 dari 7/);
       assert.match(p2.body, /aria-label="Halaman sebelumnya"/);
    });

@@ -149,3 +149,18 @@ export function errorPage(status: number, title: string, message: string, backHr
 </main>`;
    return document(title, body);
 }
+
+/** A modal page rendered inside the dialog iframe of its calling page (no header or navigation). */
+export function dialogDocument(title: string, messages: SafeHtml, body: SafeHtml): SafeHtml {
+   return document(title, html`<main class="r-dialog-page" id="main">${messages}${body}</main>`, 'r-in-dialog');
+}
+
+/** Response to a modal page that finished: rpx.js tells the calling page to close the dialog and refresh. */
+export function dialogClosed(): SafeHtml {
+   return document('Selesai', html`<main class="r-dialog-page" data-dialog-close><p class="r-sr-only">Dialog ditutup.</p></main>`, 'r-in-dialog');
+}
+
+/** Inside a dialog, but the whole window has to go somewhere (session ended): rpx.js navigates the top window. */
+export function dialogTopRedirect(url: string): SafeHtml {
+   return document('Mengalihkan', html`<main class="r-dialog-page" data-top-redirect="${url}"><p><a href="${url}" target="_top">Lanjutkan</a></p></main>`, 'r-in-dialog');
+}

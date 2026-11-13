@@ -8,11 +8,16 @@ import { hash, verify as verifyPassword } from '@node-rs/argon2';
 import type pg from 'pg';
 import { safeEqual } from './checksum.ts';
 import { loadApp, type AppDef, type PageDef } from './model.ts';
-import { acceptPage, appBase, applyUrlArgs, HttpError, renderPage, type Ctx } from './runtime.ts';
+import { acceptPage, appBase, applyUrlArgs, HttpError, renderPage, type Ctx, type RenderState } from './runtime.ts';
 import { cookieName, cookiePath, createSession, deleteSession, loadSession, saveState, type Session } from './session.ts';
+import { Evaluator } from './guard.ts';
+import { downloadRows } from './ir.ts';
+import { toCsv, toXlsx } from './export.ts';
+import { enterUserCode } from './db.ts';
+import { bindValues } from './session.ts';
 import { finishLogin, identityFrom, OidcSetupError, oidcConfiguration, startLogin } from './oidc.ts';
 import rateLimit from '@fastify/rate-limit';
-import { errorPage, loginPage } from './templates.ts';
+import { dialogClosed, dialogTopRedirect, errorPage, loginPage } from './templates.ts';
 
 export interface ServerOptions {
    pool: pg.Pool;
@@ -46,7 +51,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
 
    app.addHook('onSend', async (_req, reply, payload) => {
       reply.header('Content-Security-Policy',
-         "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+         "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'none'");
       reply.header('X-Content-Type-Options', 'nosniff');
       reply.header('Referrer-Policy', 'same-origin');
       if (!reply.getHeader('Cache-Control')) reply.header('Cache-Control', 'no-store');
@@ -123,6 +128,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       return loginPage({ appName: appDef.name, action: `${appBase(appDef)}/login`, csrf: s.csrf, username: a.username ?? '',
          error: a.error ?? null, info: a.info ?? null, returnTo: a.returnTo, sso, showForm: builtinAllowed(appDef) }).value;
    }
+   const dialogParent = (appDef: AppDef, page: PageDef) => page.breadcrumbParent ?? appDef.homePage;
    const builtinAllowed = (appDef: AppDef) => appDef.authScheme === 'builtin_accounts' || !!appDef.oidc?.allowBuiltin;
    const LOGIN_INFO: Record<string, string> = {
       expired: 'Sesi Anda berakhir. Silakan masuk lagi.',
@@ -271,34 +277,85 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       const appDef = await resolveApp(req);
       const page = resolvePage(appDef, (req.params as { page: string }).page);
       const session = await sessionFor(req, reply, appDef);
-      if (page.requiresAuth && !session.appUserId) return reply.redirect(loginUrl(appDef, req.url), 303);
-      const ctx: Ctx = { pool: opts.pool, secret: opts.secret, app: appDef, session };
       const query = req.query as Record<string, string>;
+      const dialog = query.dialog === '1';
+      if (page.requiresAuth && !session.appUserId) {
+         if (dialog) return html(reply, dialogTopRedirect(loginUrl(appDef, `${appBase(appDef)}/${dialogParent(appDef, page)}`, 'expired')).value);
+         return reply.redirect(loginUrl(appDef, req.url), 303);
+      }
+      const ctx: Ctx = { pool: opts.pool, secret: opts.secret, app: appDef, session };
       const hasArgs = Object.keys(query).some(k => k === 'clear' || /^[A-Z]/.test(k));
       await applyUrlArgs(ctx, page, query);
       // drop the item arguments from the address bar after applying them (bookmark-safe, no stale checksums)
       if (hasArgs) {
-         const rest = new URLSearchParams(Object.entries(query).filter(([k]) => /^p_/.test(k)));
+         const rest = new URLSearchParams(Object.entries(query).filter(([k]) => /^p_/.test(k) || k === 'dialog' || k.includes('__')));
          const qs = rest.toString();
          return reply.redirect(`${appBase(appDef)}/${page.no}${qs ? `?${qs}` : ''}`, 303);
       }
-      return html(reply, await renderPage(ctx, page, { runBeforeHeader: true, query }));
+      const rs: RenderState = { runBeforeHeader: true, query, dialog };
+      const out = await renderPage(ctx, page, rs);
+      // report commands (add filter, sort, ...) are applied once; the address bar keeps a clean, reloadable URL
+      if (rs.irParamsApplied) return reply.redirect(`${appBase(appDef)}/${page.no}${dialog ? '?dialog=1' : ''}`, 303);
+      return html(reply, out);
+   });
+
+   app.get('/r/:ws/:app/:page/region/:sid/download', async (req, reply) => {
+      const appDef = await resolveApp(req);
+      const page = resolvePage(appDef, (req.params as { page: string }).page);
+      const session = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
+      if (!session || (page.requiresAuth && !session.appUserId)) return reply.redirect(loginUrl(appDef, `${appBase(appDef)}/${page.no}`, 'expired'), 303);
+      const sid = (req.params as { sid: string }).sid;
+      const region = page.regions.find(r => r.staticId === sid && r.type === 'interactive_report');
+      if (!region) throw new HttpError(404, 'Laporan tidak ditemukan', 'Unduhan hanya tersedia untuk interactive report.');
+      const format = (req.query as Record<string, string>).format === 'xlsx' ? 'xlsx' : 'csv';
+      const ctx: Ctx = { pool: opts.pool, secret: opts.secret, app: appDef, session };
+      const c = await opts.pool.connect();
+      const ev = new Evaluator(c, ctx);
+      let data: Awaited<ReturnType<typeof downloadRows>>;
+      try {
+         await c.query('begin');
+         await enterUserCode(c, { dbRole: appDef.dbRole, parsingSchema: appDef.parsingSchema, items: bindValues(appDef, session),
+            appUser: session.username, appAlias: appDef.alias, sessionId: session.id, timezone: appDef.timezone });
+         const denial = await ev.pageDenial(page);
+         if (denial) throw new HttpError(403, 'Akses ditolak', denial.errorMsg);
+         if (!(await ev.allows(region))) throw new HttpError(403, 'Akses ditolak', 'Anda tidak berhak mengunduh laporan ini.');
+         data = await downloadRows(c, ctx, region);
+      } finally {
+         await c.query('rollback').catch(() => {});
+         c.release();
+      }
+      await ev.flush();
+      const stamp = new Date().toISOString().slice(0, 10);
+      const name = `${appDef.alias}-${region.staticId}-${stamp}.${format}`;
+      reply.header('Content-Disposition', `attachment; filename="${name}"`);
+      if (data.truncated) reply.header('X-Rpx-Truncated', String(region.maxDownloadRows));
+      return format === 'xlsx'
+         ? reply.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').send(toXlsx(data.cols, data.rows, region.title ?? region.staticId))
+         : reply.type('text/csv; charset=utf-8').send(toCsv(data.cols, data.rows));
    });
 
    app.post('/r/:ws/:app/:page', async (req, reply) => {
       const appDef = await resolveApp(req);
       const page = resolvePage(appDef, (req.params as { page: string }).page);
       const session = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
-      const target = `${appBase(appDef)}/${page.no}`;
-      if (!session) return reply.redirect(page.requiresAuth ? loginUrl(appDef, target, 'expired') : target, 303);
-      if (page.requiresAuth && !session.appUserId) return reply.redirect(loginUrl(appDef, target), 303);
+      const dialog = (req.query as Record<string, string>).dialog === '1';
+      // from inside a dialog the user goes back to the calling page after signing in again
+      const target = `${appBase(appDef)}/${dialog ? dialogParent(appDef, page) : page.no}`;
+      if (!session || (page.requiresAuth && !session.appUserId)) {
+         const url = page.requiresAuth ? loginUrl(appDef, target, session ? undefined : 'expired') : target;
+         return dialog ? html(reply, dialogTopRedirect(url).value) : reply.redirect(url, 303);
+      }
       const body = (req.body ?? {}) as Record<string, string>;
       if (!safeEqual(session.csrf, body.__csrf)) {
          throw new HttpError(403, 'Formulir kedaluwarsa', 'Formulir ini berasal dari sesi lain atau sudah kedaluwarsa. Muat ulang halaman lalu coba lagi.');
       }
       const ctx: Ctx = { pool: opts.pool, secret: opts.secret, app: appDef, session };
-      const r = await acceptPage(ctx, page, body);
-      if ('redirect' in r) return reply.redirect(r.redirect, 303);
+      const r = await acceptPage(ctx, page, body, dialog);
+      if ('closeDialog' in r) return html(reply, dialogClosed().value);
+      if ('redirect' in r) {
+         // a branch out of a dialog page (not a close) continues inside the dialog
+         return reply.redirect(dialog ? `${r.redirect}${r.redirect.includes('?') ? '&' : '?'}dialog=1` : r.redirect, 303);
+      }
       return html(reply, r.html, r.status);
    });
 

@@ -24,10 +24,12 @@ export interface ButtonDef {
    name: string; label: string; action: string; target: Target | null; hot: boolean; position: string;
    confirm: string | null; style: string; regionId: string | null; condition: Condition | null; authzId: string | null;
 }
-export interface ColumnDef { name: string; label: string; dataType: string; isPk: boolean; hidden: boolean; link: Target | null }
+export interface ColumnDef {
+   name: string; label: string; dataType: string; isPk: boolean; hidden: boolean; link: Target | null; searchable: boolean; sortable: boolean; format: string | null;
+}
 export interface RegionDef {
    id: string; staticId: string; type: string; title: string | null; sourceType: string | null; source: string | null;
-   template: string; colSpan: number; newRow: boolean; pageSize: number; emptyText: string | null;
+   template: string; colSpan: number; newRow: boolean; pageSize: number; emptyText: string | null; maxDownloadRows: number;
    columns: ColumnDef[]; items: ItemDef[]; buttons: ButtonDef[]; condition: Condition | null; authzId: string | null;
 }
 export interface ValidationDef {
@@ -42,7 +44,7 @@ export interface PageDef {
    id: string; no: number; alias: string | null; name: string; title: string | null; requiresAuth: boolean;
    breadcrumbParent: number | null; regions: RegionDef[]; items: ItemDef[]; buttons: ButtonDef[];
    validations: ValidationDef[]; processes: ProcessDef[]; branches: BranchDef[];
-   authzId: string | null; computations: ComputationDef[];
+   authzId: string | null; computations: ComputationDef[]; mode: 'normal' | 'modal'; dialogSize: 'sm' | 'md' | 'lg';
 }
 export interface NavDef {
    label: string; icon: string | null; target: { page?: number; url?: string }; children: NavDef[];
@@ -131,8 +133,10 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
          sourceType: r.source_type, source: r.source, template: r.template,
          colSpan: r.grid?.col_span ?? 12, newRow: r.grid?.new_row ?? true,
          pageSize: r.attributes?.page_size ?? 15, emptyText: r.attributes?.empty_text ?? null,
+         maxDownloadRows: r.attributes?.max_download_rows ?? 10000,
          columns: colsQ.filter(c => c.region_id === r.id).map(c => ({
             name: c.name, label: c.label, dataType: c.data_type, isPk: c.is_pk, hidden: c.hidden, link: c.link,
+            searchable: c.searchable, sortable: c.sortable, format: c.format_mask,
          })),
          items: items.filter(i => i.regionId === r.id),
          buttons: buttons.filter(b => b.regionId === r.id),
@@ -150,7 +154,7 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
             whenButton: x.when_button, successMsg: x.success_msg, errorMsg: x.error_msg, condition: x.condition,
          })),
          branches: brQ.filter(b => b.page_id === p.id).map(b => ({ target: b.target, whenButton: b.when_button, condition: b.condition })),
-         authzId: p.authz_scheme_id,
+         authzId: p.authz_scheme_id, mode: p.page_mode === 'modal' ? 'modal' : 'normal', dialogSize: p.attributes?.dialog_size ?? 'md',
          computations: compQ.filter(x => x.page_id === p.id).map(computation),
       };
       pages.set(page.no, page);
