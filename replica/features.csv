@@ -45,7 +45,7 @@ Debug messages per page view,runtime,should,yes,no,S28
 Activity log (page views + timing),runtime,should,yes,no,
 Collections (padanan APEX_COLLECTION) di jsonb,runtime,should,yes,no,
 Error handling function + pesan ramah,runtime,should,yes,partial,M1: halaman error ramah + kode referensi; error handling function per app belum
-Theme/template engine sendiri (page/region/report/button),ui,should,yes,no,design system dari /replica-design
+Theme/template engine sendiri (page/region/report/button),ui,should,yes,partial,M1: template page/region/login/error di kode (design system rpx); belum bisa dipilih/diubah per app
 Translations berbasis text message,ui,should,yes,no,fitur 26.1; ID/EN untuk subsidiary
 Charts region,regions,could,yes,no,pakai library open source (mis. ECharts) bukan Oracle JET
 IR chart view / group by / pivot,regions,could,yes,no,
