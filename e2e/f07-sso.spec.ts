@@ -16,7 +16,7 @@ test.describe('F07 SSO sign-in', () => {
       expect(await axe(page), 'sso login a11y').toEqual([]);
       await page.getByRole('link', { name: 'Masuk dengan akun KCSI' }).click();
       await expect(page).toHaveURL(`${SSO_APP}/3`);
-      await expect(page.getByText('Anda masuk sebagai sri.wahyuni@kcsi.co.id.')).toBeVisible();
+      await expect(page.getByText(/Anda masuk sebagai sri\.wahyuni@kcsi\.co\.id sejak/)).toBeVisible();
       const u = await db.query(`select groups from rpx.app_users where oidc_subject = 'e2e-sso-1'`);
       expect(u.rows[0].groups).toEqual(['Gudang']);
    });

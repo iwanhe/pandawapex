@@ -27,7 +27,7 @@ test.describe('F09 navigation & session state', () => {
       if (await nav.isHidden()) await page.getByRole('button', { name: 'Tampilkan atau sembunyikan navigasi' }).click();
       await nav.getByRole('link', { name: 'Tentang aplikasi' }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Tentang aplikasi' })).toBeVisible();
-      await expect(page.getByText('Anda masuk sebagai iwan.')).toBeVisible();
+      await expect(page.getByText(/Anda masuk sebagai iwan sejak \d\d-\d\d-\d{4}/)).toBeVisible();
       expect(await axe(page), 'static page a11y').toEqual([]);
    });
 

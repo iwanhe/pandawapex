@@ -60,8 +60,9 @@ async function main(): Promise<number> {
          const root = new URL('../../', import.meta.url);
          await pool.query(readFileSync(new URL('examples/emp/seed.sql', root), 'utf8'));
          const r = await importApp(pool, 'demo', readFileSync(new URL('examples/emp/app.yaml', root), 'utf8'));
-         await addUser(pool, 'demo', user, password);
-         console.log(`demo ready: app ${r.appId}, user "${user}". Open /r/demo/emp`);
+         await addUser(pool, 'demo', user, password, ['SDM']);
+         await addUser(pool, 'demo', 'tamu', password);
+         console.log(`demo ready: app ${r.appId}; users "${user}" (grup SDM) and "tamu" (hanya lihat), same password. Open /r/demo/emp`);
       } else if (cmd === 'user' && sub === 'add') {
          await addUser(pool, need(values.ws, '--ws'), need(values.username, '--username'), need(values.password, '--password'), values.group ?? []);
          console.log(`user ${values.username} saved`);

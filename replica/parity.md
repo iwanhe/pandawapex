@@ -1,5 +1,8 @@
 # Parity: pandawapex vs Oracle APEX (2026-11-13)
 
+> **Update setelah M2:** feature parity **42.4** (dari 35.9), must-have **16/30** (dari 12), runtime saja **50.0**, must-have runtime **72.9** (dari 62.5).
+> Authorization schemes, computations, escape filter, dan menu berotorisasi selesai. Berikutnya: modal dialog dan Interactive Report.
+
 Build: branch `build/local-install` (di atas M0, M1, backend, dan test pass). Parity di sini berarti **mengerjakan pekerjaan yang sama**,
 bukan tampilan yang sama.
 

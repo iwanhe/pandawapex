@@ -167,6 +167,12 @@
         "max_length": {
           "type": "integer",
           "minimum": 1
+        },
+        "authorization": {
+          "$ref": "#/definitions/authzRef"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     },
@@ -216,6 +222,9 @@
         },
         "condition": {
           "$ref": "#/definitions/condition"
+        },
+        "authorization": {
+          "$ref": "#/definitions/authzRef"
         }
       }
     },
@@ -330,6 +339,9 @@
         },
         "condition": {
           "$ref": "#/definitions/condition"
+        },
+        "authorization": {
+          "$ref": "#/definitions/authzRef"
         }
       }
     },
@@ -365,6 +377,9 @@
         },
         "when_button": {
           "type": "string"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     },
@@ -407,6 +422,9 @@
         },
         "error_msg": {
           "type": "string"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     },
@@ -433,6 +451,9 @@
         },
         "when_button": {
           "type": "string"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     },
@@ -462,20 +483,55 @@
           "items": {
             "$ref": "#/definitions/navEntry"
           }
+        },
+        "authorization": {
+          "$ref": "#/definitions/authzRef"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     },
     "condition": {
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 1,
       "minProperties": 1,
+      "maxProperties": 1,
+      "description": "render / run only when this holds",
       "properties": {
         "item_not_null": {
           "$ref": "#/definitions/itemName"
         },
         "item_null": {
           "$ref": "#/definitions/itemName"
+        },
+        "item_equals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "value"
+          ],
+          "properties": {
+            "item": {
+              "$ref": "#/definitions/itemName"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        "request_equals": {
+          "type": "string"
+        },
+        "sql_expression": {
+          "type": "string"
+        },
+        "sql_exists": {
+          "type": "string"
+        },
+        "never": {
+          "const": true
         }
       }
     },
@@ -522,6 +578,83 @@
         },
         "button_label": {
           "type": "string"
+        }
+      }
+    },
+    "authzRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,59}$"
+    },
+    "authzScheme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type",
+        "source"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/authzRef"
+        },
+        "type": {
+          "enum": [
+            "group_member",
+            "exists_sql",
+            "not_exists_sql",
+            "fn_boolean"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "description": "group_member: group name(s), comma separated; *_sql: query; fn_boolean: PL/pgSQL body returning boolean"
+        },
+        "evaluation": {
+          "enum": [
+            "once_per_session",
+            "once_per_page_view",
+            "always"
+          ]
+        },
+        "error_msg": {
+          "type": "string"
+        }
+      }
+    },
+    "computation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item",
+        "type",
+        "expression"
+      ],
+      "properties": {
+        "item": {
+          "$ref": "#/definitions/itemName"
+        },
+        "point": {
+          "enum": [
+            "before_header",
+            "after_submit",
+            "on_new_session",
+            "after_authentication"
+          ]
+        },
+        "type": {
+          "enum": [
+            "static",
+            "item",
+            "sql_query",
+            "sql_expression",
+            "plpgsql_fn"
+          ]
+        },
+        "expression": {
+          "type": "string"
+        },
+        "condition": {
+          "$ref": "#/definitions/condition"
         }
       }
     }
@@ -650,8 +783,54 @@
             "items": {
               "$ref": "#/definitions/branch"
             }
+          },
+          "authorization": {
+            "$ref": "#/definitions/authzRef"
+          },
+          "computations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/computation"
+            }
           }
         }
+      }
+    },
+    "authorization": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/authzScheme"
+      }
+    },
+    "authorization_scheme": {
+      "$ref": "#/definitions/authzRef"
+    },
+    "application_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/definitions/itemName"
+          },
+          "protection": {
+            "enum": [
+              "unrestricted",
+              "checksum_session",
+              "restricted"
+            ]
+          }
+        }
+      }
+    },
+    "computations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/computation"
       }
     }
   }

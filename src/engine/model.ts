@@ -3,7 +3,14 @@ import type pg from 'pg';
 // In-memory application definition, loaded from rpx.* and cached per spec_hash.
 
 export interface Target { page: number; items?: Record<string, string>; clear_cache?: string | null }
-export interface Condition { item_not_null?: string; item_null?: string }
+export interface Condition {
+   item_not_null?: string; item_null?: string; item_equals?: { item: string; value: string };
+   request_equals?: string; sql_expression?: string; sql_exists?: string; never?: true;
+}
+export interface AuthzDef { id: string; name: string; type: string; source: string; evaluation: string; errorMsg: string }
+export interface ComputationDef { itemName: string; point: string; type: string; expression: string; condition: Condition | null }
+/** what every renderable/runnable component may carry */
+export interface Guarded { authzId: string | null; condition: Condition | null }
 
 export interface ItemDef {
    id: string; name: string; type: string; label: string | null; regionId: string | null;
@@ -11,29 +18,36 @@ export interface ItemDef {
    column: string | null; pk: boolean; defaultValue: string | null;
    lov: { static?: { display: string; return: string }[]; sql?: string; null_display?: string } | null;
    help: string | null; placeholder: string | null; maxLength: number | null;
+   authzId: string | null; condition: Condition | null;
 }
 export interface ButtonDef {
    name: string; label: string; action: string; target: Target | null; hot: boolean; position: string;
-   confirm: string | null; style: string; regionId: string | null; condition: Condition | null;
+   confirm: string | null; style: string; regionId: string | null; condition: Condition | null; authzId: string | null;
 }
 export interface ColumnDef { name: string; label: string; dataType: string; isPk: boolean; hidden: boolean; link: Target | null }
 export interface RegionDef {
    id: string; staticId: string; type: string; title: string | null; sourceType: string | null; source: string | null;
    template: string; colSpan: number; newRow: boolean; pageSize: number; emptyText: string | null;
-   columns: ColumnDef[]; items: ItemDef[]; buttons: ButtonDef[]; condition: Condition | null;
+   columns: ColumnDef[]; items: ItemDef[]; buttons: ButtonDef[]; condition: Condition | null; authzId: string | null;
 }
-export interface ValidationDef { name: string; type: string; expression: string | null; errorMsg: string; item: string | null; whenButton: string | null }
+export interface ValidationDef {
+   name: string; type: string; expression: string | null; errorMsg: string; item: string | null; whenButton: string | null; condition: Condition | null;
+}
 export interface ProcessDef {
    name: string; point: string; type: string; regionId: string | null; code: string | null;
-   whenButton: string | null; successMsg: string | null; errorMsg: string | null;
+   whenButton: string | null; successMsg: string | null; errorMsg: string | null; condition: Condition | null;
 }
-export interface BranchDef { target: Target; whenButton: string | null }
+export interface BranchDef { target: Target; whenButton: string | null; condition: Condition | null }
 export interface PageDef {
    id: string; no: number; alias: string | null; name: string; title: string | null; requiresAuth: boolean;
    breadcrumbParent: number | null; regions: RegionDef[]; items: ItemDef[]; buttons: ButtonDef[];
    validations: ValidationDef[]; processes: ProcessDef[]; branches: BranchDef[];
+   authzId: string | null; computations: ComputationDef[];
 }
-export interface NavDef { label: string; icon: string | null; target: { page?: number; url?: string }; children: NavDef[] }
+export interface NavDef {
+   label: string; icon: string | null; target: { page?: number; url?: string }; children: NavDef[];
+   authzId: string | null; condition: Condition | null;
+}
 export interface OidcConfig {
    issuer: string; clientId: string; clientSecretEnv: string; scopes: string; usernameClaim: string;
    groupsClaim: string | null; allowedDomains: string[]; provision: boolean; buttonLabel: string; allowBuiltin: boolean;
@@ -42,6 +56,7 @@ export interface AppDef {
    id: string; workspaceId: string; workspace: string; dbRole: string; alias: string; name: string; version: string;
    parsingSchema: string; homePage: number; specHash: string; timezone: string; authScheme: string;
    oidc: OidcConfig | null;
+   authz: Map<string, AuthzDef>; authzId: string | null; computations: ComputationDef[];
    sessionTimeoutSec: number; idleTimeoutSec: number;
    substitutions: Record<string, string>; pages: Map<number, PageDef>; pageAliases: Map<string, number>;
    itemsByName: Map<string, { item: ItemDef; page: number | null }>; nav: NavDef[];
@@ -83,6 +98,8 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
    const procQ = (await pool.query('select * from rpx.processes where app_id = $1 order by seq', [appId])).rows;
    const brQ = (await pool.query(
       `select b.* from rpx.branches b join rpx.pages p on p.id = b.page_id where p.app_id = $1 order by b.seq`, [appId])).rows;
+   const authzQ = (await pool.query('select * from rpx.authz_schemes where app_id = $1', [appId])).rows;
+   const compQ = (await pool.query('select * from rpx.computations where app_id = $1 order by seq', [appId])).rows;
    const navQ = (await pool.query(
       `select e.* from rpx.nav_entries e join rpx.nav_lists l on l.id = e.list_id
        where l.app_id = $1 and l.name = 'navigation_menu' order by e.seq`, [appId])).rows;
@@ -92,11 +109,15 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       colSpan: r.grid?.col_span ?? 12, required: r.is_required, protection: r.protection,
       column: r.source?.column ?? null, pk: !!r.source?.pk, defaultValue: r.default_value?.value ?? null,
       lov: r.inline_lov, help: r.attributes?.help ?? null, placeholder: r.attributes?.placeholder ?? null,
-      maxLength: r.attributes?.max_length ?? null,
+      maxLength: r.attributes?.max_length ?? null, authzId: r.authz_scheme_id, condition: r.condition,
    });
    const button = (r: any): ButtonDef => ({
       name: r.name, label: r.label, action: r.action, target: r.target, hot: r.is_hot, position: r.position,
       confirm: r.confirm_msg, style: r.attributes?.style ?? 'normal', regionId: r.region_id, condition: r.condition,
+      authzId: r.authz_scheme_id,
+   });
+   const computation = (r: any): ComputationDef => ({
+      itemName: r.item_name, point: r.point, type: r.comp_type, expression: r.expression, condition: r.condition,
    });
 
    const pages = new Map<number, PageDef>();
@@ -115,20 +136,22 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
          })),
          items: items.filter(i => i.regionId === r.id),
          buttons: buttons.filter(b => b.regionId === r.id),
-         condition: r.condition,
+         condition: r.condition, authzId: r.authz_scheme_id,
       }));
       const page: PageDef = {
          id: p.id, no: p.page_no, alias: p.alias, name: p.name, title: p.title, requiresAuth: p.requires_auth,
          breadcrumbParent: p.attributes?.breadcrumb_parent ?? null, regions, items, buttons,
          validations: valQ.filter(v => v.page_id === p.id).map(v => ({
             name: v.name, type: v.val_type, expression: v.expression, errorMsg: v.error_msg,
-            item: v.associated_item, whenButton: v.when_button,
+            item: v.associated_item, whenButton: v.when_button, condition: v.condition,
          })),
          processes: procQ.filter(x => x.page_id === p.id).map(x => ({
             name: x.name, point: x.point, type: x.proc_type, regionId: x.region_id, code: x.code,
-            whenButton: x.when_button, successMsg: x.success_msg, errorMsg: x.error_msg,
+            whenButton: x.when_button, successMsg: x.success_msg, errorMsg: x.error_msg, condition: x.condition,
          })),
-         branches: brQ.filter(b => b.page_id === p.id).map(b => ({ target: b.target, whenButton: b.when_button })),
+         branches: brQ.filter(b => b.page_id === p.id).map(b => ({ target: b.target, whenButton: b.when_button, condition: b.condition })),
+         authzId: p.authz_scheme_id,
+         computations: compQ.filter(x => x.page_id === p.id).map(computation),
       };
       pages.set(page.no, page);
       if (page.alias) pageAliases.set(page.alias, page.no);
@@ -138,6 +161,7 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
 
    const buildNav = (parent: string | null): NavDef[] => navQ.filter(e => e.parent_id === parent).map(e => ({
       label: e.label, icon: e.icon, target: e.target, children: buildNav(e.id),
+      authzId: e.authz_scheme_id, condition: e.condition,
    }));
 
    return {
@@ -153,5 +177,10 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       } : null,
       sessionTimeoutSec: a.st, idleTimeoutSec: a.it,
       substitutions: a.substitutions ?? {}, pages, pageAliases, itemsByName, nav: buildNav(null),
+      authz: new Map(authzQ.map(x => [x.id, {
+         id: x.id, name: x.name, type: x.scheme_type, source: x.source, evaluation: x.evaluation, errorMsg: x.error_msg,
+      }])),
+      authzId: a.authz_scheme_id,
+      computations: compQ.filter(x => !x.page_id).map(computation),
    };
 }

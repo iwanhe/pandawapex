@@ -183,6 +183,17 @@ test.describe('F04 login -> report -> form -> save', () => {
       await expect(page.getByRole('alert')).toContainText('Nama pengguna atau kata sandi salah.');
    });
 
+   test('F04-N3 a user without the SDM group sees the list read-only and cannot open the form', async ({ page }) => {
+      await login(page, E2E.user2, E2E.password);
+      await expect(page.getByRole('table', { name: 'Daftar karyawan' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Tambah karyawan' })).toHaveCount(0);
+      await expect(page.getByRole('table').getByRole('link')).toHaveCount(0);
+      const res = await page.goto(`${APP}/2`);
+      expect(res!.status()).toBe(403);
+      await expect(page.getByText('Halaman ini hanya untuk tim SDM.')).toBeVisible();
+      expect(await axe(page), 'read-only report a11y').toEqual([]);
+   });
+
    test('F04-N2 five wrong passwords lock the account', async ({ page, db }) => {
       for (let i = 0; i < 5; i++) await login(page, E2E.user2, 'salah-' + i);
       await expect(page.getByRole('alert')).toContainText('Akun dikunci');

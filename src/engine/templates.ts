@@ -19,6 +19,10 @@ export function icon(name: string | null | undefined): SafeHtml {
 export interface ShellArgs {
    app: AppDef;
    page: PageDef;
+   /** navigation entries the user may see (already filtered by authorization and conditions) */
+   nav: NavDef[];
+   /** whether the breadcrumb parent page may be opened by this user */
+   parentAllowed: boolean;
    username: string | null;
    csrf: string;
    logoutUrl: string;
@@ -58,7 +62,7 @@ function navList(entries: NavDef[], current: number, pageUrl: (no: number) => st
 }
 
 export function shell(a: ShellArgs): SafeHtml {
-   const parent = a.page.breadcrumbParent !== null ? a.app.pages.get(a.page.breadcrumbParent) : undefined;
+   const parent = a.page.breadcrumbParent !== null && a.parentAllowed ? a.app.pages.get(a.page.breadcrumbParent) : undefined;
    const user = a.username
       ? html`<form method="post" action="${a.logoutUrl}" class="r-header__user">
             <input type="hidden" name="__csrf" value="${a.csrf}">
@@ -74,7 +78,7 @@ export function shell(a: ShellArgs): SafeHtml {
     <span class="r-header__spacer"></span>
     ${user}
   </header>
-  <nav class="r-nav" id="r-nav" aria-label="Navigasi utama">${navList(a.app.nav, a.page.no, a.pageUrl)}</nav>
+  <nav class="r-nav" id="r-nav" aria-label="Navigasi utama">${navList(a.nav, a.page.no, a.pageUrl)}</nav>
   <main class="r-main" id="main">
     ${parent ? html`<nav class="r-breadcrumb" aria-label="Breadcrumb"><ol><li><a href="${a.pageUrl(parent.no)}">${parent.title ?? parent.name}</a></li><li aria-current="page">${a.title}</li></ol></nav>` : ''}
     <div class="r-page-head">
