@@ -244,7 +244,7 @@ lebih dari satu perintah, setiap kolom harus punya nama sederhana dan unik.
 Flow F02 diukur di e2e: dari beranda aplikasi sampai halaman report + form tersimpan = **3 aksi** (tambah halaman, pilih tabel,
 tambah), target recon sekitar 6.
 
-Verifikasi: `npm test` 130/130 (+8 di `test/b4.test.ts`: halaman baru dipakai pengguna aplikasi, form normal kembali ke halaman 1,
+Verifikasi: `npm test` 132/132 (+8 di `test/b4.test.ts`: halaman baru dipakai pengguna aplikasi, form normal kembali ke halaman 1,
 report SQL dengan bind, 8 query yang ditolak tanpa mengubah data, 10 isian salah, isolasi workspace), e2e 86/86 (+1 × 2 viewport,
 axe bersih), screenshot `S07` (1440 dan 390). Parity 62.0 → 63.0; must-have 26/30 selesai + 3 sebagian.
 

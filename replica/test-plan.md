@@ -211,4 +211,4 @@ teardown karena pool tanpa listener `error`; juga berisiko di produksi), diperba
 | B4-N2 | F02 | negatif: tabel tanpa form untuk jenis form, tabel tidak ada, halaman kembali tidak ada, jenis tidak dikenal | 422 dengan alasan | int | ✅ |
 | B4-N3 | F02 | negatif: aplikasi workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
 
-Run: `npm test` 130/130, e2e 86/86 (2 skip). Bug baru: tidak ada.
+Run: `npm test` 132/132, e2e 86/86 (2 skip). Bug baru: tidak ada.
