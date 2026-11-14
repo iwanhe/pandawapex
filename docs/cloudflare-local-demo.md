@@ -80,7 +80,8 @@ Edit `.env` and set strong unique values:
 
 - `RPX_SECRET`: `openssl rand -hex 32`
 - `RPX_DEMO_PASSWORD`: a unique password (at least 10 characters; use a password manager)
-- `POSTGRES_PASSWORD`: a strong unique database password
+- `POSTGRES_PASSWORD`: a strong unique database-owner password
+- `RPX_DATABASE_URL`: connection URL for the dedicated `rpx_engine` role (for example `postgres://rpx_engine:<URL-ENCODED-PASSWORD>@db:5432/rpx`)
 - `CLOUDFLARE_TUNNEL_TOKEN`: token copied from the tunnel setup page
 - `RPX_PUBLIC_URL=https://demo.domain-anda.com`
 - `RPX_SECURE_COOKIES=1`
@@ -108,8 +109,9 @@ not `postgres`. This needs to be corrected for a public demo before opening the 
 
 Required before public use:
 
-1. Provision a dedicated `rpx_engine` login with a strong password and use it only for
-   `RPX_DATABASE_URL`. The migration creates/grants the role and grants metadata access to it.
+1. Run the initial setup/migration using the database owner/admin account, then provision/set a strong password
+   for the `rpx_engine` login role created by the migration. Use only this role in `RPX_DATABASE_URL`.
+   The Cloudflare Compose overlay requires this variable and overrides the local superuser runtime URL.
 2. Keep the database owner/admin URL for setup/migrations only; do not give it to the long-running app.
 3. Ensure workspace roles are `NOLOGIN` and the engine is the only role allowed to assume them.
 4. Change all seeded demo passwords. The local install guide currently assigns one shared password to
