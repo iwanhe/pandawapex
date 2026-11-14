@@ -11,6 +11,7 @@ import {
    takeFlash, type DevSession,
 } from './session.ts';
 import { registerAccounts } from './accounts.ts';
+import { registerPages } from './pages.ts';
 import { registerWizard } from './wizard.ts';
 import {
    appsView, appView, homeView, importView, loginView, type AppDetail, type AppRow, type PageRow,
@@ -223,6 +224,8 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
 
    // S04 create: the Create App wizard lives in wizard.ts
    registerWizard(app, { pool, send, dev, importText, schemas, importedBy });
+   // S07 Create Page wizard: pages.ts
+   registerPages(app, { pool, send, dev, importText, importedBy, findApp });
 
    // ---------- S04 import ----------
    app.get('/builder/apps/import', async (req, reply) => {

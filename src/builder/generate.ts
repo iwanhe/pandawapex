@@ -44,21 +44,20 @@ function dataType(c: ColumnInfo): { data_type?: string; format?: string } {
 
 interface Built { pages: unknown[]; nav: unknown[]; lovs: Record<string, unknown> }
 
-function tablePages(t: TableInfo, report: number, lovs: Record<string, unknown>, usedAliases: Set<string>): Built {
-   const form = report + 1;
-   const withForm = t.build === 'form';
-   const label = humanize(t.name);
+/** a page alias not in use yet */
+export function uniqueAlias(base: string, used: Set<string>): string {
+   let alias = slug(base);
+   for (let n = 2; used.has(alias); n++) alias = `${slug(base).slice(0, 50)}-${n}`;
+   used.add(alias);
+   return alias;
+}
+
+/** Interactive Report page on a table; when formPage is given, rows link to it and an Add button opens it */
+export function tableReportPage(t: TableInfo, page: number, o: { alias: string; label: string; formPage?: number }): Record<string, unknown> {
    const fkBy = new Map(t.fks.map(f => [f.column, f]));
    const cols = t.columns.filter(usable);
    // report columns: the key first, then the others in table order, at most REPORT_COLUMNS_MAX
    const shown = [...cols.filter(c => t.pk.includes(c.name)), ...cols.filter(c => !t.pk.includes(c.name))].slice(0, REPORT_COLUMNS_MAX);
-
-   let alias = slug(t.name);
-   while (usedAliases.has(alias)) alias = `${alias}-2`.slice(0, 55);
-   usedAliases.add(alias);
-   usedAliases.add(`${alias}-form`);
-
-   // ---- report
    const joins: string[] = [];
    const select = shown.map((c, n) => {
       const fk = fkBy.get(c.name);
@@ -70,32 +69,37 @@ function tablePages(t: TableInfo, report: number, lovs: Record<string, unknown>,
       return `t.${qi(c.name)}`;
    });
    const sql = [`select ${select.join('\n     , ')}`, `  from ${qi(t.schema)}.${qi(t.name)} t`, ...joins.map(j => `  ${j}`)].join('\n') + '\n';
-   const pkItems = Object.fromEntries(t.pk.map(p => [`P${form}_${p.toUpperCase()}`, `#${p.toUpperCase()}#`]));
+   const form = o.formPage;
+   const pkItems = form === undefined ? {} : Object.fromEntries(t.pk.map(p => [`P${form}_${p.toUpperCase()}`, `#${p.toUpperCase()}#`]));
    const columns = shown.map(c => {
       const fk = fkBy.get(c.name);
       const col: Record<string, unknown> = { name: c.name.toUpperCase(), label: fk && !t.pk.includes(c.name) ? humanize(fk.refTable) : humanize(c.name) };
       if (!(fk && !t.pk.includes(c.name))) Object.assign(col, dataType(c));
       if (t.pk.includes(c.name)) {
          col.is_pk = true;
-         if (withForm && c.name === t.pk[0]) col.link = { page: form, items: pkItems, clear_cache: String(form) };
+         if (form !== undefined && c.name === t.pk[0]) col.link = { page: form, items: pkItems, clear_cache: String(form) };
       }
       return col;
    });
    const sortCol = shown.find(c => !t.pk.includes(c.name) && (c.kind === 'text' || c.kind === 'longtext')) ?? shown[0];
-   const reportPage: Record<string, unknown> = {
-      page: report, alias, name: label,
+   return {
+      page, alias: o.alias, name: o.label,
       regions: [{
-         static_id: 'daftar', title: `Daftar ${label.toLowerCase()}`, type: 'interactive_report',
-         empty_text: withForm ? `Belum ada data. Tambahkan dengan tombol "Tambah".` : 'Belum ada data.',
+         static_id: 'daftar', title: `Daftar ${o.label.toLowerCase()}`, type: 'interactive_report',
+         empty_text: form !== undefined ? `Belum ada data. Tambahkan dengan tombol "Tambah".` : 'Belum ada data.',
          source: { sql }, columns,
          sort: { column: sortCol.name.toUpperCase() },
-         ...(withForm ? { buttons: [{ name: 'TAMBAH', label: 'Tambah', hot: true, action: 'redirect', position: 'header', target: { page: form, clear_cache: String(form) } }] } : {}),
+         ...(form !== undefined ? { buttons: [{ name: 'TAMBAH', label: 'Tambah', hot: true, action: 'redirect', position: 'header', target: { page: form, clear_cache: String(form) } }] } : {}),
       }],
    };
-   if (!withForm) return { pages: [reportPage], nav: [{ label, icon: 'list', page: report }], lovs };
+}
 
-   // ---- form
-   const item = (c: ColumnInfo) => `P${form}_${c.name.toUpperCase()}`;
+/** Form page on a table (insert, update, delete). returnPage: where the form goes after saving or cancelling. */
+export function tableFormPage(t: TableInfo, page: number, o: { alias: string; label: string; returnPage: number; modal: boolean; lovs: Record<string, unknown> }): Record<string, unknown> {
+   const { lovs } = o;
+   const fkBy = new Map(t.fks.map(f => [f.column, f]));
+   const cols = t.columns.filter(usable);
+   const item = (c: ColumnInfo) => `P${page}_${c.name.toUpperCase()}`;
    const items: Record<string, unknown>[] = [];
    for (const c of cols.filter(x => t.pk.includes(x.name))) items.push({ name: item(c), type: 'hidden', source: { column: c.name, pk: true } });
    const editable = cols.filter(c => !t.pk.includes(c.name) && !c.generated);
@@ -111,8 +115,11 @@ function tablePages(t: TableInfo, report: number, lovs: Record<string, unknown>,
          lovs[key] = { sql: sqlLov };
          Object.assign(it, { type: 'select', lov: key, null_display: `- Pilih ${humanize(fk.refTable).toLowerCase()} -` });
       } else if (c.kind === 'enum') {
-         const key = `${t.name}_${c.name}`.toUpperCase().slice(0, 60);
-         lovs[key] = { static: c.enumValues.map(v => ({ display: v, return: v })) };
+         const base = `${t.name}_${c.name}`.toUpperCase().slice(0, 55);
+         const values = { static: c.enumValues.map(v => ({ display: v, return: v })) };
+         let key = base;
+         for (let n = 2; lovs[key] && JSON.stringify(lovs[key]) !== JSON.stringify(values); n++) key = `${base}_${n}`;
+         lovs[key] = values;
          Object.assign(it, { type: 'select', lov: key, null_display: '- Pilih -' });
       } else {
          switch (c.kind) {
@@ -131,24 +138,38 @@ function tablePages(t: TableInfo, report: number, lovs: Record<string, unknown>,
       items.push(it);
    }
    const firstPk = item(cols.find(c => c.name === t.pk[0])!);
-   const formPage: Record<string, unknown> = {
-      page: form, alias: `${alias}-form`, name: `Form ${label.toLowerCase()}`, breadcrumb_parent: report,
-      mode: 'modal', ...(editable.length > 8 ? { dialog_size: 'lg' } : {}),
+   const what = o.label.toLowerCase();
+   return {
+      page, alias: o.alias, name: `Form ${what}`, breadcrumb_parent: o.returnPage,
+      ...(o.modal ? { mode: 'modal', ...(editable.length > 8 ? { dialog_size: 'lg' } : {}) } : {}),
       regions: [{
-         static_id: 'form', title: label, type: 'form', source: { table: `${t.schema}.${t.name}` }, items,
+         static_id: 'form', title: o.label, type: 'form', source: { table: `${t.schema}.${t.name}` }, items,
          buttons: [
-            { name: 'BATAL', label: 'Batal', action: 'close_dialog', style: 'ghost' },
-            { name: 'HAPUS', label: 'Hapus', style: 'danger', confirm: `Hapus data ${label.toLowerCase()} ini?`, condition: { item_not_null: firstPk } },
+            o.modal
+               ? { name: 'BATAL', label: 'Batal', action: 'close_dialog', style: 'ghost' }
+               : { name: 'BATAL', label: 'Batal', action: 'redirect', style: 'ghost', target: { page: o.returnPage } },
+            { name: 'HAPUS', label: 'Hapus', style: 'danger', confirm: `Hapus data ${what} ini?`, condition: { item_not_null: firstPk } },
             { name: 'SIMPAN', label: 'Simpan', hot: true },
          ],
       }],
       processes: [
          { name: 'ambil_data', type: 'form_init', region: 'form' },
-         { name: 'simpan_data', type: 'form_dml', region: 'form', success_msg: `Data ${label.toLowerCase()} tersimpan.` },
-         { name: 'tutup', type: 'close_dialog' },
+         { name: 'simpan_data', type: 'form_dml', region: 'form', success_msg: `Data ${what} tersimpan.` },
+         ...(o.modal ? [{ name: 'tutup', type: 'close_dialog' }] : []),
       ],
-      branches: [{ page: report }],
+      branches: [{ page: o.returnPage }],
    };
+}
+
+function tablePages(t: TableInfo, report: number, lovs: Record<string, unknown>, usedAliases: Set<string>): Built {
+   const form = report + 1;
+   const withForm = t.build === 'form';
+   const label = humanize(t.name);
+   const alias = uniqueAlias(t.name, usedAliases);
+   usedAliases.add(`${alias}-form`);
+   const reportPage = tableReportPage(t, report, { alias, label, formPage: withForm ? form : undefined });
+   if (!withForm) return { pages: [reportPage], nav: [{ label, icon: 'list', page: report }], lovs };
+   const formPage = tableFormPage(t, form, { alias: `${alias}-form`, label, returnPage: report, modal: true, lovs });
    return { pages: [reportPage, formPage], nav: [{ label, icon: 'list', page: report }], lovs };
 }
 
