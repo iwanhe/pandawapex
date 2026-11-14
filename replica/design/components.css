@@ -424,3 +424,14 @@ circle.r-chart-other { stroke: var(--r-chart-other); } rect.r-chart-other { fill
 a.r-header__name { text-decoration: none; border-radius: var(--r-radius-sm); }
 a.r-header__name:hover, a.r-header__name[aria-current="page"] { color: var(--r-color-nav-text); }
 .r-table .r-chips { display: inline-flex; flex-wrap: wrap; gap: var(--r-space-2); }
+
+/* ---------- builder create-app wizard (B3) ---------- */
+.r-form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--r-space-3); }
+.r-table td .r-help { margin: var(--r-space-2) 0 0; max-width: 56ch; }
+.r-table td input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--r-color-accent); }
+.r-table td label.r-mono { cursor: pointer; }
+.r-table td.r-wrap { white-space: normal; min-width: 220px; }
+@media (max-width: 640px) {
+  .r-table .r-hide-sm { display: none; }
+  .r-table td.r-wrap { min-width: 0; }
+}

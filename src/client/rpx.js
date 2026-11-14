@@ -377,6 +377,25 @@
     });
   }
 
+  // create-app wizard: the alias follows the name until it is edited by hand; another schema reloads its table list
+  for (const alias of document.querySelectorAll('[data-alias-from]')) {
+    const src = document.getElementById(alias.getAttribute('data-alias-from'));
+    if (!src) continue;
+    const slug = (v) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^[^a-z]+/, '').replace(/-+$/, '').slice(0, 60);
+    let manual = alias.value !== '' && alias.value !== slug(src.value);
+    alias.addEventListener('input', () => { manual = alias.value !== ''; });
+    src.addEventListener('input', () => { if (!manual) alias.value = slug(src.value); });
+  }
+  for (const sel of document.querySelectorAll('select[data-reload-tables]')) {
+    sel.addEventListener('change', () => {
+      const form = sel.form;
+      const q = new URLSearchParams();
+      for (const k of ['name', 'alias', 'schema', 'group']) if (form.elements[k] && form.elements[k].value) q.set(k, form.elements[k].value);
+      location.assign(`${form.getAttribute('action')}?${q}`);
+    });
+  }
+
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
   if (summary) summary.focus();

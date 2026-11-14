@@ -197,3 +197,31 @@ Lebih sulit dari perkiraan:
   tanpa mengosongkan cache itu, pengguna yang baru diberi grup tetap ditolak sampai login ulang.
 
 Belum: wizard Create App dari tabel (B3), wizard Create Page, Page Designer.
+
+## Fase 2 B3: wizard Create App dari tabel (2026-11-15), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S04 wizard | done | satu layar: nama (alias terisi otomatis), skema (daftar tabel dimuat ulang saat skema diganti; tanpa JS lewat tombol), batasi ke grup (opsional), pilih tabel/view dengan keterangan apa yang akan dibuat dan alasannya bila tidak bisa |
+| Generator | done | per tabel: Interactive Report (FK ditampilkan sebagai nama dari tabel referensi lewat left join, maks 12 kolom, sort kolom teks pertama) + form dialog (`form_init` / `form_dml` / `close_dialog`, tombol Tambah, Hapus dengan konfirmasi) |
+| Tipe kolom → item | done | angka → number, date → date, timestamp → datetime, boolean → switch, varchar > 250 → textarea, enum → select (LOV statis), FK → select (LOV SQL bersama per tabel referensi), bytea/json/array tidak dipakai, kolom generated tidak diedit, NOT NULL tanpa default → wajib |
+| Aturan tabel | done | report + form bila ada PK dengan default (identity/serial/uuid default) dan role workspace punya INSERT/UPDATE/DELETE; report saja untuk view, tanpa PK, PK tanpa default, tanpa hak tulis, atau kolom wajib bertipe tak didukung; tidak bisa bila tanpa SELECT atau nama tabel perlu kutip |
+| Beranda aplikasi | done | pemberitahuan bila workspace belum punya pengguna aplikasi (akun developer tidak bisa login ke aplikasi) |
+
+Flow F01 diukur di e2e: dari beranda builder sampai Interactive Report hasil wizard tampil = **8 aksi** (buat aplikasi, nama,
+centang tabel, buat, jalankan, nama pengguna, kata sandi, masuk), sesuai target recon. Form dialog hasil wizard menambah baris.
+
+Verifikasi: `npm test` 124/124 (+7 di `test/b3.test.ts`, termasuk 11 tabel kasus tepi: enum, uuid, view, tanpa PK, PK komposit,
+bytea wajib, tanpa hak SELECT, tanpa hak tulis, nama campur huruf besar), e2e 84/84 (+2 × 2 viewport, axe bersih),
+screenshot `S04-wizard`, `S21-generated` (1440 dan 390). Parity 59.8 → 62.0, must-have 26/30.
+
+Lebih sulit dari perkiraan:
+- **PK alami** (tanpa default) belum bisa ditambah lewat form, karena engine menganggap PK terisi = ubah baris. Wizard jujur
+  membuat report saja dan menulis alasannya; dukungan PK alami dicatat untuk nanti.
+- **Hak akses dicek untuk role workspace**, bukan untuk koneksi builder (superuser), termasuk tabel referensi FK; kalau tidak,
+  halaman yang dibuat wizard gagal saat dijalankan pengguna.
+- **Tes kadang gagal saat teardown**: koneksi pool yang menganggur menerima "terminating connection" saat database tes di-drop,
+  dan karena pool tidak punya listener `error`, Node menganggapnya error tak tertangani. Ini juga celah di produksi (restart
+  database bisa mematikan server), jadi `createPool` sekarang memasang listener yang mencatat lalu melanjutkan.
+
+Belum: wizard Create Page (B4), Page Designer (B5), dukungan PK alami di form.

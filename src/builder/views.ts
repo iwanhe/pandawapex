@@ -13,7 +13,7 @@ export interface VersionRow { id: string; importedAt: Date; importedBy: string; 
 export interface AppDetail extends AppRow { homePage: number; authScheme: string }
 
 const BRAND = 'pandawapex Builder';
-const appUrl = (alias: string) => `/builder/apps/${encodeURIComponent(alias)}`;
+export const appUrl = (alias: string) => `/builder/apps/${encodeURIComponent(alias)}`;
 export const runUrl = (ws: string, alias: string) => `/r/${encodeURIComponent(ws)}/${encodeURIComponent(alias)}`;
 
 const DT = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
@@ -179,37 +179,6 @@ export function appsView(dev: DevSession, flash: Flash | null, apps: AppRow[], q
    return shell({ dev, section: 'apps', title: 'Aplikasi', flash, body, actions: appActions() });
 }
 
-// ---------- S04 create ----------
-export interface NewAppForm { name: string; alias: string; schema: string }
-export function newAppView(dev: DevSession, f: NewAppForm, schemas: string[], errors: Record<string, string>): SafeHtml {
-   const err = (k: string) => errors[k] ? html`<p class="r-error-text" id="${k}-err">${errors[k]}</p>` : html``;
-   const inv = (k: string) => errors[k] ? raw(` aria-invalid="true" aria-describedby="${k}-err"`) : raw('');
-   const problems = Object.values(errors);
-   const body = html`<form class="r-region" method="post" action="/builder/apps/new" novalidate>
-  <input type="hidden" name="__csrf" value="${dev.csrf}">
-  <div class="r-region__header"><h2 class="r-region__title">Data aplikasi</h2></div>
-  <div class="r-region__body">
-    ${errorsHtml(problems.length === 1 ? problems[0] : 'Periksa isian berikut', problems.length === 1 ? [] : problems)}
-    ${!schemas.length ? alert('warning', 'Workspace ini belum punya skema database', html`<p>Minta administrator menambahkan skema dengan <code>rpx workspace create</code>.</p>`) : ''}
-    <div class="r-form">
-      <div class="r-field r-col-12"><label class="r-label" for="name">Nama aplikasi <span class="r-label__req" aria-hidden="true">*</span></label>
-        <input class="r-input" id="name" name="name" required maxlength="120" value="${f.name}"${inv('name')}${attrIf('autofocus', !problems.length || !!errors.name)}>${err('name')}</div>
-      <div class="r-field r-col-6"><label class="r-label" for="alias">Alias <span class="r-label__req" aria-hidden="true">*</span></label>
-        <input class="r-input r-mono" id="alias" name="alias" required maxlength="60" autocapitalize="none" spellcheck="false" value="${f.alias}" aria-describedby="alias-help${errors.alias ? ' alias-err' : ''}"${errors.alias ? raw(' aria-invalid="true"') : ''}>
-        <p class="r-help" id="alias-help">Dipakai di alamat: /r/${dev.workspace}/<strong>alias</strong>. Huruf kecil, angka, garis bawah atau tanda hubung; diawali huruf.</p>${err('alias')}</div>
-      <div class="r-field r-col-6"><label class="r-label" for="schema">Skema parsing <span class="r-label__req" aria-hidden="true">*</span></label>
-        <select class="r-input" id="schema" name="schema" required${inv('schema')}>${schemas.map(s => html`<option value="${s}"${attrIf('selected', s === f.schema)}>${s}</option>`)}</select>${err('schema')}</div>
-    </div>
-    <p class="r-help">Aplikasi baru berisi satu halaman beranda kosong dan memakai akun aplikasi bawaan workspace untuk masuk.</p>
-  </div>
-  <div class="r-region__footer">
-    <a class="r-btn" href="/builder/apps">Batal</a>
-    <button type="submit" class="r-btn r-btn--primary"${attrIf('disabled', !schemas.length)}>${icon('plus')} Buat aplikasi</button>
-  </div>
-</form>`;
-   return shell({ dev, section: 'apps', title: 'Buat aplikasi', crumbs: [{ label: 'Aplikasi', href: '/builder/apps' }], body });
-}
-
 // ---------- S04 import ----------
 export function importView(dev: DevSession, a: { spec: string; replace: boolean; problems: string[]; title: string; exists: string | null }): SafeHtml {
    const body = html`<form class="r-region" method="post" action="/builder/apps/import" novalidate data-spec-import>
@@ -247,7 +216,7 @@ export function importView(dev: DevSession, a: { spec: string; replace: boolean;
 const AUTH_LABEL: Record<string, string> = { builtin_accounts: 'Akun aplikasi', oidc: 'SSO (OIDC)', no_auth: 'Tanpa login' };
 const MODE_LABEL: Record<string, string> = { normal: 'Normal', modal: 'Dialog', non_modal: 'Dialog non-modal' };
 
-export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, pages: PageRow[], versions: VersionRow[], del: { error: string | null }): SafeHtml {
+export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, pages: PageRow[], versions: VersionRow[], del: { error: string | null }, appUsers = 1): SafeHtml {
    const base = appUrl(a.alias);
    const run = runUrl(dev.workspace, a.alias);
    const facts: [string, SafeHtml | string][] = [
@@ -285,7 +254,10 @@ export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, page
    </table></div>`
       : html`<div class="r-empty"><p class="r-empty__title">Belum ada riwayat impor</p></div>`;
 
-   const body = html`
+   const noUsers = !appUsers && a.authScheme === 'builtin_accounts'
+      ? alert('info', 'Belum ada pengguna aplikasi di workspace ini', html`<p>Aplikasi memakai akun pengguna workspace untuk login, bukan akun developer. <a href="/builder/users/new">Tambah pengguna</a> dulu sebelum menjalankannya.</p>`)
+      : html``;
+   const body = html`${noUsers}
 <section class="r-region" aria-labelledby="facts-title">
   <div class="r-region__header"><h2 class="r-region__title" id="facts-title">Ringkasan</h2></div>
   <div class="r-region__body"><dl class="r-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl></div>

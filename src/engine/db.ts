@@ -10,7 +10,11 @@ export type Pool = pg.Pool;
 export type Client = pg.PoolClient;
 
 export function createPool(connectionString: string): pg.Pool {
-   return new pg.Pool({ connectionString, max: Number(process.env.RPX_POOL_MAX ?? 10) });
+   const pool = new pg.Pool({ connectionString, max: Number(process.env.RPX_POOL_MAX ?? 10) });
+   // An idle client can lose its connection (database restart, admin termination). Without a listener node-postgres
+   // re-emits that as an uncaught 'error' and the whole server stops; the pool already drops the broken client.
+   pool.on('error', err => console.error(`[db] idle connection closed: ${err.message}`));
+   return pool;
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]*$/;
