@@ -11,6 +11,7 @@ import {
    createDevSession, deleteDevSession, DEV_COOKIE, DEV_CSRF_COOKIE, DEV_PATH, isUuid, loadDevSession, newCsrfToken, setFlash,
    takeFlash, type DevSession,
 } from './session.ts';
+import { registerAccounts } from './accounts.ts';
 import {
    appsView, appView, homeView, importView, loginView, newAppView, type AppDetail, type AppRow, type NewAppForm, type PageRow,
    type VersionRow,
@@ -18,6 +19,14 @@ import {
 
 // Builder (Phase 2, B1): developer sign-in per workspace, workspace home, application list, create / import / export / delete.
 // Every query is scoped to the signed-in developer's workspace; nothing here takes a workspace from the URL.
+
+/** What the other builder modules (accounts, wizards) share with this one. */
+export interface BuilderContext {
+   pool: pg.Pool;
+   send: (reply: FastifyReply, body: { value: string }, status?: number) => FastifyReply;
+   /** the signed-in developer, or null after a redirect to the login page; POSTs are CSRF-checked */
+   dev: (req: FastifyRequest, reply: FastifyReply) => Promise<DevSession | null>;
+}
 
 export interface BuilderOptions {
    pool: pg.Pool;
@@ -68,6 +77,8 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
       }
       return s;
    }
+
+   registerAccounts(app, { pool, send, dev, passwordLimit: o.loginLimit });
 
    // ---------- data ----------
    async function listApps(s: DevSession, q = ''): Promise<AppRow[]> {

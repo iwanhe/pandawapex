@@ -110,9 +110,11 @@ export class Browser {
       this.store(r.headers['set-cookie']);
       return r;
    }
-   async post(url: string, form: Record<string, string>) {
+   async post(url: string, form: Record<string, string | string[]>) {
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(form)) for (const x of [v].flat()) params.append(k, x);
       const r = await this.env.app.inject({
-         method: 'POST', url, payload: new URLSearchParams(form).toString(),
+         method: 'POST', url, payload: params.toString(),
          headers: { cookie: this.cookieHeader(), 'content-type': 'application/x-www-form-urlencoded' },
       });
       this.store(r.headers['set-cookie']);

@@ -175,3 +175,25 @@ Lebih sulit dari perkiraan:
 - **Timestamp sebagai teks**: pool engine sengaja mengembalikan `timestamptz` sebagai teks; builder mengubahnya ke Date sendiri.
 
 Belum (B2 dan seterusnya): kelola akun developer dan end user dari UI, Create App wizard dari tabel, Create Page wizard, Page Designer.
+
+## Fase 2 B2: kelola akun dari builder (2026-11-14), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S19 pengguna aplikasi | done | `/builder/users`: daftar + cari + paging 50; tambah (nama, email, kata sandi, grup); detail: grup, atur ulang kata sandi (sesi pengguna diakhiri), kunci / buka kunci, hapus dengan ketik nama |
+| S19 developer | done | `/builder/developers`, khusus administrator: tambah, jadikan administrator / developer biasa, atur ulang kata sandi, kunci, hapus; akun sendiri dialihkan ke Akun saya, jadi administrator tidak bisa mengunci atau menurunkan dirinya |
+| S19 akun saya | done | `/builder/account`: ganti kata sandi (cek sandi lama, rate limit); sesi lain milik developer itu berakhir, sesi ini tetap |
+
+Grup yang ditawarkan diambil dari authorization scheme `group_member` semua aplikasi di workspace (dengan nama aplikasinya) dan
+grup yang sudah dipakai pengguna. Perubahan grup berlaku langsung: cache otorisasi "once per session" milik pengguna itu dikosongkan.
+Akun SSO tanpa kata sandi tidak punya form atur ulang, dan halamannya menjelaskan bahwa grup SSO ditimpa klaim IdP saat login.
+
+Verifikasi: `npm test` 117/117 (+9 di `test/b2.test.ts`), e2e 80/80 (+2 skenario × 2 viewport, axe bersih), screenshot
+`S19-users`, `S19-user`, `S19-developers`, `S19-account` (1440 dan 390). Parity 58.7 → 59.8, must-have 25/30.
+
+Lebih sulit dari perkiraan:
+- **Kolom `citext` dalam array** (`array_agg(alias)`) tidak di-parse driver pg dan datang sebagai teks `{emp}`; perlu cast `::text[]`.
+- **Grup harus berlaku tanpa login ulang.** Grup dibaca per request, tetapi hasil scheme `once_per_session` disimpan di sesi;
+  tanpa mengosongkan cache itu, pengguna yang baru diberi grup tetap ditolak sampai login ulang.
+
+Belum: wizard Create App dari tabel (B3), wizard Create Page, Page Designer.

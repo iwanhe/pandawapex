@@ -42,7 +42,8 @@ npm run dev                                               # http://localhost:808
 
 **Builder** (Fase 2, mulai B1): http://localhost:8080/builder, masuk dengan workspace + akun developer (`rpx dev add`;
 `demo setup` dan `pilot setup` membuat developer `admin`). Isinya beranda workspace, daftar aplikasi, buat aplikasi
-kosong, impor dan ekspor spec YAML, riwayat impor, dan hapus aplikasi. Ekspor dari CLI:
+kosong, impor dan ekspor spec YAML, riwayat impor, hapus aplikasi, serta kelola akun: pengguna aplikasi (grup, reset kata
+sandi, kunci), developer (khusus administrator), dan ganti kata sandi sendiri. Ekspor dari CLI:
 `npm run rpx -- app export demo --ws pandawa --out demo.yaml`; ekspor lalu impor lagi menghasilkan metadata yang sama.
 
 Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.

@@ -20,13 +20,13 @@ const DT = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 's
 export function when(d: Date | null): string {
    return d ? DT.format(d) : '—';
 }
-const time = (d: Date | null) => (d ? html`<time datetime="${d.toISOString()}">${when(d)}</time>` : html`<span class="r-muted">—</span>`);
+export const time = (d: Date | null) => (d ? html`<time datetime="${d.toISOString()}">${when(d)}</time>` : html`<span class="r-muted">—</span>`);
 
 function flashHtml(f: Flash | null): SafeHtml {
    return f ? alert(f.kind, f.text) : html``;
 }
 
-function errorsHtml(title: string, problems: string[]): SafeHtml {
+export function errorsHtml(title: string, problems: string[]): SafeHtml {
    if (!problems.length) return html``;
    const detail = problems.length === 1 && problems[0] === title
       ? html``
@@ -34,13 +34,13 @@ function errorsHtml(title: string, problems: string[]): SafeHtml {
    return alert('danger', title, detail, raw(' tabindex="-1" data-error-summary'));
 }
 
-type Section = 'home' | 'apps';
-interface ShellArgs {
+export type Section = 'home' | 'apps' | 'users' | 'devs' | 'account';
+export interface ShellArgs {
    dev: DevSession; section: Section; title: string; crumbs?: { label: string; href: string }[];
    actions?: SafeHtml; flash?: Flash | null; body: SafeHtml;
 }
 
-function shell(a: ShellArgs): SafeHtml {
+export function shell(a: ShellArgs): SafeHtml {
    const navItem = (s: Section, href: string, ic: string, label: string) =>
       html`<li><a href="${href}"${a.section === s ? raw(' aria-current="page"') : ''}>${icon(ic)}<span class="r-nav__label">${label}</span></a></li>`;
    const crumbs = a.crumbs?.length
@@ -55,13 +55,15 @@ function shell(a: ShellArgs): SafeHtml {
     <span class="r-header__spacer"></span>
     <form method="post" action="/builder/logout" class="r-header__user">
       <input type="hidden" name="__csrf" value="${a.dev.csrf}">
-      <span class="r-header__name">${icon('user')} ${a.dev.username}</span>
+      <a class="r-header__name" href="/builder/account" title="Akun saya"${a.section === 'account' ? raw(' aria-current="page"') : ''}>${icon('user')} ${a.dev.username}</a>
       <button type="submit" class="r-btn r-btn--ghost r-btn--sm">${icon('log-out')} Keluar</button>
     </form>
   </header>
   <nav class="r-nav" id="r-nav" aria-label="Navigasi builder"><ul>
     ${navItem('home', '/builder', 'house', 'Beranda')}
     ${navItem('apps', '/builder/apps', 'layout-grid', 'Aplikasi')}
+    ${navItem('users', '/builder/users', 'users', 'Pengguna aplikasi')}
+    ${a.dev.isAdmin ? navItem('devs', '/builder/developers', 'key-round', 'Developer') : ''}
   </ul></nav>
   <main class="r-main" id="main">
     ${crumbs}
