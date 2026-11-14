@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { hash, verify as verifyPassword } from '@node-rs/argon2';
 import type pg from 'pg';
-import YAML from 'yaml';
 import { safeEqual } from '../engine/checksum.ts';
 import { HttpError } from '../engine/runtime.ts';
 import { exportSpec, specToYaml } from '../spec/export.ts';
@@ -12,8 +11,9 @@ import {
    takeFlash, type DevSession,
 } from './session.ts';
 import { registerAccounts } from './accounts.ts';
+import { registerWizard } from './wizard.ts';
 import {
-   appsView, appView, homeView, importView, loginView, newAppView, type AppDetail, type AppRow, type NewAppForm, type PageRow,
+   appsView, appView, homeView, importView, loginView, type AppDetail, type AppRow, type PageRow,
    type VersionRow,
 } from './views.ts';
 
@@ -221,43 +221,8 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
       return send(reply, appsView(s, await takeFlash(pool, s), shown, q, all.length));
    });
 
-   // ---------- S04 create ----------
-   app.get('/builder/apps/new', async (req, reply) => {
-      const s = await dev(req, reply);
-      if (!s) return reply;
-      const sch = await schemas(s);
-      return send(reply, newAppView(s, { name: '', alias: '', schema: sch[0] ?? '' }, sch, {}));
-   });
-
-   app.post('/builder/apps/new', async (req, reply) => {
-      const s = await dev(req, reply);
-      if (!s) return reply;
-      const body = req.body as Record<string, string>;
-      const f: NewAppForm = { name: String(body.name ?? '').trim(), alias: String(body.alias ?? '').trim().toLowerCase(), schema: String(body.schema ?? '') };
-      const sch = await schemas(s);
-      const errors: Record<string, string> = {};
-      if (!f.name) errors.name = 'Nama aplikasi wajib diisi.';
-      else if (f.name.length > 120) errors.name = 'Nama aplikasi paling panjang 120 karakter.';
-      if (!f.alias) errors.alias = 'Alias wajib diisi.';
-      else if (!ALIAS.test(f.alias)) errors.alias = 'Alias hanya boleh huruf kecil, angka, garis bawah, atau tanda hubung, dan diawali huruf.';
-      if (!sch.includes(f.schema)) errors.schema = 'Pilih skema yang terdaftar di workspace ini.';
-      if (!errors.alias) {
-         const ex = await pool.query('select 1 from rpx.applications where workspace_id = $1 and alias = $2', [s.workspaceId, f.alias]);
-         if (ex.rowCount) errors.alias = `Alias "${f.alias}" sudah dipakai aplikasi lain di workspace ini.`;
-      }
-      if (Object.keys(errors).length) return send(reply, newAppView(s, f, sch, errors), 422);
-      const spec = {
-         app: f.alias, name: f.name, version: '1.0', parsing_schema: f.schema, home_page: 1,
-         pages: [{
-            page: 1, name: 'Beranda', title: f.name,
-            regions: [{ static_id: 'selamat_datang', title: 'Selamat datang', type: 'static',
-               source: { html: '<p>Halaman ini masih kosong. Ubah spec aplikasi untuk menambahkan region, item, dan halaman.</p>' } }],
-         }],
-      };
-      await importText(s, `# ${f.name}: dibuat di builder oleh ${importedBy(s)}\n${YAML.stringify(spec, { lineWidth: 0 })}`);
-      await setFlash(pool, s, { kind: 'success', text: `Aplikasi ${f.name} dibuat.` });
-      return reply.redirect(`/builder/apps/${encodeURIComponent(f.alias)}`, 303);
-   });
+   // S04 create: the Create App wizard lives in wizard.ts
+   registerWizard(app, { pool, send, dev, importText, schemas, importedBy });
 
    // ---------- S04 import ----------
    app.get('/builder/apps/import', async (req, reply) => {
@@ -299,7 +264,7 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
    // ---------- S05 application home ----------
    async function renderApp(s: DevSession, reply: FastifyReply, alias: string, delError: string | null = null) {
       const a = await findApp(s, alias);
-      const [pages, versions] = await Promise.all([
+      const [pages, versions, users] = await Promise.all([
          pool.query(
             `select p.page_no, p.name, p.title, p.alias, p.page_mode, p.requires_auth
                   , (select count(*)::int from rpx.regions r where r.page_id = p.id) as regions
@@ -307,10 +272,11 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
          pool.query(
             `select id, imported_at, imported_by, engine_version, spec_hash, octet_length(spec) as size
                from rpx.app_versions where app_id = $1 order by imported_at desc limit 20`, [a.id]),
+         pool.query('select count(*)::int as n from rpx.app_users where workspace_id = $1', [s.workspaceId]),
       ]);
       const pr: PageRow[] = pages.rows.map(x => ({ no: x.page_no, name: x.name, title: x.title, alias: x.alias, mode: x.page_mode, regions: x.regions, requiresAuth: x.requires_auth }));
       const vr: VersionRow[] = versions.rows.map(x => ({ id: x.id, importedAt: pgTime(x.imported_at)!, importedBy: x.imported_by, engineVersion: x.engine_version, specHash: x.spec_hash, size: x.size }));
-      return send(reply, appView(s, delError ? null : await takeFlash(pool, s), a, pr, vr, { error: delError }), delError ? 422 : 200);
+      return send(reply, appView(s, delError ? null : await takeFlash(pool, s), a, pr, vr, { error: delError }, users.rows[0].n), delError ? 422 : 200);
    }
 
    app.get('/builder/apps/:alias', async (req, reply) => {

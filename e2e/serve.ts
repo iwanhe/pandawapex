@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { addUser, createWorkspace, importApp, migrate, setupPilot } from '../src/cli/commands.ts';
+import { addDeveloper, addUser, createWorkspace, importApp, migrate, setupPilot } from '../src/cli/commands.ts';
 import { createPool } from '../src/engine/db.ts';
 import { buildServer } from '../src/engine/server.ts';
 import { startMockIdp } from '../test/oidc-mock.ts';
@@ -26,6 +26,7 @@ const spec = readFileSync(join(ROOT, 'examples/emp/app.yaml'), 'utf8').replace(/
 await importApp(pool, E2E.ws, spec, 'e2e');
 await addUser(pool, E2E.ws, E2E.user, E2E.password, ['SDM']);
 await addUser(pool, E2E.ws, E2E.user2, E2E.password);
+await addDeveloper(pool, E2E.ws, 'admin', E2E.password, { admin: true });   // builder: create-app wizard (B3)
 
 // pilot app "Demo Permintaan Barang" (ported from APEX): workspace pilot, users admin/budi/sari/dodi/gudang
 await setupPilot(pool, E2E.password, 'pilot');

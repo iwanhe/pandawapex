@@ -178,3 +178,20 @@ Run: `npm test` 108/108, e2e 76/76 (2 skip, sama seperti sebelumnya). Bug baru: 
 | B2-N6 | akun | negatif: sandi sekarang salah | 422, ringkasan error difokuskan | e2e, int | ✅ |
 
 Run: `npm test` 117/117, e2e 80/80 (2 skip). Bug baru: tidak ada.
+
+## Fase 2 B3: wizard Create App (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B3-H1 | F01 | happy | beranda builder → Buat aplikasi → nama → centang tabel → Buat → Jalankan → login → Interactive Report tampil, ≤ 8 aksi; Tambah lewat form dialog berhasil; axe bersih | e2e (2 viewport), int | ✅ (8 aksi) |
+| B3-H2 | F01 | happy: tiga tabel | 5 halaman (2 report + form, 1 report saja), menu per tabel, FK tampil sebagai nama, enum/timestamp/boolean/textarea di form, baris tersimpan dengan default kolom | int | ✅ |
+| B3-H3 | F01 | happy: batasi ke grup | anggota grup bisa membuka; bukan anggota 403 dengan pesan grup | int | ✅ |
+| B3-E1 | F01 | edge: tabel tanpa PK, PK komposit tanpa default, view, kolom wajib bytea, tanpa hak tulis | report saja, dengan alasan tertulis | int, e2e | ✅ |
+| B3-E2 | F01 | edge: tanpa hak SELECT, nama tabel campur huruf besar | checkbox nonaktif dengan alasan; dikirim paksa → ditolak | int | ✅ |
+| B3-E3 | F01 | edge: tanpa tabel dipilih | satu halaman beranda kosong; beranda aplikasi memberi tahu bila belum ada pengguna aplikasi | int | ✅ |
+| B3-E4 | F01 | edge: tanpa JavaScript, ganti skema | tombol "Tampilkan tabel" lewat GET; token CSRF dibuang dari alamat (303), isian tetap | int | ✅ |
+| B3-N1 | F01 | negatif: alias bentrok, grup tidak valid, > 10 tabel, tabel yang tidak ada | 422 dengan pesan, pilihan tetap tercentang, ringkasan error difokuskan, tidak ada aplikasi dibuat | e2e, int | ✅ |
+| B3-N2 | F01 | negatif: kolom wajib dikosongkan di form hasil wizard | 422 | int | ✅ |
+
+Run: `npm test` 124/124 (3× berturut-turut setelah perbaikan listener pool), e2e 84/84 (2 skip). Bug baru: 1 (tes kadang gagal saat
+teardown karena pool tanpa listener `error`; juga berisiko di produksi), diperbaiki.
