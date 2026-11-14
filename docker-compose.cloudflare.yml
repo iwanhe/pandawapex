@@ -1,0 +1,32 @@
+# Optional Cloudflare Tunnel overlay for the local Docker Compose deployment.
+# Create a remotely-managed tunnel in Cloudflare and put its connector token in .env.
+# cloudflared shares Compose's default network and reaches the app at http://app:8080.
+services:
+  app:
+    environment:
+      # Override the local quick-start's postgres-superuser runtime connection.
+      # Create/set a password for rpx_engine after the initial DB migration/setup.
+      RPX_DATABASE_URL: ${RPX_DATABASE_URL:?Set the dedicated rpx_engine connection URL in .env}
+      RPX_SECURE_COOKIES: "1"
+      RPX_PUBLIC_URL: ${RPX_PUBLIC_URL:?Set the public HTTPS demo URL in .env}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    # No ports: the connector only needs outbound connectivity to Cloudflare.
