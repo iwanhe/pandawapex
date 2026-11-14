@@ -111,6 +111,7 @@ Skrip itu menyalakan PostgreSQL bila belum (lewat `start-pg.bat`, yang menunggu 
 | --- | --- |
 | DEMO Permintaan Barang | http://localhost:8080/r/pandawa/demo |
 | Data Karyawan | http://localhost:8080/r/demo/emp |
+| Builder (Fase 2) | http://localhost:8080/builder |
 
 ## Akun login
 
@@ -126,6 +127,10 @@ Semua akun memakai kata sandi `RPX_DEMO_PASSWORD` dari langkah 6 (contoh: `coba-
 | DEMO | `admin` | ADMIN | semua menu, termasuk Users & Roles dan Document Types |
 | Data Karyawan | `admin` | grup SDM | ubah, tambah, hapus karyawan; Mutasi |
 | Data Karyawan | `tamu` | tanpa grup | hanya melihat |
+
+**Builder** (`/builder`) memakai akun developer, terpisah dari akun aplikasi di atas: workspace `pandawa` atau `demo`,
+username `admin`, kata sandi yang sama. Developer lain: `npm run rpx -- dev add --ws pandawa --username nama --password "min10karakter"`
+(menjalankan ulang perintah ini juga membuka akun yang terkunci setelah 5 kali salah sandi).
 
 User baru: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
 lewat **Administration → Users & Roles** (login sebagai `admin`).
@@ -198,7 +203,8 @@ Lalu ulangi dari langkah 3.
 **Fase 2 (builder)** dimulai setelah checklist di atas lolos. Urutannya mengikuti 8 must-have yang tersisa dan celah dari pilot:
 
 1. Login developer per workspace, dan kelola akun developer serta end user dari UI (akun pilot saat ini masih lewat CLI).
-2. Daftar aplikasi: buat, hapus, impor, ekspor spec.
+   **B1 selesai untuk login developer**; kelola akun dari UI masih menyusul.
+2. Daftar aplikasi: buat, hapus, impor, ekspor spec. **Selesai di B1.**
 3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang.
 4. Create Page wizard (Blank, Form, Report, IR, Modal).
 5. Page Designer: tree + property editor, termasuk application properties dan application items.

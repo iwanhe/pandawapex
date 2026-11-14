@@ -1,8 +1,8 @@
 feature,area,priority,original,clone,notes
 Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,yes,"M0: rpx ws create (role ws_*, grants, default privileges)"
-Login developer per workspace,workspace,must,yes,no,S01
-Kelola developer dan end user (accounts),workspace,must,yes,partial,M1: end user via CLI rpx user add; developer accounts & UI belum
-Daftar aplikasi + create/delete app,builder,must,yes,no,S03
+Login developer per workspace,workspace,must,yes,yes,"B1 S01: /builder/login (workspace + akun developer), sesi terpisah dari aplikasi, CSRF, rate limit, kunci setelah 5 gagal, idle 1 jam"
+Kelola developer dan end user (accounts),workspace,must,yes,partial,"M1: end user via CLI rpx user add; B1: developer via CLI rpx dev add; UI kelola akun belum"
+Daftar aplikasi + create/delete app,builder,must,yes,yes,"B1 S02/S03/S05: beranda workspace, daftar + cari, buat aplikasi kosong, hapus dengan ketik alias"
 Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 klik
 Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
 Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
@@ -38,7 +38,7 @@ IR control break + aggregate + highlight,regions,should,yes,no,
 Faceted search,regions,should,yes,no,
 Cards region,regions,should,yes,no,
 File upload item,items,should,yes,no,simpan ke bytea atau object storage
-Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,partial,M0: import + validasi JSON Schema/semantik; export belum
+Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,yes,"B1: rpx app export + Ekspor/Impor di builder, unduh versi dari riwayat; ekspor-impor bolak-balik tanpa perubahan (test/export.test.ts)"
 Page locking antar developer,builder,should,yes,no,
 Developer Toolbar + session state viewer,runtime,should,yes,no,S26
 Debug messages per page view,runtime,should,yes,no,S28

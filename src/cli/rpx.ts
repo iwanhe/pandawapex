@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createPool } from '../engine/db.ts';
 import { SpecError } from '../spec/import.ts';
-import { addUser, createWorkspace, importApp, migrate, PILOT_USERS, setupPilot } from './commands.ts';
+import { addDeveloper, addUser, createWorkspace, importApp, migrate, PILOT_USERS, setupPilot } from './commands.ts';
+import { exportSpec, specToYaml } from '../spec/export.ts';
 
 const USAGE = `rpx <command>
 
@@ -11,7 +12,10 @@ const USAGE = `rpx <command>
   ws create <name> --schema <s> [--schema <s2>]      create workspace + role ws_<name>
   app import <file.yaml> --ws <name>                 validate and import an app spec
   app check <file.yaml>                              validate a spec without a database
+  app export <alias> --ws <name> [--out <file.yaml>] spec rebuilt from the database (default: to stdout)
   user add --ws <name> --username <u> --password <p> [--group <g>]
+  dev add --ws <name> --username <u> --password <p> [--email <e>] [--admin]
+                                                     developer account for the builder (/builder)
   demo setup                                         migrate + workspace "demo" + contoh data + app emp + user
                                                      (RPX_DEMO_USER, RPX_DEMO_PASSWORD); aman dijalankan ulang
   pilot setup                                        migrate + workspace "pandawa" + aplikasi DEMO Permintaan Barang
@@ -28,6 +32,9 @@ async function main(): Promise<number> {
          username: { type: 'string' },
          password: { type: 'string' },
          group: { type: 'string', multiple: true },
+         out: { type: 'string' },
+         email: { type: 'string' },
+         admin: { type: 'boolean' },
          help: { type: 'boolean', short: 'h' },
       },
    });
@@ -53,6 +60,19 @@ async function main(): Promise<number> {
       } else if (cmd === 'app' && sub === 'import') {
          const r = await importApp(pool, need(values.ws, '--ws'), readFileSync(need(arg, 'file'), 'utf8'));
          console.log(`${r.replaced ? 'replaced' : 'created'} app ${r.appId}: ${r.pages} pages, ${r.regions} regions, ${r.items} items`);
+      } else if (cmd === 'app' && sub === 'export') {
+         const ws = need(values.ws, '--ws');
+         const yaml = specToYaml(await exportSpec(pool, ws, need(arg, 'alias')), { workspace: ws, exportedBy: `cli:${process.env.USER ?? process.env.USERNAME ?? 'cli'}` });
+         if (values.out) {
+            writeFileSync(values.out, yaml);
+            console.error(`exported ${arg} to ${values.out}`);
+         } else {
+            process.stdout.write(yaml);
+         }
+      } else if (cmd === 'dev' && sub === 'add') {
+         await addDeveloper(pool, need(values.ws, '--ws'), need(values.username, '--username'), need(values.password, '--password'),
+            { email: values.email, admin: values.admin ?? false });
+         console.log(`developer ${values.username} ready in workspace ${values.ws}; sign in at /builder`);
       } else if (cmd === 'demo' && sub === 'setup') {
          const user = process.env.RPX_DEMO_USER || 'admin';
          const password = process.env.RPX_DEMO_PASSWORD ?? '';
@@ -63,6 +83,7 @@ async function main(): Promise<number> {
          await pool.query(readFileSync(new URL('examples/emp/seed.sql', root), 'utf8'));
          const r = await importApp(pool, 'demo', readFileSync(new URL('examples/emp/app.yaml', root), 'utf8'));
          await addUser(pool, 'demo', user, password, ['SDM']);
+         await addDeveloper(pool, 'demo', user, password, { admin: true });   // builder sign-in (/builder)
          await addUser(pool, 'demo', 'tamu', password);
          console.log(`demo ready: app ${r.appId}; users "${user}" (grup SDM) and "tamu" (hanya lihat), same password. Open /r/demo/emp`);
       } else if (cmd === 'pilot' && sub === 'setup') {

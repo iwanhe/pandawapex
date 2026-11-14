@@ -150,3 +150,28 @@ Lebih sulit dari perkiraan:
   ditulis sebagai `jsonb_populate_record(new, ...)`.
 - **axe menemukan bug a11y baru**: tabel di kolom sempit bisa di-scroll tetapi tidak bisa difokus keyboard. Diperbaiki untuk
   semua report.
+
+## Fase 2 B1: fondasi builder (2026-11-13), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S01 login developer | done | `/builder/login`: workspace + username + sandi; sesi `rpx_dev` (path `/builder`) terpisah dari sesi aplikasi; CSRF double-submit sebelum login, token sesi sesudahnya; rate limit; kunci setelah 5 gagal; sesi 8 jam, idle 1 jam; akun dikunci → sesinya hilang |
+| S02 beranda workspace | done | jumlah aplikasi, halaman, skema, developer; 5 aplikasi terakhir diubah |
+| S03 daftar aplikasi | done | cari nama/alias (wildcard `%`/`_` dicari harfiah), jalankan, ekspor; dua empty state |
+| S04 buat / impor | done | buat aplikasi kosong (1 halaman beranda); impor dari file (FileReader → textarea, form tetap urlencoded) atau tempel; konfirmasi ganti bila alias sudah ada; daftar masalah spec |
+| S05 beranda aplikasi | done | ringkasan, daftar halaman, riwayat impor 20 terakhir + unduh teks persis per versi, hapus dengan ketik alias |
+| CLI | done | `rpx app export`, `rpx dev add`; `demo setup` / `pilot setup` membuat developer `admin` |
+
+Semua query builder dibatasi ke workspace developer yang login; aplikasi workspace lain dijawab 404, sama dengan yang tidak ada.
+`imported_by` dari builder tercatat `dev:<username>`.
+
+Verifikasi: `npm test` 108/108 (+3 ekspor bolak-balik, +12 builder), e2e 76/76 (+2 skenario builder × 2 viewport), axe bersih
+di S01–S05, screenshot `replica/clone-screens/S01..S05-{1440,390}.png`.
+
+Lebih sulit dari perkiraan:
+- **Ekspor yang bisa diimpor ulang persis sama**: spec dibangun ulang dari tabel metadata, bukan teks impor terakhir, jadi setiap
+  nilai default harus dihilangkan dengan aturan yang sama seperti importer mengisinya. Diuji dengan snapshot 16 tabel untuk emp,
+  DEMO, dan spec "kitchen sink".
+- **Timestamp sebagai teks**: pool engine sengaja mengembalikan `timestamptz` sebagai teks; builder mengubahnya ke Date sendiri.
+
+Belum (B2 dan seterusnya): kelola akun developer dan end user dari UI, Create App wizard dari tabel, Create Page wizard, Page Designer.
