@@ -417,3 +417,10 @@ circle.r-chart-other { stroke: var(--r-chart-other); } rect.r-chart-other { fill
   .r-header .r-badge { display: none; }
   .r-table__actions .r-btn { padding-inline: var(--r-space-3); }
 }
+
+/* ---------- builder accounts (B2) ---------- */
+.r-lead { margin: 0 0 var(--r-grid-gap); max-width: 72ch; }
+.r-label--sub { margin-top: var(--r-space-5); font-weight: 400; }
+a.r-header__name { text-decoration: none; border-radius: var(--r-radius-sm); }
+a.r-header__name:hover, a.r-header__name[aria-current="page"] { color: var(--r-color-nav-text); }
+.r-table .r-chips { display: inline-flex; flex-wrap: wrap; gap: var(--r-space-2); }

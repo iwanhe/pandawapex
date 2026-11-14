@@ -159,3 +159,22 @@ Run: integrasi 93/93, e2e 72/72 (2 di-skip). Bug baru dari axe: tabel scroll tid
 | B1-N6 | builder | negatif: unduh versi milik aplikasi lain / id tidak valid | 404 | int | ✅ |
 
 Run: `npm test` 108/108, e2e 76/76 (2 skip, sama seperti sebelumnya). Bug baru: tidak ada.
+
+## Fase 2 B2: kelola akun (2026-11-14)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B2-H1 | akun | happy: pengguna aplikasi | tambah dengan grup → atur ulang sandi → kunci → buka → hapus; akun baru bisa login ke aplikasi workspace; axe bersih | e2e (2 viewport), int | ✅ |
+| B2-H2 | akun | happy: developer | administrator menambah developer, menjadikannya administrator, menghapusnya; axe bersih | e2e, int | ✅ |
+| B2-H3 | akun | happy: ganti sandi sendiri | sandi baru berlaku, sesi lain berakhir, sesi ini tetap | int | ✅ |
+| B2-E1 | akun | edge: grup berubah saat pengguna sedang login | akses ke halaman ber-grup langsung berubah (diberi dan dicabut) tanpa login ulang | int | ✅ |
+| B2-E2 | akun | edge: banyak pengguna, cari `%` | paging 50 per halaman; `%` dicari harfiah | int | ✅ |
+| B2-E3 | akun | edge: developer dinaikkan / diturunkan saat sesinya terbuka | menu dan akses Developer berubah di request berikutnya | int | ✅ |
+| B2-N1 | akun | negatif: isian salah | nama dipakai, email salah, sandi < 10, konfirmasi beda, nama grup berspasi, sandi baru sama dengan lama → 422 dengan pesan per field | e2e, int | ✅ |
+| B2-N2 | akun | negatif: reset / kunci | sesi pengguna berakhir; sandi lama ditolak; akun terkunci ditolak login | int | ✅ |
+| B2-N3 | akun | negatif: developer biasa | halaman dan POST Developer → 403, tidak ada perubahan | int | ✅ |
+| B2-N4 | akun | negatif: administrator pada akun sendiri | kunci, turunkan, hapus diri sendiri → dialihkan ke Akun saya, tidak ada perubahan | int | ✅ |
+| B2-N5 | akun | negatif: workspace lain / id tidak valid / tanpa token CSRF | 404 / 404 / 403 | int | ✅ |
+| B2-N6 | akun | negatif: sandi sekarang salah | 422, ringkasan error difokuskan | e2e, int | ✅ |
+
+Run: `npm test` 117/117, e2e 80/80 (2 skip). Bug baru: tidak ada.

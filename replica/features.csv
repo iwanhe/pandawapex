@@ -1,7 +1,7 @@
 feature,area,priority,original,clone,notes
 Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,yes,"M0: rpx ws create (role ws_*, grants, default privileges)"
 Login developer per workspace,workspace,must,yes,yes,"B1 S01: /builder/login (workspace + akun developer), sesi terpisah dari aplikasi, CSRF, rate limit, kunci setelah 5 gagal, idle 1 jam"
-Kelola developer dan end user (accounts),workspace,must,yes,partial,"M1: end user via CLI rpx user add; B1: developer via CLI rpx dev add; UI kelola akun belum"
+Kelola developer dan end user (accounts),workspace,must,yes,yes,"B2 S19: /builder/users (tambah, grup, reset sandi, kunci, hapus; grup berlaku langsung ke sesi terbuka), /builder/developers (khusus administrator), /builder/account (ganti sandi sendiri); CLI rpx user add / dev add tetap ada"
 Daftar aplikasi + create/delete app,builder,must,yes,yes,"B1 S02/S03/S05: beranda workspace, daftar + cari, buat aplikasi kosong, hapus dengan ketik alias"
 Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 klik
 Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07

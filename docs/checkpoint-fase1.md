@@ -132,7 +132,9 @@ Semua akun memakai kata sandi `RPX_DEMO_PASSWORD` dari langkah 6 (contoh: `coba-
 username `admin`, kata sandi yang sama. Developer lain: `npm run rpx -- dev add --ws pandawa --username nama --password "min10karakter"`
 (menjalankan ulang perintah ini juga membuka akun yang terkunci setelah 5 kali salah sandi).
 
-User baru: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
+Pengguna aplikasi dan developer juga bisa dikelola dari builder: **Pengguna aplikasi** dan **Developer** di menu kiri.
+
+User baru lewat CLI: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
 lewat **Administration → Users & Roles** (login sebagai `admin`).
 
 ## Checklist sebelum Fase 2
@@ -203,7 +205,7 @@ Lalu ulangi dari langkah 3.
 **Fase 2 (builder)** dimulai setelah checklist di atas lolos. Urutannya mengikuti 8 must-have yang tersisa dan celah dari pilot:
 
 1. Login developer per workspace, dan kelola akun developer serta end user dari UI (akun pilot saat ini masih lewat CLI).
-   **B1 selesai untuk login developer**; kelola akun dari UI masih menyusul.
+   **Selesai di B1 (login developer) dan B2 (kelola akun dari UI).**
 2. Daftar aplikasi: buat, hapus, impor, ekspor spec. **Selesai di B1.**
 3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang.
 4. Create Page wizard (Blank, Form, Report, IR, Modal).
