@@ -263,7 +263,8 @@ export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, page
   <div class="r-region__body"><dl class="r-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl></div>
 </section>
 <section class="r-region" aria-labelledby="pages-title">
-  <div class="r-region__header"><h2 class="r-region__title" id="pages-title">Halaman (${pages.length})</h2></div>
+  <div class="r-region__header"><h2 class="r-region__title" id="pages-title">Halaman (${pages.length})</h2>
+    <div class="r-region__actions"><a class="r-btn r-btn--sm" href="${base}/pages/new">${icon('plus')} Tambah halaman</a></div></div>
   <div class="r-region__body r-region__body--flush">${pageTable}</div>
 </section>
 <section class="r-region" aria-labelledby="versions-title">

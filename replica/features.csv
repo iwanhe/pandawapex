@@ -4,7 +4,7 @@ Login developer per workspace,workspace,must,yes,yes,"B1 S01: /builder/login (wo
 Kelola developer dan end user (accounts),workspace,must,yes,yes,"B2 S19: /builder/users (tambah, grup, reset sandi, kunci, hapus; grup berlaku langsung ke sesi terbuka), /builder/developers (khusus administrator), /builder/account (ganti sandi sendiri); CLI rpx user add / dev add tetap ada"
 Daftar aplikasi + create/delete app,builder,must,yes,yes,"B1 S02/S03/S05: beranda workspace, daftar + cari, buat aplikasi kosong, hapus dengan ketik alias"
 Create App wizard dari tabel (Report+Form),builder,must,yes,yes,"B3 S04: pilih skema + tabel → per tabel Interactive Report + form dialog (FK jadi select LOV, enum jadi select, tipe kolom → tipe item), report saja bila tanpa PK/default/hak tulis dengan alasan, opsi batasi ke grup; F01 dari beranda builder sampai app jalan = 8 aksi (e2e)"
-Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
+Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,partial,"B4 S07: report + form, Interactive Report (tabel atau query SQL yang dicoba sebagai role workspace), form (dialog atau halaman biasa, kembali ke halaman pilihan), halaman kosong; opsi menu; nomor halaman dicek. Belum: Interactive Grid (engine belum punya), classic report"
 Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
 Application properties + substitution strings,builder,must,yes,partial,"M1: lewat spec YAML (substitutions, timezone); belum ada UI"
 Application items & computations on login,builder,must,yes,partial,"M2: application items + computations (on_new_session, after_authentication, before_header, after_submit; static/item/sql/plpgsql_fn) lewat spec; UI builder di Fase 2"

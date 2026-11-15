@@ -435,3 +435,18 @@ a.r-header__name:hover, a.r-header__name[aria-current="page"] { color: var(--r-c
   .r-table .r-hide-sm { display: none; }
   .r-table td.r-wrap { min-width: 0; }
 }
+
+/* ---------- builder create-page wizard (B4) ---------- */
+fieldset.r-kind-picker { padding: var(--r-space-5) var(--r-space-6) var(--r-space-6); min-width: 0; }
+.r-kind-picker > legend { float: left; width: 100%; padding: 0; margin: 0 0 var(--r-space-5); }
+.r-kind-picker__options { clear: both; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--r-space-4); }
+.r-kind { display: grid; align-content: start; grid-template-columns: auto 1fr; gap: var(--r-space-2) var(--r-space-3); padding: var(--r-space-4); border: 1px solid var(--r-color-border-input); border-radius: var(--r-radius-md); background: var(--r-color-surface); cursor: pointer; }
+.r-kind input { grid-row: span 2; width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--r-color-accent); }
+.r-kind__title { font-weight: 600; }
+.r-kind__text { color: var(--r-color-text-muted); font-size: var(--r-text-sm-size); }
+.r-kind:hover { border-color: var(--r-color-border-strong); }
+.r-kind:has(input:checked) { border-color: var(--r-color-accent); background: var(--r-color-accent-subtle); box-shadow: inset 0 0 0 1px var(--r-color-accent); }
+.r-kind:has(input:focus-visible) { outline: 2px solid var(--r-color-focus); outline-offset: 2px; }
+.r-sql-text { min-height: 180px; }
+details.r-help summary { cursor: pointer; }
+details.r-help ul { margin: var(--r-space-2) 0 0; padding-left: var(--r-space-6); }

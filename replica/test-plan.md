@@ -8,8 +8,8 @@ Yang dites adalah **clone kita sendiri** (`npm run e2e`, `npm test`), bukan Orac
 
 | flow | status build | dites |
 | --- | --- | --- |
-| F01 buat app dari tabel (builder) | belum dibangun (Fase 2) | — |
-| F02 tambah page Report+Form (builder) | belum dibangun | — |
+| **F01 buat app dari tabel (builder)** | B3 wizard Create App | ✅ e2e (8 aksi) + integrasi |
+| **F02 tambah page Report+Form (builder)** | B4 wizard Create Page | ✅ e2e (3 aksi) + integrasi |
 | F03 Page Designer | belum dibangun | — |
 | **F04 end user edit data (core loop)** | M1 + M3 (item & LOV) + M4 (dialog) | ✅ e2e + integrasi |
 | F05 personalisasi IR | M4 (dasar, tanpa saved reports) | ✅ e2e + integrasi |
@@ -195,3 +195,20 @@ Run: `npm test` 117/117, e2e 80/80 (2 skip). Bug baru: tidak ada.
 
 Run: `npm test` 124/124 (3× berturut-turut setelah perbaikan listener pool), e2e 84/84 (2 skip). Bug baru: 1 (tes kadang gagal saat
 teardown karena pool tanpa listener `error`; juga berisiko di produksi), diperbaiki.
+
+## Fase 2 B4: wizard Create Page (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B4-H1 | F02 | happy | beranda aplikasi → Tambah halaman → pilih tabel → Tambah: halaman N dan N+1, menu, riwayat versi `dev:admin`; pengguna aplikasi menambah baris lewat form; ≤ 6 aksi; axe bersih | e2e (2 viewport), int | ✅ (3 aksi) |
+| B4-H2 | F02 | happy: report dari SQL | kolom dan tipe dari query, bind item boleh, titik koma di akhir dibuang; halaman tampil dengan data | e2e, int | ✅ |
+| B4-H3 | F02 | happy: form saja | halaman biasa, kembali ke halaman pilihan setelah simpan; LOV lama dengan nama sama tidak ditimpa (`DEPARTEMEN_2`) | int | ✅ |
+| B4-H4 | F02 | happy: halaman kosong | alias dari nama, menu dengan ikon dokumen | int | ✅ |
+| B4-E1 | F02 | edge: query salah / tanpa alias / kolom ganda / tanpa hak | pesan dari PostgreSQL atau penjelasan; tidak ada halaman dibuat | e2e, int | ✅ |
+| B4-E2 | F02 | edge: query yang mengubah data | `delete`, `select 1; delete`, CTE `delete … returning` ditolak, jumlah baris tidak berubah | int | ✅ |
+| B4-E3 | F02 | edge: isian dan pilihan tetap setelah error | jenis, sumber SQL, nama tetap; ringkasan error difokuskan | e2e, int | ✅ |
+| B4-N1 | F02 | negatif: nomor halaman dipakai / 0 / bukan angka / N+1 dipakai | 422, menyebut nomor bebas berikutnya | int | ✅ |
+| B4-N2 | F02 | negatif: tabel tanpa form untuk jenis form, tabel tidak ada, halaman kembali tidak ada, jenis tidak dikenal | 422 dengan alasan | int | ✅ |
+| B4-N3 | F02 | negatif: aplikasi workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
+
+Run: `npm test` 132/132, e2e 86/86 (2 skip). Bug baru: tidak ada.

@@ -396,6 +396,22 @@
     });
   }
 
+  // create-page wizard: show only the fields that apply to the chosen page kind and data source
+  for (const form of document.querySelectorAll('form[data-page-wizard]')) {
+    const sync = () => {
+      const kind = (form.querySelector('input[name="kind"]:checked') || {}).value;
+      const source = kind === 'report' ? (form.querySelector('input[name="source"]:checked') || {}).value : 'table';
+      for (const el of form.querySelectorAll('[data-show-for]')) {
+        let show = el.getAttribute('data-show-for').split(' ').includes(kind);
+        const src = el.getAttribute('data-show-source');
+        if (show && src) show = src === source;
+        el.hidden = !show;
+      }
+    };
+    form.addEventListener('change', (e) => { if (e.target.name === 'kind' || e.target.name === 'source') sync(); });
+    sync();
+  }
+
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
   if (summary) summary.focus();

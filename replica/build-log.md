@@ -225,3 +225,34 @@ Lebih sulit dari perkiraan:
   database bisa mematikan server), jadi `createPool` sekarang memasang listener yang mencatat lalu melanjutkan.
 
 Belum: wizard Create Page (B4), Page Designer (B5), dukungan PK alami di form.
+
+## Fase 2 B4: wizard Create Page (2026-11-15), done (tanpa Interactive Grid)
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S07 wizard | done | dari beranda aplikasi (tombol *Tambah halaman* di region Halaman); jenis halaman sebagai kartu pilihan; field yang tidak relevan disembunyikan dengan JS (tanpa JS semua tampil, server mengabaikan yang tidak dipakai) |
+| Report + form | done | dua nomor halaman (N dan N+1), form dialog, link baris + tombol Tambah |
+| Report | done | dari tabel (termasuk tabel "report saja") atau dari query SQL; query dicoba dulu sebagai role workspace dengan skema parsing, semua bind `null`, `limit 0`, timeout 5 detik, di transaksi yang di-rollback; kolom dan tipenya diambil dari hasil itu |
+| Form | done | dialog atau halaman biasa; setelah simpan/batal kembali ke halaman pilihan |
+| Halaman kosong | done | satu region teks |
+| Cara menyimpan | done | spec aplikasi diekspor, halaman ditambahkan, lalu diimpor lagi: lewat pemeriksaan yang sama dengan impor biasa dan tercatat di riwayat versi (`dev:<username>`) |
+
+Aturan: nomor halaman 1–99998 dan belum dipakai (report + form butuh dua nomor); alias halaman unik; LOV yang sudah ada dengan nama
+sama tetapi isi berbeda tidak ditimpa (LOV baru diberi akhiran, mis. `DEPARTEMEN_2`); query harus diawali SELECT/WITH, tidak boleh
+lebih dari satu perintah, setiap kolom harus punya nama sederhana dan unik.
+
+Flow F02 diukur di e2e: dari beranda aplikasi sampai halaman report + form tersimpan = **3 aksi** (tambah halaman, pilih tabel,
+tambah), target recon sekitar 6.
+
+Verifikasi: `npm test` 132/132 (+8 di `test/b4.test.ts`: halaman baru dipakai pengguna aplikasi, form normal kembali ke halaman 1,
+report SQL dengan bind, 8 query yang ditolak tanpa mengubah data, 10 isian salah, isolasi workspace), e2e 86/86 (+1 × 2 viewport,
+axe bersih), screenshot `S07` (1440 dan 390). Parity 62.0 → 63.0; must-have 26/30 selesai + 3 sebagian.
+
+Lebih sulit dari perkiraan:
+- **Memeriksa query tanpa menjalankannya.** `limit 0` di dalam subquery + transaksi yang di-rollback + role workspace mencegah
+  perubahan data, termasuk CTE `delete … returning` (ditolak PostgreSQL di dalam FROM) dan beberapa perintah sekaligus (ditolak
+  protokol extended).
+- **Nama aksesibel kartu pilihan** awalnya berisi seluruh deskripsi, sehingga "Report" juga cocok dengan "Report + form" dan
+  "query SQL". Judul kartu kini menjadi label, deskripsinya `aria-describedby`.
+
+Belum: Interactive Grid di wizard (menunggu region IG di engine), classic report, hapus/ubah halaman (Page Designer, B5).
