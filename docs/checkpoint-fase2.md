@@ -161,7 +161,6 @@ git push origin <nama-tag>
 | --- | --- |
 | #18 | Uji menyeluruh builder: 17 kasus tepi baru. Diperbaiki: dua penyimpanan bersamaan dari versi yang sama tidak lagi menghapus salah satu perubahan diam-diam (BUG-009); setelah sesi developer berakhir, login kembali ke halaman yang sedang diedit (BUG-010) |
 | #11 | Demo publik lewat Cloudflare Tunnel untuk Docker, Ubuntu, dan Windows ([cloudflare-local-demo.md](cloudflare-local-demo.md)); pengaturan baru `RPX_BUILDER_HOSTS` dan `RPX_TRUST_PROXY`; engine bisa berjalan sebagai role `rpx_engine` |
-
 | #19 | Semua dokumentasi diperbarui dan ditulis langkah demi langkah; tutorial aplikasi pertama |
 | #20 | Pengerasan operasional ([operasional.md](operasional.md)): `rpx backup` / `rpx restore` dan `backup-lokal.cmd`, pembersihan session kedaluwarsa otomatis, nilai argumen URL tidak lagi masuk log, sesi tidak habis selama pengguna masih bekerja di halaman |
 
