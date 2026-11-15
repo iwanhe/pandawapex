@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createPool } from '../engine/db.ts';
-import { SpecError } from '../spec/import.ts';
+import { explain } from './errors.ts';
 import { addDeveloper, addUser, createWorkspace, importApp, migrate, PILOT_USERS, setupPilot } from './commands.ts';
 import { exportSpec, specToYaml } from '../spec/export.ts';
 
@@ -111,6 +111,6 @@ function need(v: string | undefined, what: string): string {
 }
 
 main().then(code => process.exit(code), e => {
-   console.error(e instanceof SpecError ? e.message : `error: ${e.message}`);
+   console.error(explain(e));
    process.exit(1);
 });
