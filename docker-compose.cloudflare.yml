@@ -1,0 +1,62 @@
+# Overlay Cloudflare Tunnel untuk instalasi Docker Compose. Panduan: docs/cloudflare-local-demo.md
+#
+#   docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml up -d --build
+#
+# - Engine tidak lagi memakai superuser postgres: service engine-role memberi kata sandi ke role rpx_engine
+#   (dibuat oleh migrasi), lalu app tersambung sebagai rpx_engine. postgres hanya dipakai setup/migrasi.
+# - cloudflared memakai tunnel yang dikelola dari dashboard (token) dan menghubungi app di http://app:8080
+#   lewat jaringan Compose. Tidak ada port yang dibuka ke internet atau LAN.
+services:
+  engine-role:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGDATABASE: rpx
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres-lokal}
+      RPX_ENGINE_PASSWORD: ${RPX_ENGINE_PASSWORD:?isi RPX_ENGINE_PASSWORD di .env (openssl rand -hex 24)}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        case "$$RPX_ENGINE_PASSWORD" in
+          *[!A-Za-z0-9._~-]*) echo "RPX_ENGINE_PASSWORD hanya boleh huruf, angka, . _ ~ - (pakai: openssl rand -hex 24)"; exit 1 ;;
+        esac
+        if [ $${#RPX_ENGINE_PASSWORD} -lt 16 ]; then echo "RPX_ENGINE_PASSWORD minimal 16 karakter"; exit 1; fi
+        echo "alter role rpx_engine with login password :'pw';" | psql -v ON_ERROR_STOP=1 -q -v pw="$$RPX_ENGINE_PASSWORD"
+        echo "role rpx_engine siap"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: "no"
+
+  app:
+    environment:
+      RPX_DATABASE_URL: postgres://rpx_engine:${RPX_ENGINE_PASSWORD:?isi RPX_ENGINE_PASSWORD di .env}@db:5432/rpx
+      RPX_PUBLIC_URL: ${RPX_PUBLIC_URL:?isi RPX_PUBLIC_URL di .env, mis. https://demo.domain-anda.com}
+      RPX_SECURE_COOKIES: "1"
+      # satu proxy tepercaya (cloudflared): IP klien diambil dari alamat yang ditambahkan Cloudflare, bukan dari header buatan klien
+      RPX_TRUST_PROXY: "1"
+      # builder hanya di hostname ini (dilindungi Cloudflare Access); "none" mematikan builder
+      RPX_BUILDER_HOSTS: ${RPX_BUILDER_HOSTS:?isi RPX_BUILDER_HOSTS di .env, mis. builder.domain-anda.com, atau none}
+    depends_on:
+      engine-role:
+        condition: service_completed_successfully
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      # dibaca cloudflared dari env, jadi token tidak tampil di daftar proses
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?isi CLOUDFLARE_TUNNEL_TOKEN di .env}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    # tanpa ports: cloudflared hanya butuh koneksi keluar ke Cloudflare

@@ -39,6 +39,10 @@ services:
       RPX_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
       RPX_SECRET: ${RPX_SECRET:?isi RPX_SECRET di file .env (openssl rand -hex 32)}
       PORT: 8080
+      # kosong = bawaan; untuk demo publik lihat docs/cloudflare-local-demo.md
+      RPX_SECURE_COOKIES: ${RPX_SECURE_COOKIES:-}
+      RPX_TRUST_PROXY: ${RPX_TRUST_PROXY:-}
+      RPX_BUILDER_HOSTS: ${RPX_BUILDER_HOSTS:-}
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:8080"
     depends_on:
