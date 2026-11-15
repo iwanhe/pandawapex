@@ -65,7 +65,8 @@ ada `start-lokal.cmd`, checklist uji, dan troubleshooting.
 4. Buka **http://localhost:8080/r/demo/emp** (user `admin`).
 
 Catatan: role `postgres` dipakai di sini supaya cepat. Untuk server bersama atau produksi, jalankan engine dengan role
-`rpx_engine` (lihat README).
+`rpx_engine` (lihat README). Untuk membuka demo ke internet lewat Cloudflare Tunnel, ikuti
+[cloudflare-local-demo.md](cloudflare-local-demo.md).
 
 ## Menambah aplikasi sendiri
 

@@ -1,167 +1,385 @@
-# Public demo + private builder hostname via Cloudflare Tunnel
+# Demo publik lewat Cloudflare Tunnel
 
-This deployment publishes the local PANDAWA APEX Docker app without exposing the
-server's inbound ports or PostgreSQL. It uses one **remotely-managed Cloudflare Tunnel**.
+Panduan ini membuka pandawapex yang berjalan di server atau laptop lokal ke internet lewat **Cloudflare Tunnel**. Tidak ada
+port yang dibuka di router dan PostgreSQL tidak ikut terekspos. Satu tunnel melayani dua hostname:
 
-## Hostname design
+| Hostname | Untuk | Perlindungan |
+| --- | --- | --- |
+| `demo.domain-anda.com` | pengguna aplikasi (`/r/...`) | login aplikasi pandawapex; WAF dan rate limit Cloudflare |
+| `builder.domain-anda.com` | developer (`/builder`) | Cloudflare Access (hanya email yang diizinkan), lalu login developer pandawapex |
 
-Replace `domain-anda.com` with the domain already active in your Cloudflare zone.
+Builder dilindungi tiga lapis:
+1. Cloudflare Access di hostname builder.
+2. `RPX_BUILDER_HOSTS`: pandawapex sendiri menjawab **404 untuk `/builder` di hostname lain**. `demo.domain-anda.com/builder`
+   tetap tertutup walaupun aturan Access salah atur.
+3. Login developer pandawapex (kunci akun setelah 5 kali gagal, rate limit per IP).
 
-| Hostname | Audience | Cloudflare policy | Origin |
+Ganti `domain-anda.com` dengan domain Anda yang sudah aktif di Cloudflare.
+
+## Pilih cara pasang
+
+| Server | Cara | Bagian |
+| --- | --- | --- |
+| Ubuntu dengan Docker | overlay Docker Compose (paling sedikit langkah) | [A](#a-docker-ubuntu-atau-windows-dengan-docker-desktop) |
+| Windows dengan Docker Desktop | overlay Docker Compose | [A](#a-docker-ubuntu-atau-windows-dengan-docker-desktop) |
+| Ubuntu tanpa Docker | Node + PostgreSQL di host, cloudflared sebagai service systemd | [B](#b-ubuntu-tanpa-docker) |
+| Windows tanpa Docker (Cmder + PostgreSQL portable, seperti [checkpoint-fase1](checkpoint-fase1.md)) | `start-lokal.cmd`, cloudflared sebagai Windows service | [C](#c-windows-tanpa-docker-cmder--postgresql-portable) |
+| Uji cepat tanpa domain | Quick Tunnel `trycloudflare.com` | [D](#d-uji-cepat-tanpa-domain-quick-tunnel) |
+
+Semua cara memakai bagian [1](#1-siapkan-di-cloudflare) dan diakhiri dengan [checklist](#4-sebelum-dibuka-ke-publik) serta
+[verifikasi](#5-verifikasi).
+
+---
+
+## 1. Siapkan di Cloudflare
+
+### 1.1 Buat tunnel
+
+1. Cloudflare dashboard → **Networking → Tunnels** (di tampilan lama: Zero Trust → Networks → Tunnels) → **Create tunnel**.
+2. Pilih tipe **Cloudflared**, beri nama misalnya `pandawapex`.
+3. Di langkah *Install and run connector*, dashboard menampilkan perintah pemasangan untuk OS yang dipilih (Docker, Debian/Ubuntu,
+   Windows), lengkap dengan **token** tunnel.
+   - Cara A (Docker): salin **hanya token**-nya (teks panjang setelah `--token`), untuk `.env`.
+   - Cara B dan C: perintah `cloudflared service install <token>` dari dashboard dipakai di bagian B2/C3.
+
+   Token ini rahasia: jangan ditempel di GitHub, issue, atau chat. Kalau bocor, buat ulang token di halaman tunnel.
+
+### 1.2 Hostname publik
+
+Di tab **Published application routes / Public Hostnames** tunnel, tambahkan dua route:
+
+| Hostname | Type | URL untuk cara A (Docker) | URL untuk cara B / C (tanpa Docker) |
 | --- | --- | --- | --- |
-| `demo.domain-anda.com` | Public demo users | No Access login; apply WAF/rate limits | `http://app:8080` |
-| `builder.domain-anda.com` | Maintainers only | Cloudflare Access: allow only named maintainer emails / IdP group | `http://app:8080` |
+| `demo.domain-anda.com` | HTTP | `app:8080` | `localhost:8080` |
+| `builder.domain-anda.com` | HTTP | `app:8080` | `localhost:8080` |
 
-**Important current-repository limitation:** PANDAWA APEX is currently Phase 1 (runtime from YAML specs).
-The visual builder is Phase 2 and is not yet implemented. The private hostname is therefore a protected
-alias to the same app service, not a functioning builder UI. Keep the Access policy in place now; when
-the builder routes are implemented, this hostname can be used without changing the tunnel connector.
+Di Docker, `localhost` menunjuk ke container cloudflared itu sendiri, jadi harus memakai nama service `app`. Tanpa Docker,
+cloudflared berjalan di mesin yang sama dengan pandawapex, sehingga memakai `localhost`.
 
-Both routes terminate at the same app container. Cloudflare Access is applied to the *builder hostname*
-at the edge, not to the public demo hostname. Do not create a broad Access policy covering the parent
-domain or the demo hostname.
+DNS untuk kedua hostname dibuat otomatis oleh Cloudflare saat route disimpan.
 
-## 1. Prerequisites
+### 1.3 Cloudflare Access untuk builder
 
-- Domain is active in Cloudflare DNS (full setup recommended).
-- Local server has Docker Engine + Compose plugin and outbound internet.
-- Cloudflare Tunnel can establish outbound connections. On restrictive firewalls, allow outbound
-  connectivity to Cloudflare Tunnel (including port 7844 as documented by Cloudflare).
-- Existing PANDAWA APEX checkout and local Compose deployment work before adding the tunnel.
+1. Zero Trust → **Access → Applications → Add an application → Self-hosted**.
+2. Domain: `builder.domain-anda.com`, tanpa path.
+3. Policy: **Allow**, *Include* → *Emails* → email developer Tim PANDAWA (atau grup IdP perusahaan).
+4. Simpan, lalu uji dengan email yang diizinkan dan yang tidak.
 
-The connector initiates outbound connections; do not port-forward 8080 or 5432 on the router.
-PostgreSQL remains private on the Docker network. The base Compose file binds its optional host ports
-to loopback (127.0.0.1), not all interfaces.
+Jangan pasang Access di `demo.domain-anda.com` atau di seluruh domain: pengguna demo cukup memakai login aplikasi.
 
-## 2. Create the remotely-managed tunnel
+### 1.4 Aturan tambahan (disarankan)
 
-1. Open Cloudflare Dashboard → **Networking → Tunnels** (in some dashboard layouts, Zero Trust → Networks → Tunnels).
-2. Select **Create tunnel**, name it `pandawapex-local`, and choose the Docker connector instructions.
-3. Copy the tunnel token. Treat it as a production secret; do not paste it into GitHub, an issue, or chat.
-4. Open **Public Hostnames / Routes** for this tunnel and add both routes:
+- **Security → WAF**: aktifkan managed rules dan buat rate limiting rule untuk `demo.domain-anda.com`.
+- Blokir `/healthz` dari luar: custom rule *Hostname equals demo.domain-anda.com AND URI Path equals /healthz → Block*.
+  Endpoint itu hanya untuk pemeriksaan kesehatan lokal.
 
-   - `demo.domain-anda.com` → Type HTTP, URL `http://app:8080`
-   - `builder.domain-anda.com` → Type HTTP, URL `http://app:8080`
+---
 
-   The service address uses Docker service DNS. Do not use `localhost:8080` from inside the
-   cloudflared container: localhost would refer to the connector container itself.
+## A. Docker (Ubuntu, atau Windows dengan Docker Desktop)
 
-5. Save. For a full Cloudflare DNS setup, adding the published routes creates the tunnel DNS records.
+Prasyarat: instalasi Docker dari [install-lokal.md](install-lokal.md#a-docker-compose-paling-cepat) sudah berjalan di
+`http://localhost:8080`. Ubuntu memakai Docker Engine + plugin Compose ([docs.docker.com/engine/install/ubuntu](https://docs.docker.com/engine/install/ubuntu/)).
+Windows memakai Docker Desktop dengan WSL 2.
 
-## 3. Configure public and private access
-
-### Public demo hostname
-
-- Do **not** attach a Cloudflare Access application/policy to `demo.domain-anda.com`.
-- Keep PANDAWA's own application login enabled. Cloudflare Tunnel is transport, not application authentication.
-- Enable Cloudflare managed WAF rules and suitable rate limiting for the demo hostname.
-- Restrict or block `/healthz` at the Cloudflare edge. The endpoint is for operational checks and should not be a public information endpoint.
-
-### Private builder hostname
-
-1. Cloudflare Zero Trust → Access controls → Applications → Add application → Self-hosted.
-2. Set hostname to `builder.domain-anda.com`.
-3. Create a **Deny by default / Allow** policy for only the maintainers' verified email addresses or organization IdP group.
-4. Enable the intended identity provider and test with an allowed and a denied account.
-5. Keep the Access application scoped to the builder hostname only.
-
-Cloudflare recommends validating Access tokens at the origin/tunnel as defense in depth (for example, Protect with Access where supported). Do not assume a hostname is private merely because its name contains "builder".
-
-## 4. Add the Compose overlay
-
-From the repository root:
+### A1. Isi `.env`
 
 ```bash
-cp .env.example .env
-cat .env.cloudflare.example >> .env
+cat .env.cloudflare.example >> .env          # Windows PowerShell: Get-Content .env.cloudflare.example | Add-Content .env
 ```
 
-Edit `.env` and set strong unique values:
+Lalu buka `.env` dan isi:
 
-- `RPX_SECRET`: `openssl rand -hex 32`
-- `RPX_DEMO_PASSWORD`: a unique password (at least 10 characters; use a password manager)
-- `POSTGRES_PASSWORD`: a strong unique database-owner password
-- `RPX_DATABASE_URL`: connection URL for the dedicated `rpx_engine` role (for example `postgres://rpx_engine:<URL-ENCODED-PASSWORD>@db:5432/rpx`)
-- `CLOUDFLARE_TUNNEL_TOKEN`: token copied from the tunnel setup page
-- `RPX_PUBLIC_URL=https://demo.domain-anda.com`
-- `RPX_SECURE_COOKIES=1`
+| Variabel | Isi |
+| --- | --- |
+| `RPX_SECRET` | `openssl rand -hex 32` |
+| `RPX_DEMO_PASSWORD` | kata sandi demo baru, minimal 10 karakter, **berbeda** dari yang dipakai lokal |
+| `POSTGRES_PASSWORD` | kata sandi kuat untuk superuser database (hanya dipakai setup) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | token dari langkah 1.1 |
+| `RPX_ENGINE_PASSWORD` | `openssl rand -hex 24` (huruf/angka saja, minimal 16 karakter) |
+| `RPX_PUBLIC_URL` | `https://demo.domain-anda.com` |
+| `RPX_BUILDER_HOSTS` | `builder.domain-anda.com` (atau `none` untuk mematikan builder) |
 
-Never commit `.env`. The token grants tunnel connectivity; rotate it in Cloudflare if exposed.
+Belum ada `openssl` di Windows? Pakai Git Bash (ikut terpasang dengan Git for Windows), atau
+`node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`.
 
-Start or update the stack:
+> Mengganti `POSTGRES_PASSWORD` setelah database terlanjur dibuat tidak mengubah kata sandi di database. Untuk instalasi
+> percobaan yang belum berisi data penting, mulai bersih dengan `docker compose down -v`.
+
+### A2. Jalankan
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml config
 docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml up -d --build
 docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml ps
 docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml logs -f cloudflared
 ```
 
-The existing base Compose services are retained. The overlay adds only the connector and does not publish
-any additional host ports.
+Yang diharapkan:
+- `setup` dan `engine-role` berstatus *exited (0)*, `engine-role` mencetak `role rpx_engine siap`.
+- `app` berstatus *healthy*.
+- Log `cloudflared` berisi `Registered tunnel connection` (biasanya empat kali).
 
-## 5. Critical application/database hardening before public exposure
+Yang dilakukan overlay `docker-compose.cloudflare.yml`:
+- **engine-role** memberi kata sandi ke role `rpx_engine` (dibuat migrasi). App kemudian tersambung sebagai `rpx_engine`, bukan
+  superuser `postgres`. `postgres` hanya dipakai `setup` untuk migrasi dan data contoh.
+- **app** mendapat `RPX_SECURE_COOKIES=1`, `RPX_PUBLIC_URL`, `RPX_TRUST_PROXY=1` (IP klien diambil dari alamat yang ditambahkan
+  Cloudflare, bukan dari header buatan klien) dan `RPX_BUILDER_HOSTS`.
+- **cloudflared** membaca token dari variabel `TUNNEL_TOKEN` (tidak tampil di daftar proses). Tanpa port, read-only, tanpa
+  capability.
 
-**Do not expose the current sample Compose stack to the public internet unchanged.** The repository's
-local quick-start intentionally uses PostgreSQL superuser credentials for convenience, including the
-app runtime. The architecture and README specify that the runtime should connect as `rpx_engine`,
-not `postgres`. This needs to be corrected for a public demo before opening the hostname.
+Port 8080 dan 55432 tetap hanya terbuka di `127.0.0.1` komputer itu. Jangan menambah port forwarding di router.
 
-Required before public use:
+Lanjut ke [checklist](#4-sebelum-dibuka-ke-publik).
 
-1. Run the initial setup/migration using the database owner/admin account, then provision/set a strong password
-   for the `rpx_engine` login role created by the migration. Use only this role in `RPX_DATABASE_URL`.
-   The Cloudflare Compose overlay requires this variable and overrides the local superuser runtime URL.
-2. Keep the database owner/admin URL for setup/migrations only; do not give it to the long-running app.
-3. Ensure workspace roles are `NOLOGIN` and the engine is the only role allowed to assume them.
-4. Change all seeded demo passwords. The local install guide currently assigns one shared password to
-   multiple pilot users; do not publish that credential. Disable or remove unused accounts.
-5. Use synthetic data only. Do not load employee, customer, financial, production, or other confidential data.
-6. Keep `DB_PORT` and `APP_PORT` bound to `127.0.0.1`. Never add a public mapping for PostgreSQL 5432.
-7. Audit `trustProxy` and forwarded headers in Fastify: only accept proxy headers from the trusted
-   tunnel path. Do not expose the app port on a LAN/WAN interface.
-8. Keep OS and Docker patched; use disk backups for PostgreSQL and test restore regularly.
+---
 
-The exact role setup must follow the current CLI/migration implementation and be validated against the
-database before deployment; do not substitute the local `postgres` password for the engine credential.
+## B. Ubuntu tanpa Docker
 
-## 6. Verification
+Contoh untuk Ubuntu 24.04 (PostgreSQL 16 tersedia di repositori bawaan). Aplikasi dipasang di `/opt/pandawapex` dan
+dijalankan systemd sebagai user `pandawapex`.
 
-On the local server:
+### B1. pandawapex
 
 ```bash
-curl -fsS http://127.0.0.1:8080/healthz
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml logs --tail=100 cloudflared
+# Node.js 22 (repositori Ubuntu masih versi lama) dan PostgreSQL
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs postgresql git
+node --version                                    # harus >= 22.18
+
+# kode
+sudo useradd --system --home /opt/pandawapex --shell /usr/sbin/nologin pandawapex
+sudo git clone https://github.com/iwanhe/pandawapex.git /opt/pandawapex
+cd /opt/pandawapex && sudo npm ci --omit=dev && sudo chown -R pandawapex: /opt/pandawapex
+
+# database, kata sandi superuser (untuk setup), data contoh
+sudo -u postgres psql -c "create database rpx"
+sudo -u postgres psql -c "alter role postgres with password '<sandi-postgres>'"
+DATABASE_URL='postgres://postgres:<sandi-postgres>@localhost/rpx' RPX_DEMO_PASSWORD='<sandi-demo-baru>' \
+  npm run rpx -- demo setup
+DATABASE_URL='postgres://postgres:<sandi-postgres>@localhost/rpx' RPX_DEMO_PASSWORD='<sandi-demo-baru>' \
+  npm run rpx -- pilot setup                      # opsional
+
+# role engine (dibuat oleh migrasi), diberi kata sandi
+ENGINE_PW=$(openssl rand -hex 24); echo "$ENGINE_PW"
+sudo -u postgres psql -d rpx -c "alter role rpx_engine with login password '$ENGINE_PW'"
 ```
 
-From a device outside the local network:
-
-- Open `https://demo.domain-anda.com/r/demo/emp` and sign in with the rotated demo account.
-- Open `https://builder.domain-anda.com`; it must show Cloudflare Access authentication.
-- Test a non-allowlisted account; it must be denied.
-- Confirm the origin is not reachable through a public IP or router port-forward.
-- Confirm PostgreSQL 5432 is not reachable externally.
-- Confirm `https://demo.domain-anda.com/healthz` is blocked/restricted by the edge rule.
-
-The application paths above are the repository's documented routes. Replace the domain placeholders with
-your actual zone before deployment.
-
-## 7. Operations
+Simpan konfigurasi engine di file yang hanya bisa dibaca root (systemd membacanya sebelum menjalankan service):
 
 ```bash
-# inspect
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml ps
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml logs -f app cloudflared
-
-# restart connector only
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml restart cloudflared
-
-# update images and rebuild app
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml pull cloudflared
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml up -d --build
-
-# stop without deleting PostgreSQL data
-docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml down
+sudo install -m 600 /dev/null /etc/pandawapex.env
+sudo tee /etc/pandawapex.env >/dev/null <<EOF
+RPX_DATABASE_URL=postgres://rpx_engine:$ENGINE_PW@localhost:5432/rpx
+RPX_SECRET=$(openssl rand -hex 32)
+HOST=127.0.0.1
+PORT=8080
+RPX_SECURE_COOKIES=1
+RPX_PUBLIC_URL=https://demo.domain-anda.com
+RPX_TRUST_PROXY=1
+RPX_BUILDER_HOSTS=builder.domain-anda.com
+EOF
 ```
 
-Do not use `down -v` unless intentionally deleting the PostgreSQL data volume.
+`/etc/systemd/system/pandawapex.service`:
+
+```ini
+[Unit]
+Description=pandawapex engine
+After=network.target postgresql.service
+
+[Service]
+User=pandawapex
+WorkingDirectory=/opt/pandawapex
+EnvironmentFile=/etc/pandawapex.env
+ExecStart=/usr/bin/node src/engine/main.ts
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now pandawapex
+curl -fsS http://127.0.0.1:8080/healthz          # {"ok":true}
+```
+
+`HOST=127.0.0.1` membuat engine hanya bisa dicapai dari mesin itu, yaitu oleh cloudflared. Itu syarat `RPX_TRUST_PROXY=1`.
+
+### B2. cloudflared
+
+Repositori resmi Cloudflare:
+
+```bash
+sudo mkdir -p --mode=0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' \
+  | sudo tee /etc/apt/sources.list.d/cloudflared.list
+sudo apt-get update && sudo apt-get install -y cloudflared
+```
+
+Pasang sebagai service dengan perintah dari dashboard (langkah 1.1, pilih Debian):
+
+```bash
+sudo cloudflared service install <TOKEN>
+sudo systemctl status cloudflared                 # active (running)
+```
+
+Di dashboard, status tunnel berubah menjadi **Healthy**. Route memakai `localhost:8080` (langkah 1.2).
+
+Memperbarui nanti:
+
+```bash
+sudo apt-get update && sudo apt-get install --only-upgrade cloudflared && sudo systemctl restart cloudflared
+cd /opt/pandawapex && sudo -u pandawapex git pull && sudo npm ci --omit=dev && sudo chown -R pandawapex: . \
+  && DATABASE_URL='postgres://postgres:<sandi-postgres>@localhost/rpx' npm run rpx -- db migrate \
+  && sudo systemctl restart pandawapex
+```
+
+Lanjut ke [checklist](#4-sebelum-dibuka-ke-publik).
+
+---
+
+## C. Windows tanpa Docker (Cmder + PostgreSQL portable)
+
+Untuk laptop atau PC yang sudah menjalankan pandawapex seperti di [checkpoint-fase1.md](checkpoint-fase1.md) dan
+[checkpoint-fase2.md](checkpoint-fase2.md) (`start-lokal.cmd`, PostgreSQL di `D:\Software\PGSQL`).
+
+### C1. Kata sandi role engine
+
+Di Cmder, dari folder repo, dengan PostgreSQL menyala:
+
+```bat
+node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+"D:\Software\PGSQL\bin\psql" -U postgres -d rpx -c "alter role rpx_engine with login password '<hasil-di-atas>'"
+```
+
+### C2. Jalankan pandawapex dalam mode publik
+
+Variabel yang di-`set` sebelum `start-lokal.cmd` tetap dipakai oleh script itu. Engine membaca `RPX_DATABASE_URL` lebih dulu
+daripada `DATABASE_URL`:
+
+```bat
+set RPX_DATABASE_URL=postgres://rpx_engine:<sandi-engine>@localhost:5432/rpx
+set RPX_PUBLIC_URL=https://demo.domain-anda.com
+set RPX_SECURE_COOKIES=1
+set RPX_TRUST_PROXY=1
+set RPX_BUILDER_HOSTS=builder.domain-anda.com
+start-lokal.cmd
+```
+
+`start-lokal.cmd` sudah memakai `HOST=127.0.0.1`, jadi engine hanya bisa dicapai dari laptop itu (oleh cloudflared).
+Biarkan jendelanya terbuka, dan atur *Power & sleep* supaya laptop tidak tidur selama demo.
+
+Dengan `RPX_BUILDER_HOSTS`, `http://localhost:8080/builder` di laptop itu juga 404. Untuk memakai builder secara lokal,
+tambahkan `localhost` ke daftar: `set RPX_BUILDER_HOSTS=builder.domain-anda.com,localhost`.
+
+### C3. cloudflared
+
+Di Command Prompt **sebagai Administrator**:
+
+```bat
+winget install --id Cloudflare.cloudflared
+```
+
+Buka jendela Administrator baru (agar PATH terbaru terbaca), lalu jalankan perintah dari dashboard (langkah 1.1, pilih Windows):
+
+```bat
+cloudflared.exe service install <TOKEN>
+sc query cloudflared
+```
+
+`STATE` harus `RUNNING`, dan di dashboard tunnel berstatus **Healthy**. Route memakai `localhost:8080` (langkah 1.2).
+Service ini ikut menyala saat Windows dinyalakan. pandawapex sendiri baru menyala setelah `start-lokal.cmd` dijalankan.
+
+cloudflared di Windows tidak memperbarui dirinya sendiri. Sesekali jalankan:
+
+```bat
+winget upgrade --id Cloudflare.cloudflared
+net stop cloudflared && net start cloudflared
+```
+
+Lanjut ke [checklist](#4-sebelum-dibuka-ke-publik).
+
+---
+
+## D. Uji cepat tanpa domain (Quick Tunnel)
+
+Untuk melihat demo dari HP atau komputer lain dalam beberapa menit, tanpa domain dan tanpa akun Cloudflare:
+
+```bash
+cloudflared tunnel --url http://localhost:8080
+```
+
+cloudflared mencetak alamat acak `https://<kata-acak>.trycloudflare.com`. Alamat itu berlaku selama perintah berjalan;
+tekan Ctrl+C untuk menutupnya. Karena tidak ada Cloudflare Access, **matikan builder** dan pakai data contoh saja:
+
+- Docker: tambahkan `RPX_BUILDER_HOSTS=none`, `RPX_TRUST_PROXY=1`, `RPX_SECURE_COOKIES=1` ke `.env`, jalankan
+  `docker compose up -d` biasa (tanpa overlay), lalu jalankan quick tunnel di host.
+- Tanpa Docker: `set RPX_BUILDER_HOSTS=none`, `set RPX_TRUST_PROXY=1`, `set RPX_SECURE_COOKIES=1` sebelum `start-lokal.cmd`.
+
+cloudflared untuk perintah ini dipasang seperti di B2 (Ubuntu) atau C3 (Windows); service tidak perlu dipasang.
+
+Quick Tunnel ditujukan untuk uji coba, bukan untuk demo yang dibagikan luas.
+
+---
+
+## 4. Sebelum dibuka ke publik
+
+- [ ] **Engine tersambung sebagai `rpx_engine`**, bukan `postgres`. Cek:
+      `select usename, count(*) from pg_stat_activity where datname = 'rpx' group by 1;`
+      Docker: `docker compose exec db psql -U postgres -d rpx -c "<query di atas>"`.
+- [ ] **Kata sandi demo diganti.** `demo setup` dan `pilot setup` memberi kata sandi yang sama (`RPX_DEMO_PASSWORD`) ke
+      semua user contoh dan ke developer `admin`. Lewat `builder.domain-anda.com`:
+      *Pengguna aplikasi* → buka tiap user → atur ulang kata sandi, kunci atau hapus yang tidak dipakai.
+      *Akun saya* untuk kata sandi developer `admin`.
+- [ ] **Data contoh saja.** Jangan memuat data karyawan, pelanggan, keuangan, atau data produksi.
+- [ ] **Builder tertutup di hostname demo**: `https://demo.domain-anda.com/builder` menjawab 404.
+- [ ] **Builder di balik Access**: `https://builder.domain-anda.com` meminta login Cloudflare, dan email lain ditolak.
+- [ ] **`RPX_TRUST_PROXY=1` hanya bila engine tidak bisa dicapai langsung** (Docker dengan port `127.0.0.1`, atau
+      `HOST=127.0.0.1`). Bila engine juga terbuka di LAN, pakai `RPX_TRUST_PROXY=false`.
+- [ ] **Tidak ada port forwarding** 8080 atau 5432 di router.
+- [ ] `/healthz` diblokir di Cloudflare (langkah 1.4).
+- [ ] Backup database terjadwal (`pg_dump`), dan restore pernah dicoba.
+
+## 5. Verifikasi
+
+Dari perangkat di luar jaringan lokal (misalnya HP dengan data seluler):
+
+| Buka | Yang diharapkan |
+| --- | --- |
+| `https://demo.domain-anda.com/r/demo/emp` | halaman login aplikasi; login dengan kata sandi baru berhasil |
+| `https://demo.domain-anda.com/r/pandawa/demo` | pilot Demo Permintaan Barang (bila `pilot setup` dijalankan) |
+| `https://demo.domain-anda.com/builder` | 404 "Halaman tidak ditemukan" |
+| `https://builder.domain-anda.com/builder` | login Cloudflare Access, lalu login developer pandawapex |
+| `https://builder.domain-anda.com/builder` dengan email yang tidak diizinkan | ditolak oleh Cloudflare |
+| `https://demo.domain-anda.com/healthz` | diblokir oleh aturan WAF |
+| IP publik rumah/kantor port 8080 atau 5432 | tidak bisa dibuka |
+
+## 6. Operasional
+
+| | Docker | Ubuntu tanpa Docker | Windows tanpa Docker |
+| --- | --- | --- | --- |
+| Status | `docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml ps` | `systemctl status pandawapex cloudflared` | `sc query cloudflared`, jendela `start-lokal.cmd` |
+| Log | `... logs -f app cloudflared` | `journalctl -u pandawapex -u cloudflared -f` | jendela `start-lokal.cmd`; Event Viewer untuk cloudflared |
+| Restart tunnel | `... restart cloudflared` | `sudo systemctl restart cloudflared` | `net stop cloudflared && net start cloudflared` |
+| Perbarui pandawapex | `git pull`, lalu `... up -d --build` | lihat akhir B2 | `git pull`, `npm install`, `npm run rpx -- db migrate`, jalankan ulang |
+| Matikan | `... down` (data tetap ada) | `sudo systemctl stop pandawapex cloudflared` | tutup jendela, `net stop cloudflared` |
+
+`...` = `docker compose -f docker-compose.yml -f docker-compose.cloudflare.yml`. Jangan memakai `down -v` kecuali memang ingin
+menghapus database.
+
+## Troubleshooting
+
+| Gejala | Penyebab dan solusi |
+| --- | --- |
+| **502 Bad Gateway** di hostname | route mengarah ke alamat yang salah (Docker: `app:8080`; tanpa Docker: `localhost:8080`) atau pandawapex belum menyala (`/healthz` di server) |
+| `Provided Tunnel token is not valid` di log cloudflared | token terpotong atau salah salin; salin ulang dari halaman tunnel |
+| `engine-role` gagal: "hanya boleh huruf, angka" | `RPX_ENGINE_PASSWORD` berisi karakter lain; buat ulang dengan `openssl rand -hex 24` |
+| `password authentication failed for user "rpx_engine"` | kata sandi di `RPX_DATABASE_URL` berbeda dengan di database; ulangi `alter role rpx_engine ...` (Docker: `docker compose ... up -d` menjalankan `engine-role` lagi) |
+| `password authentication failed for user "postgres"` di `setup` (Docker) | `POSTGRES_PASSWORD` diganti setelah database dibuat; kembalikan, atau mulai bersih dengan `down -v` |
+| Builder 404 di `builder.domain-anda.com` | nilai `RPX_BUILDER_HOSTS` tidak sama persis dengan hostname (tanpa `https://`, tanpa garis miring) |
+| Login berhasil tapi kembali ke halaman login | `RPX_SECURE_COOKIES=1` dipakai lewat `http://` dari komputer lain; buka lewat hostname `https://` |
+| Rate limit login mengenai semua pengguna sekaligus | `RPX_TRUST_PROXY=false` padahal lewat cloudflared, sehingga semua permintaan terlihat dari IP cloudflared; pakai `1` |

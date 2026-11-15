@@ -32,6 +32,34 @@ export interface ServerOptions {
    allowInsecureOidc?: boolean;
    /** login / SSO attempts per IP per minute */
    loginRateLimit?: number;
+   /**
+    * Which proxies to believe for the client IP (rate limits, logs): Fastify's `trustProxy`.
+    * Default true (any). Behind one local proxy such as cloudflared use 1; exposed directly use false.
+    */
+   trustProxy?: boolean | number | string;
+   /**
+    * Host names that may serve the builder (/builder). Unset: every host. Empty list: nowhere (builder off).
+    * Compared with the Host header, so a public demo host can refuse the builder even when the edge is misconfigured.
+    */
+   builderHosts?: string[];
+}
+
+/** RPX_TRUST_PROXY: "true" | "false" | hop count | comma-separated addresses/CIDRs. Unset keeps the default (true). */
+export function parseTrustProxy(v: string | undefined): boolean | number | string | undefined {
+   const s = (v ?? '').trim().toLowerCase();
+   if (!s) return undefined;
+   if (s === 'true') return true;
+   if (s === 'false' || s === '0') return false;
+   if (/^\d+$/.test(s)) return Number(s);
+   return s;
+}
+
+/** RPX_BUILDER_HOSTS: comma-separated host names, or "none". Unset: builder on every host. */
+export function parseBuilderHosts(v: string | undefined): string[] | undefined {
+   const s = (v ?? '').trim().toLowerCase();
+   if (!s) return undefined;
+   if (s === 'none') return [];
+   return s.split(',').map(h => h.trim().replace(/:\d+$/, '')).filter(Boolean);
 }
 
 const STATIC_DIR = join(import.meta.dirname, '../client');
@@ -45,7 +73,9 @@ const getDummyHash = () => (dummyHash ??= hash(randomUUID()));
 
 export function buildServer(opts: ServerOptions): FastifyInstance {
    if (!opts.secret || opts.secret.length < 32) throw new Error('RPX_SECRET must be at least 32 characters');
-   const app = Fastify({ logger: opts.logger ?? false, trustProxy: true, bodyLimit: 1024 * 1024 });
+   // a hop count is supported at runtime (Fastify docs) but missing from its types
+   const trustProxy = (opts.trustProxy ?? true) as boolean;
+   const app = Fastify({ logger: opts.logger ?? false, trustProxy, bodyLimit: 1024 * 1024 });
    app.register(formbody);
    app.register(cookie);
    app.register(rateLimit, { global: false });
@@ -75,6 +105,15 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
    });
 
    // ---------- builder (Phase 2) ----------
+   if (opts.builderHosts) {
+      const allowed = new Set(opts.builderHosts);
+      // the raw Host header, not X-Forwarded-Host: a client can add that header, but cannot choose the Host the edge routed on
+      app.addHook('onRequest', async (req, reply) => {
+         if (!/^\/builder(\/|\?|$)/.test(req.url)) return;
+         const host = String(req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '');
+         if (!allowed.has(host)) return html(reply, errorPage(404, 'Halaman tidak ditemukan', 'Alamat yang Anda buka tidak ada.', null).value, 404);
+      });
+   }
    registerBuilder(app, { pool: opts.pool, secureCookies: opts.secureCookies ?? false, loginLimit });
 
    app.get('/healthz', async () => {

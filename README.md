@@ -60,6 +60,10 @@ Ekspor dari CLI: `npm run rpx -- app export demo --ws pandawa --out demo.yaml`; 
 
 Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.
 
+**Demo publik lewat Cloudflare Tunnel** (Docker, Ubuntu tanpa Docker, atau Windows tanpa Docker), termasuk role `rpx_engine`,
+builder di hostname terpisah yang dilindungi Cloudflare Access (`RPX_BUILDER_HOSTS`), dan `RPX_TRUST_PROXY`:
+**[docs/cloudflare-local-demo.md](docs/cloudflare-local-demo.md)**.
+
 SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/backend.md](replica/backend.md#konfigurasi-sso-di-spec).
 
 ## Aturan spec yang perlu diketahui developer APEX
@@ -110,7 +114,7 @@ replica/            dokumen perencanaan: recon, arsitektur, design system, build
 
 ## Dokumen
 
-- [Panduan penggunaan](docs/panduan-pengguna.md) · [Checkpoint 2 (builder)](docs/checkpoint-fase2.md) · [Checkpoint 1 (instalasi)](docs/checkpoint-fase1.md)
+- [Panduan penggunaan](docs/panduan-pengguna.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Checkpoint 2 (builder)](docs/checkpoint-fase2.md) · [Checkpoint 1 (instalasi)](docs/checkpoint-fase1.md)
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
 - [Design system](replica/design/components.md)
