@@ -21,6 +21,7 @@ Baru pertama kali? Pilih baris yang sesuai, lalu ikuti dokumennya dari atas ke b
 | **memperbarui** instalasi yang sudah ada ke versi terbaru | [docs/install-lokal.md#memperbarui-ke-versi-terbaru](docs/install-lokal.md#memperbarui-ke-versi-terbaru) | ± 5 menit |
 | membuat **aplikasi pertama** dari tabel sendiri | [docs/panduan-pengguna.md, bagian 2](docs/panduan-pengguna.md#2-tutorial-aplikasi-pertama-dari-tabel-sendiri) | ± 20 menit |
 | memakai builder sehari-hari (wizard, Page Designer, akun, ekspor) | [docs/panduan-pengguna.md](docs/panduan-pengguna.md) | |
+| membuat **backup**, memulihkan, memahami session dan log | [docs/operasional.md](docs/operasional.md) | ± 15 menit |
 | membuka demo ke **internet** lewat Cloudflare Tunnel | [docs/cloudflare-local-demo.md](docs/cloudflare-local-demo.md) | ± 30 menit |
 | memindahkan aplikasi APEX ke pandawapex | [examples/demo-permintaan/PORTING.md](examples/demo-permintaan/PORTING.md) | |
 | mengubah kode pandawapex (tes, struktur folder) | bagian [Tes](#tes) dan [Struktur](#struktur) di bawah | |
@@ -75,7 +76,13 @@ npm run rpx -- app import apps/penerimaan.yaml --ws gudang  # impor atau ganti a
 npm run rpx -- app export demo --ws pandawa --out demo.yaml # ekspor spec aplikasi
 npm run rpx -- user add --ws gudang --username sri --password 'min-10-karakter' --group Gudang
 npm run rpx -- dev add --ws gudang --username budi --password 'min-10-karakter' --admin
+npm run rpx -- backup --keep 14                             # backup database + role ke folder backups
+npm run rpx -- restore backups/<file>.dump --to rpx_restore # pulihkan ke database baru (tidak menimpa yang berjalan)
+npm run rpx -- session purge                                # hapus session kedaluwarsa (server juga melakukannya otomatis)
 ```
+
+Pada instalasi Docker, perintah yang sama dijalankan dengan `docker compose run --rm rpx <perintah>`,
+mis. `docker compose run --rm rpx backup --keep 14`.
 
 Detail tiap perintah: [panduan-pengguna.md, bagian 11](docs/panduan-pengguna.md#11-perintah-cli).
 
@@ -89,6 +96,8 @@ Engine dan CLI dikonfigurasi lewat variabel lingkungan. Daftar lengkap dengan pe
 | `RPX_DATABASE_URL` | koneksi engine; bila kosong memakai `DATABASE_URL` | produksi/demo publik: role `rpx_engine` |
 | `RPX_SECRET` | kunci acak ≥ 32 karakter untuk checksum URL dan form | selalu (`start-lokal.cmd` membuatnya otomatis) |
 | `PORT`, `HOST` | port dan alamat dengar (bawaan `8080`, `0.0.0.0`; `start-lokal.cmd` memakai `127.0.0.1`) | port 8080 sudah dipakai |
+| `RPX_PURGE_MINUTES` | selang pembersihan session kedaluwarsa, dalam menit (bawaan `15`; `0` = mati) | jarang perlu diubah |
+| `PGHOME` | folder PostgreSQL, untuk `rpx backup` / `rpx restore` bila `pg_dump` tidak ada di PATH | Windows |
 | `RPX_SECURE_COOKIES` | `1` = cookie hanya lewat HTTPS | di balik HTTPS |
 | `RPX_PUBLIC_URL` | alamat publik, untuk callback SSO | di balik domain / SSO |
 | `RPX_TRUST_PROXY` | proxy yang dipercaya untuk IP klien: `true` (bawaan), `false`, `1` | `1` di balik Cloudflare Tunnel |
@@ -145,24 +154,26 @@ src/engine/         server, session, render halaman, proses, bind translator, re
 src/spec/           JSON Schema spec + importer YAML -> rpx.* + exporter rpx.* -> YAML
 src/builder/        builder (/builder): login & sesi developer, akun, wizard Create App / Create Page,
                     Page Designer + properti aplikasi, introspeksi tabel, generator halaman, impor/ekspor
-src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add | demo/pilot setup
+src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add | demo/pilot setup |
+                    backup | restore | session purge
 src/client/         tokens.css + components.css (design system) + rpx.js (perilaku di browser)
 examples/emp/       aplikasi contoh Data Karyawan (report + form dialog)
 examples/demo-permintaan/  pilot porting dari APEX (17 halaman, approval 2 level)
-docs/               instalasi, panduan pengguna, checkpoint, demo publik
+docs/               instalasi, panduan pengguna, panduan operasional, checkpoint, demo publik
 test/               tes integrasi (node:test) terhadap PostgreSQL nyata
 e2e/                tes browser Playwright
 tools/              skrip pendukung: skor parity, sensus komponen APEX, diff screenshot
 replica/            dokumen perencanaan: recon, arsitektur, design system, build log, test plan, bugs
 Dockerfile, docker-compose.yml, docker-compose.cloudflare.yml   instalasi Docker dan overlay Cloudflare Tunnel
 start-lokal.cmd     menjalankan pandawapex di Windows tanpa Docker (Cmder)
+backup-lokal.cmd    backup database di Windows tanpa Docker (bisa dijadwalkan dengan Task Scheduler)
 .env.example        daftar semua variabel lingkungan
 ```
 
 ## Dokumen
 
 - [Instalasi lokal](docs/install-lokal.md) · [Checkpoint 1: Windows + Cmder dari nol](docs/checkpoint-fase1.md) · [Checkpoint 2: builder](docs/checkpoint-fase2.md)
-- [Panduan penggunaan](docs/panduan-pengguna.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Porting dari APEX](examples/demo-permintaan/PORTING.md)
+- [Panduan penggunaan](docs/panduan-pengguna.md) · [Panduan operasional: backup, restore, session, log](docs/operasional.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Porting dari APEX](examples/demo-permintaan/PORTING.md)
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
 - [Design system](replica/design/components.md)

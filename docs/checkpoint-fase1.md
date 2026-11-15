@@ -196,6 +196,8 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 **Memperbarui ke versi terbaru**: ikuti [checkpoint-fase2.md](checkpoint-fase2.md#memperbarui-dari-checkpoint-1).
 Data dan aplikasi buatan sendiri tetap ada.
 
+**Backup** sebelum mengubah banyak hal: `backup-lokal.cmd` ([operasional.md](operasional.md)).
+
 **Mengulang dari nol** (semua aplikasi, akun, dan data contoh hilang):
 
 ```cmd

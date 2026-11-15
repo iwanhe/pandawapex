@@ -162,12 +162,17 @@ git push origin <nama-tag>
 | #18 | Uji menyeluruh builder: 17 kasus tepi baru. Diperbaiki: dua penyimpanan bersamaan dari versi yang sama tidak lagi menghapus salah satu perubahan diam-diam (BUG-009); setelah sesi developer berakhir, login kembali ke halaman yang sedang diedit (BUG-010) |
 | #11 | Demo publik lewat Cloudflare Tunnel untuk Docker, Ubuntu, dan Windows ([cloudflare-local-demo.md](cloudflare-local-demo.md)); pengaturan baru `RPX_BUILDER_HOSTS` dan `RPX_TRUST_PROXY`; engine bisa berjalan sebagai role `rpx_engine` |
 
-Kondisi terbaru: `npm test` 160 lulus, tes browser 96 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
+| #19 | Semua dokumentasi diperbarui dan ditulis langkah demi langkah; tutorial aplikasi pertama |
+| #20 | Pengerasan operasional ([operasional.md](operasional.md)): `rpx backup` / `rpx restore` dan `backup-lokal.cmd`, pembersihan session kedaluwarsa otomatis, nilai argumen URL tidak lagi masuk log, sesi tidak habis selama pengguna masih bekerja di halaman |
+
+Kondisi terbaru: `npm test` 169 lulus, tes browser 102 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
 `0006_builder.sql`, jadi memperbarui cukup dengan `git pull` (lihat langkah di atas).
 
 ## Langkah berikutnya
 
 1. Catatan dari uji lokal Tim PANDAWA diperbaiki lebih dulu.
-2. Interactive Grid: menutup must-have terakhir dan flow F06.
-3. Dynamic Actions.
-4. Developer toolbar dan debug (F10).
+2. Dynamic Actions: celah terbesar menurut sensus komponen aplikasi contoh APEX (cakupan 78,2% menjadi 86,5%).
+3. Region tambahan: list, tab, dynamic content, cards.
+4. Interactive Grid: menutup must-have terakhir dan flow F06.
+5. Format angka/tanggal saat input, upload file.
+6. Developer toolbar dan debug (F10), saved report.

@@ -8,3 +8,6 @@ test-results
 *.log
 .env
 .env.*
+backups
+*.dump
+*.roles.sql

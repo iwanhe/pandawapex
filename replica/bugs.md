@@ -186,10 +186,10 @@ Status: fixed in `03e4211`. Untuk POST dipakai Referer, tetapi hanya bila dari h
 
 ## To check (belum direproduksi sebagai bug)
 
-- **Isian builder hilang saat sesi developer berakhir** (lanjutan BUG-010): developer kembali ke halaman yang benar, tetapi perubahan yang belum tersimpan hilang. Batas idle builder 1 jam. Bila tim sering kena, pertimbangkan perpanjangan sesi otomatis selama tab builder terbuka.
+- ~~**Isian builder hilang saat sesi developer berakhir**~~ (lanjutan BUG-010): **ditangani 2026-11-15.** Aktivitas di halaman (mengetik, mengeklik) kini memperpanjang sesi, sehingga sesi tidak habis di tengah mengisi form. Tab yang hanya terbuka tetap berakhir setelah 1 jam, dan batas 8 jam sejak login tetap.
 - **Query SQL report di wizard Create Page hanya dideskripsikan** (`limit 0`), tidak dijalankan. Query yang lambat (`pg_sleep`) tetap diterima dan baru dihentikan saat runtime oleh `statement_timeout` 30 detik. Disengaja, tapi developer tidak mendapat peringatan saat membuat halaman.
-- **Isian hilang saat session kedaluwarsa** (F04-E7): setelah login ulang user kembali ke form, tetapi ketikannya hilang. APEX berperilaku serupa. Kalau terasa mengganggu bagi user gudang yang lama di satu form, pertimbangkan perpanjangan session otomatis.
-- **Access log memuat argumen URL** (`P2_EMPNO=…`) sekali sebelum redirect 303. Sudah tercatat di `backend.md`, rencana redaksi di M5.
+- ~~**Isian hilang saat session kedaluwarsa**~~ (F04-E7): **ditangani 2026-11-15** dengan cara yang sama (keep-alive berbasis aktivitas, juga di dalam form dialog). Yang tersisa: form yang ditinggal lebih dari batas idle tetap kehilangan isiannya.
+- ~~**Access log memuat argumen URL**~~: **ditangani 2026-11-15.** Log akses hanya mencatat nama argumen, nilainya diganti `*`.
 - **Format angka** di report memakai `to_char` + `replace` di SQL contoh. Format mask per item (M3) harus menggantikan pola ini.
 - **Switch pada kolom boolean yang boleh null**: nilai `null` tampil sebagai "off" dan tersimpan sebagai `N` (false) saat form disimpan. Untuk kolom `not null` (contoh: `aktif`) tidak masalah. Untuk kolom nullable, pakai radio Ya/Tidak/(kosong).
 - **Refresh setelah error validasi** mengirim ulang POST lama → halaman 409 "Formulir sudah dikirim". Ketikan tidak hilang di browser (Back), tapi pesannya bisa membingungkan. Perilaku token sekali pakai ini disengaja (BUG-004).

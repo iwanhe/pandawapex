@@ -14,7 +14,7 @@ jadi tidak dibangun. Email transaksional berstatus `could` (`APEX_MAIL` equivale
 | Pembatasan domain | ✅ | `allowed_domains` dicek terhadap email atau klaim `hd`; `email_verified: false` ditolak |
 | Benturan nama | ✅ | nama SSO yang sama dengan akun lokal **tidak** digabung (409); admin yang memutuskan |
 | Gabungan SSO + kata sandi | ✅ | `allow_builtin: true` menampilkan tombol SSO dan form kata sandi |
-| Session | ✅ | cookie httpOnly, SameSite=Lax, Secure di produksi (`RPX_SECURE_COOKIES=1`), path per aplikasi; idle + absolute timeout |
+| Session | ✅ | cookie httpOnly, SameSite=Lax, Secure di produksi (`RPX_SECURE_COOKIES=1`), path per aplikasi; idle + absolute timeout; idle dihitung dari aktivitas terakhir di halaman (`…/keepalive`, paling sering tiap 5 menit, hanya bila ada aktivitas) |
 | Keluar dari semua perangkat | ⬜ | belum. Rencana: `rpx user logout-all` / tombol admin |
 | Single logout ke IdP | ⬜ | belum. Keluar hanya mengakhiri session aplikasi, bukan session di Entra/Google |
 
@@ -66,14 +66,14 @@ dokumentasi resmi saat mengonfigurasi.
 | Isolasi antar-user | ✅ | session, checksum URL, dan token versi baris terikat ke salt per session (dites: link dari session lain → 403) |
 | **Lost update** | ✅ | form_init menandatangani hash baris (HMAC per session); form_dml membaca ulang `FOR UPDATE` dan menolak bila berbeda. Berlaku untuk update dan delete. Validasi gagal tidak "menyegarkan" versi diam-diam |
 | Seed data realistis | ✅ | `examples/emp/seed.sql` (nama fiktif) |
-| Backup | ⬜ | **tanggung jawab infra**: aktifkan backup harian PostgreSQL (pgBackRest / snapshot RDS) sebelum go-live. Belum diverifikasi |
+| Backup | ✅ | `rpx backup` (pg_dump format custom + file role yang dibutuhkan database) dan `rpx restore` (hanya ke database baru/kosong, satu transaksi, lalu migrasi); `backup-lokal.cmd` untuk Task Scheduler; service `rpx` di Docker Compose. Diuji bolak-balik termasuk kehilangan role workspace. Panduan: `docs/operasional.md`. Menjadwalkan dan menyalin ke luar mesin tetap tugas operator |
 
 ## Email & jobs
 
 | bagian | status |
 | --- | --- |
 | Email transaksional (SMTP relay internal) | ⬜ could, belum |
-| Job pembersihan session/debug/activity | ⬜ M5 (`purge_sessions`, dsb. di `architecture.md`) |
+| Job pembersihan session | ✅ tiap `RPX_PURGE_MINUTES` (bawaan 15) di dalam engine, satu instance sekaligus (advisory lock), per batch 5000; juga `rpx session purge`. `debug_messages` ikut terhapus bersama session; `activity_log` belum ditulis siapa pun, jadi belum perlu job |
 
 ## Integrasi
 
@@ -87,7 +87,7 @@ Tidak ada integrasi pihak ketiga di Fase 1 selain IdP. SAP/EBS lewat REST data s
 - [x] rate limit pada login kata sandi dan rute SSO (default 20/menit/IP, `RPX_LOGIN_RATE_LIMIT`) + kunci akun
 - [x] webhooks: tidak ada di Fase 1
 - [x] upload: belum ada fitur upload (akan dibatasi ukuran/tipe saat item File dibuat)
-- [~] data di URL: argumen item (mis. `P2_EMPNO`) dibuang dari address bar lewat redirect 303, tetapi masih tercatat sekali di access log Fastify. Body dan kata sandi tidak pernah di-log. Rencana: redaksi query string di logger (M5)
+- [x] data di URL: argumen item (mis. `P2_EMPNO`) dibuang dari address bar lewat redirect 303, dan log akses hanya mencatat jalur dan **nama** argumen (`?P2_EMPNO=*&cs=*`). Body dan kata sandi tidak pernah di-log
 - [x] `npm audit --omit=dev`: 0 kerentanan (2026-11-13)
 - [ ] kebijakan privasi internal: catat pemroses data (host server, IdP Microsoft/Google). Perlu dari Legal/IT governance KCSI
 - [x] CSRF token di semua POST, CSP ketat (`script-src 'self'`), output di-escape secara default

@@ -45,5 +45,12 @@ jobs:
           curl -fsS http://localhost:8080/r/demo/emp/login | grep -q 'Nama pengguna'
           curl -fsS http://localhost:8080/r/pandawa/demo/login | grep -q 'Nama pengguna'
           docker compose logs setup
+      - name: backup and restore (docs/operasional.md)
+        run: |
+          docker compose run --rm rpx backup --keep 14
+          ls -l backups
+          docker compose run --rm rpx restore "$(ls backups/*.dump | tail -1)" --to rpx_restore | tee restore.log
+          grep -q 'restore selesai ke database "rpx_restore": 2 workspace, 2 aplikasi' restore.log
+          docker compose run --rm rpx session purge
       - if: failure()
         run: docker compose logs

@@ -1,5 +1,5 @@
 // pandawapex client runtime: confirm buttons, double-submit guard, mobile nav toggle, modal pages,
-// interactive reports, cascading lists and popup LOV.
+// interactive reports, cascading lists, popup LOV and session keep-alive.
 // No inline handlers anywhere (CSP script-src 'self').
 (() => {
   'use strict';
@@ -417,6 +417,22 @@
     const fallback = sel.form && sel.form.querySelector('[data-autosubmit-fallback]');
     if (fallback) fallback.hidden = true;
     sel.addEventListener('change', () => sel.form.submit());
+  }
+
+  // Keep the session alive while the user is working in this page (typing in a long form), so that the idle timeout
+  // counts from the last activity instead of the last page load. A tab that is merely open still idles out.
+  const scope = location.pathname.match(/^\/builder(?=\/|$)|^\/r\/[^/]+\/[^/]+/);
+  if (scope && !/\/login$/.test(location.pathname)) {
+    let active = false;
+    const mark = () => { active = true; };
+    for (const ev of ['keydown', 'pointerdown', 'input']) document.addEventListener(ev, mark, { capture: true, passive: true });
+    const timer = setInterval(() => {
+      if (!active) return;
+      active = false;
+      fetch(`${scope[0]}/keepalive`, { credentials: 'same-origin', cache: 'no-store' })
+        .then((r) => { if (r.status === 401) clearInterval(timer); })   // the session is gone: stop asking
+        .catch(() => {});                                               // offline: try again next time
+    }, 5 * 60 * 1000);
   }
 
   // move focus to the error summary after a failed submit

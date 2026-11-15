@@ -33,12 +33,33 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Perintah admin (CLI). Tidak ikut "up"; dijalankan saat perlu:
+  #   docker compose run --rm rpx backup --keep 14
+  #   docker compose run --rm rpx restore backups/<file>.dump --to rpx_restore
+  #   docker compose run --rm rpx ws create latihan --schema latihan_app
+  rpx:
+    build: .
+    profiles: ["tools"]
+    user: root                         # agar bisa menulis ke folder ./backups milik siapa pun di host
+    entrypoint: ["node", "src/cli/rpx.ts"]
+    command: ["--help"]
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
+      RPX_DEMO_USER: ${RPX_DEMO_USER:-admin}
+      RPX_DEMO_PASSWORD: ${RPX_DEMO_PASSWORD:-}
+    volumes:
+      - ./backups:/app/backups         # hasil "backup" muncul di folder backups di samping file ini
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build: .
     environment:
       RPX_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres-lokal}@db:5432/rpx
       RPX_SECRET: ${RPX_SECRET:?isi RPX_SECRET di file .env (openssl rand -hex 32)}
       PORT: 8080
+      RPX_PURGE_MINUTES: ${RPX_PURGE_MINUTES:-}
       # kosong = bawaan; untuk demo publik lihat docs/cloudflare-local-demo.md
       RPX_SECURE_COOKIES: ${RPX_SECURE_COOKIES:-}
       RPX_TRUST_PROXY: ${RPX_TRUST_PROXY:-}

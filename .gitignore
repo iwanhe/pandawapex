@@ -10,3 +10,9 @@ replica/design/primitives.html
 e2e/report/
 e2e/.state.json
 test-results/
+
+# backup dari `rpx backup` (berisi data dan hash kata sandi)
+backups/
+*.dump
+*.roles.sql
+__pycache__/
