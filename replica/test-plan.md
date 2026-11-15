@@ -231,3 +231,34 @@ Run: `npm test` 132/132, e2e 86/86 (2 skip). Bug baru: tidak ada.
 
 Run: `npm test` 142/142, e2e 90/90 (2 skip). Bug baru: 1 (S3, aksi kepala halaman tidak turun baris di 390 px sehingga halaman bisa
 digeser ke samping), diperbaiki.
+
+## Uji menyeluruh Fase 2: builder B1–B5 (2026-11-15, build `e2cce86` → `03e4211`)
+
+Kasus baru dari daftar edge case `replica-test` yang belum dicakup tes per milestone. Tes: `test/f2-edge.test.ts` (int) dan
+`e2e/f2-edge.spec.ts` (desktop + mobile).
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| F01-E5 | F01/F02/F03 | edge: markup di nama aplikasi, nama halaman, label, bantuan | di-escape di semua layar builder dan runtime | int | ✅ |
+| F01-E6 | F01 | edge: input sangat panjang, aksen, emoji | nama 500 karakter dan alias 200 → 422; "Pengajuan Cuti — Ñoño 🎉" tersimpan dan tampil; alias ber-aksen → 422 | int | ✅ |
+| F02-E5 | F02 | edge: nama halaman 400 karakter / hanya emoji; label item 5000 karakter | 422 / diterima / diterima | int | ✅ |
+| B2-E4 | akun | edge: nama pengguna 61 karakter, emoji, spasi | 422 | int | ✅ |
+| F02-E6 | F02 | edge: kirim ganda wizard halaman | satu halaman, satu menu | int (+ guard kirim ganda di klien) | ✅ |
+| F03-E3 | F03 | edge: dua developer menyimpan bersamaan | keduanya tersimpan atau satu 409; tidak ada yang hilang diam-diam | int | ✅ setelah fix (BUG-009) |
+| F02-E4 | F02/F03 | edge: wizard halaman bersamaan dengan simpan designer | sama seperti di atas; 409 menyimpan isian | int | ✅ setelah fix (BUG-009) |
+| F03-E2 | F03 | edge: dua tab | simpan kedua → peringatan difokuskan, isian tetap; simpan lagi = menimpa dengan sengaja | e2e | ✅ |
+| S13-E1 | S13 | edge: properti dari tab lama setelah halaman ditambah di tab lain | 409, halaman baru tetap ada | int | ✅ |
+| F03-E4 | F03 | edge: sesi berakhir saat mengedit | login lalu kembali ke komponen yang sama; Referer dari situs lain, runtime, atau login diabaikan | int | ✅ setelah fix (BUG-010) |
+| F02-N4 | F02 | negatif: SQL report membaca `rpx.dev_users`, `rpx.sessions`, `rpx.app_users`, `rpx.app_versions` | 422 (role workspace tidak punya hak) | int | ✅ |
+| F02-E7 | F02 | edge: query lambat (`pg_sleep(20)`) | wizard tidak menunggu (< 5 detik) | int | ✅ (lihat "To check") |
+| F03-E5 | F03 | edge: ganti nama item yang masih dirujuk | 422 dengan alasan, nama lama tetap | int | ✅ |
+| F03-N5 | F03 | negatif: aplikasi dihapus di tab lain lalu Simpan | 404 dengan tautan ke daftar aplikasi | int | ✅ |
+| B1-E8 | builder | edge: Back setelah keluar | `Cache-Control: no-store` di halaman builder; Back menampilkan login, bukan data | int, e2e | ✅ |
+| B1-E9 | builder | edge: spec > 1 MB | 413 berupa halaman HTML dengan tautan kembali | int | ✅ |
+| F01-E1 | F01/F03 | edge: keyboard saja | login → wizard → buat aplikasi → designer → ubah label → simpan, tanpa mouse | e2e (2 viewport) | ✅ |
+
+Tidak dites: jaringan lambat dan offline (semua layar builder dirender server, tanpa state di klien selain guard kirim ganda);
+zona waktu (waktu di builder selalu ditampilkan dalam Asia/Jakarta, disengaja untuk KCSI).
+
+Run: `npm test` 156/156, e2e 96/96 (2 skip). Bug baru: 2 (S2 BUG-009, S3 BUG-010), keduanya diperbaiki dengan tes yang gagal
+lebih dulu. Tidak ada S1/S2 yang terbuka.

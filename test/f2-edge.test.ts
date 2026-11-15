@@ -66,12 +66,13 @@ describe('builder edge cases (Fase 2 full pass)', () => {
       const lp = await dev.post('/builder/apps/cuti/pages/new', { __csrf: pcsrf, kind: 'blank', name: 'H'.repeat(400), page: '20', nav: '1' });
       assert.equal(lp.statusCode, 422, `long page name: ${lp.statusCode}`);
       const ep = await dev.post('/builder/apps/cuti/pages/new', { __csrf: pcsrf, kind: 'blank', name: '🎉🎉', page: '21', nav: '1' });
-      assert.ok([303, 422].includes(ep.statusCode), `emoji page name: ${ep.statusCode} ${ep.body.slice(0, 400)}`);
+      assert.equal(ep.statusCode, 303, `emoji page name: ${ep.body.slice(0, 400)}`);
+      assert.ok((await exportSpec(env.pool, env.ws, 'cuti')).pages.some(p => p.page === 21 && p.name === '🎉🎉'));
       // designer: a very long label
       const d = await dev.get('/builder/apps/emp/pages/2?node=item:0:2');
       const form = formFields(d.body.slice(d.body.indexOf('id="editor-title"') - 400));
       const ll = await dev.post('/builder/apps/emp/pages/2', { ...form, node: 'item:0:2', action: 'save', 'f.label': 'L'.repeat(5000) });
-      assert.ok([303, 422].includes(ll.statusCode), `long label: ${ll.statusCode}`);
+      assert.equal(ll.statusCode, 303, 'a long label is allowed (the layout wraps it)');
       // accounts: long and odd user names
       const ucsrf = await csrfOf(dev, '/builder/users/new');
       for (const username of ['u'.repeat(61), 'budi😀', 'budi spasi']) {
@@ -181,14 +182,9 @@ describe('builder edge cases (Fase 2 full pass)', () => {
       const d = await dev.get('/builder/apps/emp/pages/2?node=item:0:0');
       const form = formFields(d.body.slice(d.body.indexOf('id="editor-title"') - 400));
       const r = await dev.post('/builder/apps/emp/pages/2', { ...form, node: 'item:0:0', action: 'save', 'f.name': 'P2_KUNCI' });
-      assert.ok([303, 422].includes(r.statusCode), `${r.statusCode} ${r.body.slice(0, 300)}`);
-      if (r.statusCode === 303) {
-         // the app still works: the report link opens the form for the right row
-         const user = new Browser(env);
-         await user.login();
-         const report = await user.open(`${env.base}/1`);
-         assert.equal(report.statusCode, 200);
-      }
+      // the old name is still used by other components: refused with the reasons, nothing saved
+      assert.equal(r.statusCode, 422);
+      assert.ok((await spec()).pages.find(p => p.page === 2)!.regions![0]!.items!.some(i => i.name === form['f.name']));
    });
 
    test('a deleted application while another tab is open', async () => {

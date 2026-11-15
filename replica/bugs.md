@@ -1,6 +1,6 @@
 # Bugs
 
-Hanya yang sudah direproduksi. Run: 2026-11-13, Chrome (system) 1440px & 390px, PostgreSQL 16. Run kedua (sebelum pilot, M0–M4 + M3): build `59f38fe`.
+Hanya yang sudah direproduksi. Run: 2026-11-13, Chrome (system) 1440px & 390px, PostgreSQL 16. Run kedua (sebelum pilot, M0–M4 + M3): build `59f38fe`. Run ketiga (uji menyeluruh Fase 2, builder B1–B5): build `e2cce86`, 2026-11-15.
 
 | ID | severity | judul | status |
 | --- | --- | --- | --- |
@@ -12,6 +12,8 @@ Hanya yang sudah direproduksi. Run: 2026-11-13, Chrome (system) 1440px & 390px, 
 | BUG-007 | S3 | Popup LOV / cascade setelah session habis hanya bilang "coba lagi" | fixed in `f67722d` |
 | BUG-005 | S3 | Kotak popup LOV tampak nonaktif (kontras border 1.3:1) | fixed in `f67722d` |
 | BUG-008 | S4 | Sorotan hasil pencarian LOV bergeser untuk huruf seperti "İ" | fixed in `f67722d` |
+| BUG-009 | S2 | Builder: dua penyimpanan dari versi yang sama sama-sama "berhasil", satu perubahan hilang diam-diam | fixed in `03e4211` |
+| BUG-010 | S3 | Builder: form dikirim setelah sesi developer berakhir, setelah login dibawa ke beranda, bukan ke halaman tadi | fixed in `03e4211` |
 
 Tidak ada S1/S2 yang terbuka.
 
@@ -147,7 +149,45 @@ Expected: `<mark>Ayşe</mark>`. Actual: sorotan bergeser satu huruf, karena `toL
 Evidence: `test/m3.test.ts` "BUG-008".
 Status: fixed in `f67722d` (regex case-insensitive pada teks asli).
 
+### BUG-009: Builder: dua penyimpanan dari versi yang sama sama-sama "berhasil", satu perubahan hilang diam-diam
+
+- Severity: S2 (perubahan developer hilang tanpa pemberitahuan; jendelanya sempit, tetapi tidak ada cara mengetahuinya)
+- Flow / case: F03 / F03-E3, F02 / F02-E4
+- Screen: S06 Page Designer, S07 wizard Create Page, S13 properti aplikasi
+- Build: `e2cce86`
+
+Steps
+1. Developer `admin` dan developer `budi` membuka dua item berbeda di halaman 2 aplikasi contoh (versi sama).
+2. Keduanya menekan Simpan pada saat yang hampir bersamaan (tes: dua POST serentak).
+
+Expected: keduanya tersimpan berurutan, atau satu tersimpan dan yang lain mendapat 409 "Aplikasi sudah diubah" dengan isiannya tetap.
+Actual: keduanya 303 + pesan "disimpan", tetapi hanya satu label yang ada di aplikasi. Hal yang sama terjadi bila wizard Create Page dan Page Designer menyimpan bersamaan (wizard tidak memeriksa versi sama sekali).
+Evidence: `test/f2-edge.test.ts` "two developers saving at the same moment" dan "the page wizard racing a designer save" (gagal sebelum fix: `codes 303,303 saved 1`).
+Suspected cause: token versi dicek **sebelum** impor, di luar transaksi impor. Dua request lolos pengecekan, lalu impor kedua menimpa seluruh definisi aplikasi dengan spec yang belum memuat perubahan pertama.
+Status: fixed in `03e4211`. `importText` menerima versi yang diharapkan dan mengeceknya di dalam transaksi impor, di bawah advisory lock per aplikasi. Penyimpanan yang basi mendapat 409 dengan isian tetap (designer, properti, wizard halaman) atau pesan "alias sudah dipakai" (wizard aplikasi, impor tanpa "Ganti"). Pesan konflik di designer kini juga menyebut tab lain dan menjelaskan bahwa Simpan lagi berarti menimpa versi terbaru.
+
+### BUG-010: Builder: form dikirim setelah sesi developer berakhir, setelah login dibawa ke beranda
+
+- Severity: S3 (ada jalan lain: buka lagi halamannya dari menu)
+- Flow / case: F03 / F03-E4
+- Screen: S01 login, S06
+- Build: `e2cce86`
+
+Steps
+1. Buka Page Designer, biarkan lebih dari 1 jam (batas idle).
+2. Ubah label lalu Simpan → halaman login "sesi berakhir".
+3. Login.
+
+Expected: kembali ke Page Designer pada komponen yang sama.
+Actual: masuk ke beranda builder; developer harus mencari lagi aplikasi, halaman, dan komponennya.
+Evidence: `test/f2-edge.test.ts` "session expired while editing" (gagal sebelum fix: `return` = null).
+Suspected cause: alamat kembali hanya diisi untuk GET.
+Status: fixed in `03e4211`. Untuk POST dipakai Referer, tetapi hanya bila dari host yang sama dan di dalam `/builder` (bukan halaman login). Referer dari situs lain atau dari runtime `/r/...` diabaikan. Isian yang diketik tetap hilang (sama seperti runtime, lihat "To check").
+
 ## To check (belum direproduksi sebagai bug)
+
+- **Isian builder hilang saat sesi developer berakhir** (lanjutan BUG-010): developer kembali ke halaman yang benar, tetapi perubahan yang belum tersimpan hilang. Batas idle builder 1 jam. Bila tim sering kena, pertimbangkan perpanjangan sesi otomatis selama tab builder terbuka.
+- **Query SQL report di wizard Create Page hanya dideskripsikan** (`limit 0`), tidak dijalankan. Query yang lambat (`pg_sleep`) tetap diterima dan baru dihentikan saat runtime oleh `statement_timeout` 30 detik. Disengaja, tapi developer tidak mendapat peringatan saat membuat halaman.
 
 - **Isian hilang saat session kedaluwarsa** (F04-E7): setelah login ulang user kembali ke form, tetapi ketikannya hilang. APEX berperilaku serupa. Kalau terasa mengganggu bagi user gudang yang lama di satu form, pertimbangkan perpanjangan session otomatis.
 - **Access log memuat argumen URL** (`P2_EMPNO=…`) sekali sebelum redirect 303. Sudah tercatat di `backend.md`, rencana redaksi di M5.
