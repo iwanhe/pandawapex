@@ -8,7 +8,7 @@ import { SpecError, type AppSpec } from '../spec/import.ts';
 import { humanize, tableFormPage, tableReportPage, uniqueAlias } from './generate.ts';
 import { listTables, type TableInfo } from './introspect.ts';
 import type { BuilderContext } from './routes.ts';
-import { setFlash, type DevSession } from './session.ts';
+import { setFlash, StaleVersion, type DevSession } from './session.ts';
 import { appUrl, shell } from './views.ts';
 
 // S07 Create Page wizard (B4, flow F02): adds a page to an existing application. The application is exported to its
@@ -25,7 +25,7 @@ const KINDS: { kind: PageKind; title: string; text: string }[] = [
 const PAGE_MAX = 99999;
 
 export interface PagesContext extends BuilderContext {
-   importText: (s: DevSession, text: string) => Promise<{ pages: number }>;
+   importText: (s: DevSession, text: string, expect?: { alias: string; hash: string | null }) => Promise<{ pages: number }>;
    importedBy: (s: DevSession) => string;
    findApp: (s: DevSession, alias: string) => Promise<{ id: string; alias: string; name: string; parsingSchema: string }>;
 }
@@ -184,11 +184,13 @@ export function registerPages(app: FastifyInstance, ctx: PagesContext): void {
    async function load(s: DevSession, alias: string) {
       const a = await ctx.findApp(s, alias);
       const role = (await pool.query('select db_role from rpx.workspaces where id = $1', [s.workspaceId])).rows[0].db_role as string;
+      // the version first: if the app changes between these two reads, saving fails safe (StaleVersion)
+      const version = String((await pool.query('select spec_hash from rpx.applications where id = $1', [a.id])).rows[0].spec_hash);
       const spec = await exportSpec(pool, s.workspace, a.alias);
       const tables = await listTables(pool, a.parsingSchema, role);
       const pages = spec.pages.map(p => ({ page: p.page, name: p.name })).sort((x, y) => x.page - y.page);
       const nextPage = Math.max(0, ...pages.map(p => p.page)) + 1;
-      return { a, role, spec, tables, pages, nextPage, view: { app: a, pages, tables, nextPage } as ViewData };
+      return { a, role, version, spec, tables, pages, nextPage, view: { app: a, pages, tables, nextPage } as ViewData };
    }
 
    app.get('/builder/apps/:alias/pages/new', async (req, reply) => {
@@ -266,9 +268,13 @@ export function registerPages(app: FastifyInstance, ctx: PagesContext): void {
       if (f.nav) (spec.navigation ??= []).push({ label, icon: f.kind === 'blank' ? 'file-text' : 'list', page: no } as never);
 
       try {
-         await ctx.importText(s, specToYaml(spec, { workspace: s.workspace, exportedBy: ctx.importedBy(s) }));
+         await ctx.importText(s, specToYaml(spec, { workspace: s.workspace, exportedBy: ctx.importedBy(s) }), { alias: d.a.alias, hash: d.version });
       } catch (err) {
          if (err instanceof SpecError) return send(reply, pageWizardView(s, d.view, f, {}, err.problems), 422);
+         if (err instanceof StaleVersion) {
+            const fresh = await load(s, d.a.alias);
+            return send(reply, pageWizardView(s, fresh.view, f, {}, ['Aplikasi baru saja diubah (di tab lain atau oleh developer lain), jadi halaman belum ditambahkan. Periksa nomor halaman lalu kirim lagi.']), 409);
+         }
          throw err;
       }
       const nums = added.map(p => p.page as number);

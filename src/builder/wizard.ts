@@ -4,7 +4,7 @@ import { alert, icon } from '../engine/templates.ts';
 import { generateApp, specText } from './generate.ts';
 import { listTables, type TableInfo } from './introspect.ts';
 import type { BuilderContext } from './routes.ts';
-import { setFlash, type DevSession } from './session.ts';
+import { setFlash, StaleVersion, type DevSession } from './session.ts';
 import { shell } from './views.ts';
 
 // S04 Create App wizard (B3, flow F01): name, alias, schema, then the tables to build pages on. One screen, so the
@@ -15,7 +15,7 @@ const GROUP = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,59}$/;
 const MAX_TABLES = 10;
 
 export interface WizardContext extends BuilderContext {
-   importText: (s: DevSession, text: string) => Promise<{ pages: number }>;
+   importText: (s: DevSession, text: string, expect?: { alias: string; hash: string | null }) => Promise<{ pages: number }>;
    schemas: (s: DevSession) => Promise<string[]>;
    importedBy: (s: DevSession) => string;
 }
@@ -146,7 +146,14 @@ export function registerWizard(app: FastifyInstance, ctx: WizardContext): void {
       if (Object.keys(e).length) return send(reply, wizardView(s, f, sch, tables, e), 422);
 
       const spec = generateApp({ name: f.name, alias: f.alias, schema: f.schema, tables: chosen as TableInfo[], group: f.group || null });
-      const r = await ctx.importText(s, specText(spec, ctx.importedBy(s)));
+      let r: { pages: number };
+      try {
+         r = await ctx.importText(s, specText(spec, ctx.importedBy(s)), { alias: f.alias, hash: null });
+      } catch (err) {
+         // the same alias was created a moment ago (another tab or developer)
+         if (err instanceof StaleVersion) return send(reply, wizardView(s, f, sch, tables, { alias: `Alias "${f.alias}" sudah dipakai aplikasi lain di workspace ini.` }), 422);
+         throw err;
+      }
       await setFlash(pool, s, {
          kind: 'success',
          text: f.tables.length ? `Aplikasi ${f.name} dibuat: ${r.pages} halaman dari ${f.tables.length} tabel.` : `Aplikasi ${f.name} dibuat.`,

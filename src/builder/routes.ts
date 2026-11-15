@@ -8,7 +8,7 @@ import { exportSpec, specToYaml } from '../spec/export.ts';
 import { importSpec, parseSpec, SpecError } from '../spec/import.ts';
 import {
    createDevSession, deleteDevSession, DEV_COOKIE, DEV_CSRF_COOKIE, DEV_PATH, isUuid, loadDevSession, newCsrfToken, setFlash,
-   takeFlash, type DevSession,
+   StaleVersion, takeFlash, type DevSession,
 } from './session.ts';
 import { registerAccounts } from './accounts.ts';
 import { registerDesigner } from './designer.ts';
@@ -59,6 +59,15 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
       reply.code(status).type('text/html; charset=utf-8').send(body.value);
    const cookieOpts = { path: DEV_PATH, httpOnly: true, sameSite: 'lax' as const, secure: o.secureCookies };
 
+   function formPage(referer: string | undefined, host: string | undefined): string | null {
+      if (!referer || !host) return null;
+      try {
+         const u = new URL(referer);
+         return u.host === new URL(`${u.protocol}//${host}`).host && safeReturn(u.pathname + u.search) !== '/builder' ? u.pathname + u.search : null;
+      } catch {
+         return null;
+      }
+   }
    function safeReturn(r: unknown): string {
       return typeof r === 'string' && /^\/builder(\/|$|\?)/.test(r) && !r.includes('//') && !r.startsWith('/builder/login') ? r : '/builder';
    }
@@ -68,7 +77,9 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
       const s = await loadDevSession(pool, req.cookies[DEV_COOKIE]);
       if (!s) {
          const q = new URLSearchParams();
-         if (req.method === 'GET') q.set('return', req.url);
+         // a form posted after the session ended: come back to the page it was sent from (same site, inside the builder)
+         const back = req.method === 'GET' ? req.url : formPage(req.headers.referer, req.headers.host);
+         if (back) q.set('return', back);
          if (req.cookies[DEV_COOKIE]) q.set('info', 'expired');
          reply.clearCookie(DEV_COOKIE, { path: DEV_PATH });
          reply.redirect(`/builder/login${q.size ? `?${q}` : ''}`, 303);
@@ -126,10 +137,21 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
 
    const importedBy = (s: DevSession) => `dev:${s.username}`;
 
-   async function importText(s: DevSession, text: string) {
+   /**
+    * Import a spec as this developer. With `expect`, the import only goes ahead when the application is still at
+    * that version (`hash` = its spec_hash, or null = it must not exist yet); otherwise StaleVersion is thrown and
+    * nothing changes. The check and the import run under one lock per application, so two saves based on the same
+    * version cannot both win (the later one would silently drop the earlier one's change).
+    */
+   async function importText(s: DevSession, text: string, expect?: { alias: string; hash: string | null }) {
       const c = await pool.connect();
       try {
          await c.query('begin');
+         if (expect) {
+            await c.query('select pg_advisory_xact_lock(hashtext($1))', [`rpx.app:${s.workspaceId}:${expect.alias}`]);
+            const cur = await c.query('select spec_hash from rpx.applications where workspace_id = $1 and alias = $2', [s.workspaceId, expect.alias]);
+            if ((cur.rowCount ? String(cur.rows[0].spec_hash) : null) !== expect.hash) throw new StaleVersion();
+         }
          const r = await importSpec(c, s.workspace, text, importedBy(s));
          await c.query('commit');
          return r;
@@ -253,15 +275,15 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
          if (e instanceof SpecError) return again('Spec tidak valid', e.problems);
          return again('File bukan YAML yang valid', [(e as Error).message.split('\n')[0]]);
       }
+      const exists = () => again(`Aplikasi "${alias}" sudah ada`, ['Centang "Ganti aplikasi bila alias sudah ada" untuk menggantinya, atau ubah alias di spec.'], alias, 409);
       const ex = await pool.query('select 1 from rpx.applications where workspace_id = $1 and alias = $2', [s.workspaceId, alias]);
-      if (ex.rowCount && !replace) {
-         return again(`Aplikasi "${alias}" sudah ada`, ['Centang "Ganti aplikasi bila alias sudah ada" untuk menggantinya, atau ubah alias di spec.'], alias, 409);
-      }
+      if (ex.rowCount && !replace) return exists();
       try {
-         const r = await importText(s, text);
+         const r = await importText(s, text, replace ? undefined : { alias, hash: null });
          await setFlash(pool, s, { kind: 'success', text: `${r.replaced ? 'Aplikasi diganti' : 'Aplikasi diimpor'}: ${r.pages} halaman, ${r.regions} region, ${r.items} item.` });
       } catch (e) {
          if (e instanceof SpecError) return again('Spec tidak dapat diimpor', e.problems);
+         if (e instanceof StaleVersion) return exists();
          throw e;
       }
       return reply.redirect(`/builder/apps/${encodeURIComponent(alias)}`, 303);
