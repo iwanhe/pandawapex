@@ -282,4 +282,5 @@ Tes: `test/ops.test.ts` (int) dan `e2e/ops-keepalive.spec.ts` (desktop + mobile)
 | OPS-E5 | restore | edge: `pg_restore` lebih baru dari server | parameter tak dikenal (`transaction_timeout`) ditoleransi dan data lengkap; error lain ditolak, database yang baru dibuat dihapus lagi; database kosong yang sudah ada dibiarkan dengan pesan | int (pg_restore tiruan), CI (versi asli) | ✅ |
 | OPS-E4 | backup | edge: bentuk koneksi | URL dengan sandi ter-encode, port, `sslmode`, dan bentuk socket `postgres://user@/db?host=/dir` | int | ✅ |
 | OPS-H7 | backup | happy: Docker | `docker compose run --rm rpx backup` → rusak data → restore ke `rpx_restore` → tukar nama → data kembali; server baru (volume kosong): role dibuat, `up` berhasil | manual (dijalankan), CI (backup + restore) | ✅ |
-| OPS-M1 | backup | manual: Windows | `backup-lokal.cmd` dan jadwal Task Scheduler di laptop Windows | manual | ⏳ belum dijalankan |
+| OPS-M1 | backup | manual: Windows | `backup-lokal.cmd` di laptop Windows (Cmder, PostgreSQL portable) | manual | ✅ 2026-11-15: dua file terbentuk. Temuan: `start-pg.bat` berhenti di `pause`; diperbaiki dengan `< nul` |
+| OPS-M2 | backup | manual: Windows | jadwal Task Scheduler (`schtasks`) | manual | ⏳ belum dijalankan |

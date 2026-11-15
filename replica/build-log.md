@@ -325,4 +325,5 @@ Lebih sulit dari perkiraan:
 - **Keep-alive tanpa melemahkan batas idle.** Mengirim tanda selama tab terbuka akan membuat laptop yang ditinggal tetap
   login sampai 8 jam. Tanda hanya dikirim bila ada aktivitas sejak kiriman sebelumnya.
 
-Belum: `backup-lokal.cmd` dan jadwal Task Scheduler belum dijalankan di Windows (ditulis mengikuti `start-lokal.cmd`).
+`backup-lokal.cmd` dijalankan di laptop Windows pengguna (2026-11-15): berhasil. Temuan: `start-pg.bat` diakhiri `pause`,
+yang akan menahan backup terjadwal; skrip kini memanggilnya dengan `< nul`. Belum: jadwal Task Scheduler.
