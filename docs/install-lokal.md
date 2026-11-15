@@ -73,8 +73,8 @@ Lanjut ke [Setelah terpasang](#setelah-terpasang).
 **Catatan Docker**
 - PostgreSQL di container hanya bisa diakses dari komputer ini, di port `55432` (user `postgres`, kata sandi
   `POSTGRES_PASSWORD` dari `.env`, bawaan `postgres-lokal`). Port ini dipilih supaya tidak bentrok dengan PostgreSQL lain.
-- Menjalankan perintah CLI (`npm run rpx -- ...`) di Docker: `docker compose run --rm setup node src/cli/rpx.ts <perintah>`.
-  Contoh: `docker compose run --rm setup node src/cli/rpx.ts ws create latihan --schema latihan_app`.
+- Menjalankan perintah CLI (`npm run rpx -- ...`) di Docker: `docker compose run --rm rpx <perintah>`.
+  Contoh: `docker compose run --rm rpx ws create latihan --schema latihan_app`.
 - Membuka psql: `docker compose exec db psql -U postgres -d rpx`.
 - Menghentikan: `docker compose stop`. Menyalakan lagi: `docker compose start`.
 
@@ -295,6 +295,11 @@ Tambahkan blok `authentication` di spec aplikasi (di builder: **Properti aplikas
 lingkungan, lalu simpan atau impor ulang. Langkah konfigurasi Entra ID / Google Workspace ada di
 [replica/backend.md](../replica/backend.md#konfigurasi-sso-di-spec). Untuk masa transisi, `allow_builtin: true` membuat akun
 lokal tetap bisa masuk di samping tombol SSO.
+
+## Backup
+
+Sebelum pandawapex dipakai untuk data yang penting, jadwalkan backup harian dan coba restore sekali:
+[operasional.md](operasional.md).
 
 ## Membuka ke internet
 

@@ -55,7 +55,7 @@ Pakai perintah yang sesuai cara instalasi Anda:
 | Cmder + PostgreSQL portable | `cd /d D:\pandawapex` lalu `set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"` |
 | PowerShell + installer | `cd C:\pandawapex` lalu `$env:DATABASE_URL = "postgres://postgres:<katasandi>@localhost:5432/rpx"` |
 | Linux / macOS | `cd pandawapex` lalu `export DATABASE_URL="postgres://$USER@/rpx?host=/var/run/postgresql"` (macOS: `postgres://$USER@localhost/rpx`) |
-| Docker | `cd pandawapex`. Tidak perlu `DATABASE_URL`; perintah `npm run rpx -- …` di bawah diganti `docker compose run --rm setup node src/cli/rpx.ts …` |
+| Docker | `cd pandawapex`. Tidak perlu `DATABASE_URL`; perintah `npm run rpx -- …` di bawah diganti `docker compose run --rm rpx …` |
 
 PostgreSQL harus sudah menyala.
 
@@ -190,8 +190,9 @@ Aturan login:
 
 - Salah kata sandi 5 kali → akun developer dikunci. Administrator membukanya di menu **Developer**, atau lewat CLI
   `rpx dev add` (bagian 11).
-- Sesi builder berakhir setelah 1 jam tidak dipakai atau 8 jam sejak login. Setelah login lagi, Anda kembali ke halaman
-  yang sedang dibuka. Perubahan yang belum disimpan saat sesi berakhir hilang, jadi simpan secara berkala.
+- Sesi builder berakhir setelah 1 jam tanpa aktivitas atau 8 jam sejak login. Mengetik dan mengeklik di halaman builder
+  terhitung aktivitas, jadi sesi tidak habis selama Anda sedang mengisi form; tab yang hanya terbuka tetap berakhir.
+  Setelah login lagi, Anda kembali ke halaman yang sedang dibuka, tetapi perubahan yang belum disimpan hilang.
 - Lupa kata sandi developer: administrator workspace mengatur ulang di menu **Developer**, atau dari terminal
   `npm run rpx -- dev add --ws <workspace> --username <nama> --password "<sandi-baru>"` (sekaligus membuka kunci).
 - Di server demo publik, builder hanya bisa dibuka dari hostname tertentu (pengaturan `RPX_BUILDER_HOSTS`). Di alamat lain
@@ -416,11 +417,15 @@ pengguna aplikasi (atau tombol SSO bila aplikasi memakai SSO).
 - Bila data diubah orang lain sejak form dibuka, simpan ditolak agar perubahan orang lain tidak tertimpa. Buka ulang lalu ulangi.
 - Daftar pilihan panjang memakai dialog pencarian (popup LOV): ketik untuk menyaring, panah atas/bawah, Enter untuk memilih.
 
-**Sesi**: berakhir setelah lama tidak dipakai; pengguna diminta login lagi lalu kembali ke halaman semula.
+**Sesi**: berakhir setelah lama tanpa aktivitas (bawaan 1 jam). Mengetik atau mengeklik di halaman terhitung aktivitas,
+jadi sesi tidak habis di tengah mengisi form panjang. Setelah sesi berakhir, pengguna diminta login lagi lalu kembali ke
+halaman semula.
 
 ## 11. Perintah CLI
 
-Dijalankan dari folder repo dengan `npm run rpx -- <perintah>`. Butuh `DATABASE_URL` (user PostgreSQL superuser/owner).
+Dijalankan dari folder repo dengan `npm run rpx -- <perintah>` (Docker: `docker compose run --rm rpx <perintah>`).
+Butuh `DATABASE_URL` (user PostgreSQL superuser/owner). Backup dan restore dijelaskan langkah demi langkah di
+[operasional.md](operasional.md).
 
 | Perintah | Fungsi |
 | --- | --- |
@@ -431,6 +436,9 @@ Dijalankan dari folder repo dengan `npm run rpx -- <perintah>`. Butuh `DATABASE_
 | `app check <file.yaml>` | periksa spec tanpa database |
 | `user add --ws <ws> --username <u> --password <p> [--group G]` | tambah atau perbarui pengguna aplikasi |
 | `dev add --ws <ws> --username <u> --password <p> [--admin]` | tambah developer; dijalankan ulang = atur ulang kata sandi dan buka kunci |
+| `backup [--dir folder] [--keep n]` | backup database dan role ke folder (bawaan `backups`); `--keep` menyimpan n backup terakhir |
+| `restore <file.dump> --to <database>` | pulihkan backup ke database baru atau kosong; tidak pernah menimpa database yang berisi |
+| `session purge` | hapus session kedaluwarsa (server melakukannya otomatis tiap 15 menit) |
 | `demo setup` / `pilot setup` | pasang ulang aplikasi contoh emp (workspace `demo`) / DEMO (workspace `pandawa`) beserta developer `admin` |
 
 ## 12. Catatan untuk developer APEX

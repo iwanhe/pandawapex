@@ -25,7 +25,8 @@ export interface ServerOptions {
    pool: pg.Pool;
    secret: string;
    secureCookies?: boolean;
-   logger?: boolean;
+   /** true: log to stdout. An object: Fastify logger options (tests pass `{ stream }`). Query-string values are never logged. */
+   logger?: boolean | { stream?: { write: (line: string) => void }; level?: string };
    /** external base URL (e.g. https://apps.kcsi.co.id) used for the OIDC redirect URI; defaults to the request host */
    publicUrl?: string;
    /** tests only: allow an http:// issuer */
@@ -42,6 +43,14 @@ export interface ServerOptions {
     * Compared with the Host header, so a public demo host can refuse the builder even when the edge is misconfigured.
     */
    builderHosts?: string[];
+}
+
+/** `/r/x/emp/2?P2_ID=7839&cs=ab12` -> `/r/x/emp/2?P2_ID=*&cs=*` */
+export function redactUrl(url: string): string {
+   const i = url.indexOf('?');
+   if (i < 0) return url;
+   const names = url.slice(i + 1).split('&').filter(Boolean).map(p => `${p.split('=', 1)[0]}=*`);
+   return names.length ? `${url.slice(0, i)}?${names.join('&')}` : url.slice(0, i);
 }
 
 /** RPX_TRUST_PROXY: "true" | "false" | hop count | comma-separated addresses/CIDRs. Unset keeps the default (true). */
@@ -75,7 +84,12 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
    if (!opts.secret || opts.secret.length < 32) throw new Error('RPX_SECRET must be at least 32 characters');
    // a hop count is supported at runtime (Fastify docs) but missing from its types
    const trustProxy = (opts.trustProxy ?? true) as boolean;
-   const app = Fastify({ logger: opts.logger ?? false, trustProxy, bodyLimit: 1024 * 1024 });
+   // the access log keeps the path and the names of URL arguments, never their values (item values, search text, OIDC codes)
+   const logger = opts.logger
+      ? { ...(typeof opts.logger === 'object' ? opts.logger : {}),
+          serializers: { req: (req: FastifyRequest) => ({ method: req.method, url: redactUrl(req.url), host: req.headers.host, remoteAddress: req.ip }) } }
+      : false;
+   const app = Fastify({ logger, trustProxy, bodyLimit: 1024 * 1024 });
    app.register(formbody);
    app.register(cookie);
    app.register(rateLimit, { global: false });
@@ -312,6 +326,14 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
    });
 
    // ---------- show / accept ----------
+   // Called by rpx.js while the user is working in a page (typing in a long form), so that the idle timeout counts
+   // from the last activity, not from the last page load. loadSession refreshes last_seen_at; nothing else changes.
+   app.get('/r/:ws/:app/keepalive', async (req, reply) => {
+      const appDef = await resolveApp(req);
+      const s = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
+      return reply.code(s ? 204 : 401).send();
+   });
+
    app.get('/r/:ws/:app', async (req, reply) => {
       const appDef = await resolveApp(req);
       return reply.redirect(`${appBase(appDef)}/${appDef.homePage}`, 302);

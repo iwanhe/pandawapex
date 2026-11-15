@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { createPool } from '../engine/db.ts';
 import { explain } from './errors.ts';
 import { addDeveloper, addUser, createWorkspace, importApp, migrate, PILOT_USERS, setupPilot } from './commands.ts';
 import { exportSpec, specToYaml } from '../spec/export.ts';
+import { backup, databaseOf, restore } from './backup.ts';
+import { purgeSessions } from '../engine/maintenance.ts';
 
 const USAGE = `rpx <command>
 
@@ -16,12 +19,18 @@ const USAGE = `rpx <command>
   user add --ws <name> --username <u> --password <p> [--group <g>]
   dev add --ws <name> --username <u> --password <p> [--email <e>] [--admin]
                                                      developer account for the builder (/builder)
+  session purge                                      delete expired application and developer sessions
+                                                     (the server also does this every RPX_PURGE_MINUTES)
+  backup [--dir <folder>] [--keep <n>]               pg_dump of this database + the roles it needs, into <folder>
+                                                     (default: backups); --keep deletes older backups beyond n
+  restore <file.dump> --to <database>                restore a backup into a new (or empty) database on this server
   demo setup                                         migrate + workspace "demo" + contoh data + app emp + user
                                                      (RPX_DEMO_USER, RPX_DEMO_PASSWORD); aman dijalankan ulang
   pilot setup                                        migrate + workspace "pandawa" + aplikasi DEMO Permintaan Barang
                                                      (port dari APEX) + user per role (RPX_DEMO_PASSWORD)
 
-Environment: DATABASE_URL (owner/superuser connection for these admin commands)`;
+Environment: DATABASE_URL (owner/superuser connection for these admin commands);
+             PGHOME or PGBIN (where pg_dump and pg_restore are, when not on the PATH)`;
 
 async function main(): Promise<number> {
    const { values, positionals } = parseArgs({
@@ -35,6 +44,9 @@ async function main(): Promise<number> {
          out: { type: 'string' },
          email: { type: 'string' },
          admin: { type: 'boolean' },
+         dir: { type: 'string' },
+         keep: { type: 'string' },
+         to: { type: 'string' },
          help: { type: 'boolean', short: 'h' },
       },
    });
@@ -50,6 +62,26 @@ async function main(): Promise<number> {
 
    const url = process.env.DATABASE_URL;
    if (!url) { console.error('DATABASE_URL is not set'); return 1; }
+   // these two open their own connections (restore works on a database that does not exist yet)
+   if (cmd === 'backup') {
+      const dir = values.dir ?? 'backups';
+      const r = await backup(url, dir, { keep: values.keep === undefined ? undefined : Number(values.keep) });
+      // paths as the user wrote them (inside Docker the absolute path is the container's, not the host's)
+      console.log(`backup selesai: ${join(dir, basename(r.dump))} (${(r.bytes / 1024 / 1024).toFixed(1)} MB)`);
+      console.log(`role          : ${join(dir, basename(r.roles))}`);
+      if (r.removed.length) console.log(`backup lama dihapus: ${r.removed.join(', ')}`);
+      console.log('Kedua file itu satu pasang. Salin keduanya ke tempat lain selain komputer ini.');
+      return 0;
+   }
+   if (cmd === 'restore') {
+      const r = await restore(url, need(sub, 'file.dump'), need(values.to, '--to'), m => console.log(m));
+      console.log(`restore selesai ke database "${r.database}": ${r.workspaces} workspace, ${r.applications} aplikasi, ${r.appUsers} pengguna aplikasi, ${r.developers} developer.`);
+      console.log(r.database === databaseOf(url)
+         ? 'Ini database yang ditunjuk DATABASE_URL: jalankan server seperti biasa. Semua pengguna login ulang.'
+         : `Database "${r.database}" belum dipakai server. Langkah berikutnya: docs/operasional.md, bagian "Memakai database hasil restore".`);
+      return 0;
+   }
+
    const pool = createPool(url);
    try {
       if (cmd === 'db' && sub === 'migrate') {
@@ -69,6 +101,9 @@ async function main(): Promise<number> {
          } else {
             process.stdout.write(yaml);
          }
+      } else if (cmd === 'session' && sub === 'purge') {
+         const r = await purgeSessions(pool);
+         console.log(r ? `removed ${r.appSessions} application session(s) and ${r.devSessions} developer session(s)` : 'another purge is running; nothing done');
       } else if (cmd === 'dev' && sub === 'add') {
          await addDeveloper(pool, need(values.ws, '--ws'), need(values.username, '--username'), need(values.password, '--password'),
             { email: values.email, admin: values.admin ?? false });

@@ -295,3 +295,34 @@ checklist, yang belum ada) dan `docs/panduan-pengguna.md` (cara pakai builder da
 BUG-009 (S2) penyimpanan bersamaan dari versi yang sama menghapus satu perubahan tanpa pemberitahuan. Sekarang versi dicek di
 dalam transaksi impor dengan advisory lock per aplikasi. BUG-010 (S3): setelah sesi berakhir, login kembali ke halaman form,
 tidak lagi ke beranda. `npm test` 156/156, e2e 96/96 (2 skip). Tidak ada S1/S2 terbuka.
+
+## Pengerasan operasional (2026-11-15), done
+
+| bagian | status | catatan |
+| --- | --- | --- |
+| Pembersihan session | done | engine menghapus session aplikasi dan developer yang kedaluwarsa atau idle tiap `RPX_PURGE_MINUTES` (bawaan 15), per batch, satu instance sekaligus; `rpx session purge` untuk cron |
+| Log akses | done | nilai argumen URL diganti `*` (item, pencarian, kode OIDC); nama argumen dan jalur tetap |
+| Keep-alive | done | `GET /r/:ws/:app/keepalive` dan `/builder/keepalive`; `rpx.js` mengirim paling sering tiap 5 menit dan hanya bila ada ketikan/klik sejak kiriman terakhir; berhenti setelah 401; halaman login tidak mengirim |
+| Backup / restore | done | `rpx backup [--dir] [--keep]`, `rpx restore <file> --to <db>`; `backup-lokal.cmd`; service `rpx` (profil tools) di Compose, image memuat `pg_dump` 16 dari PGDG; panduan `docs/operasional.md` |
+
+Verifikasi: `test/ops.test.ts` (10 tes) dan `e2e/ops-keepalive.spec.ts` (3 × 2 viewport, memakai jam palsu Playwright). Alur Docker
+dijalankan sungguhan: backup, merusak data, restore ke `rpx_restore`, tukar nama database, lalu restore ke server baru (volume
+kosong) yang membuat ulang role `rpx_engine`, `rpx_user_code`, `ws_demo`, `ws_pandawa`.
+
+Lebih sulit dari perkiraan:
+- **Role bukan bagian dari database.** `pg_dump` satu database tidak membawa role, sehingga restore di server lain kehilangan
+  semua grant ke `ws_*` dan aplikasinya gagal. `pg_dumpall --roles-only` membawa semua role cluster dan, saat dipulihkan,
+  menimpa kata sandi role yang sudah ada (termasuk `postgres`). Jadi file role dibuat sendiri dari `pg_shdepend`: hanya role
+  yang dirujuk database ini, dibuat bila belum ada, tanpa SUPERUSER/CREATEROLE/CREATEDB, dan role yang sudah ada tidak disentuh.
+- **Bentuk `DATABASE_URL` lewat socket** (`postgres://user@/db?host=/dir`, dipakai di panduan Linux) ditolak `new URL()`.
+  Koneksi untuk `pg_dump` kini diurai oleh `pg` sendiri.
+- **`pg_dump` harus sama versinya dengan server.** Debian di image `node:22-slim` membawa klien 15, server 16; image kini
+  memasang klien 16 dari repositori PGDG.
+- **`pg_restore` yang lebih baru daripada server** (di CI: klien 17/18, server 16) membuka koneksi dengan `SET
+  transaction_timeout`, yang tidak dikenal server 16. Dalam satu transaksi itu membatalkan semuanya. Restore mencoba dulu
+  secara atomik; bila gagal hanya karena parameter tak dikenal, diulang per perintah dan diterima hanya bila itu
+  satu-satunya jenis error. Error lain menggagalkan restore dan database yang baru dibuat dihapus lagi.
+- **Keep-alive tanpa melemahkan batas idle.** Mengirim tanda selama tab terbuka akan membuat laptop yang ditinggal tetap
+  login sampai 8 jam. Tanda hanya dikirim bila ada aktivitas sejak kiriman sebelumnya.
+
+Belum: `backup-lokal.cmd` dan jadwal Task Scheduler belum dijalankan di Windows (ditulis mengikuti `start-lokal.cmd`).

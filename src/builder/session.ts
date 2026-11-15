@@ -8,7 +8,7 @@ export const DEV_COOKIE = 'rpx_dev';
 export const DEV_CSRF_COOKIE = 'rpx_dev_csrf';
 export const DEV_PATH = '/builder';
 const SESSION_HOURS = 8;
-const IDLE_MINUTES = 60;
+export const DEV_IDLE_MINUTES = 60;
 
 export interface Flash { kind: 'success' | 'danger' | 'info'; text: string }
 
@@ -35,7 +35,7 @@ export async function loadDevSession(pool: pg.Pool, id: string | undefined): Pro
         where s.id = $1 and u.id = s.dev_user_id and s.expires_at > now()
           and s.last_seen_at > now() - make_interval(mins => $2)
        returning s.id, s.csrf_token, s.flash, u.id as user_id, u.username, u.is_admin, u.locked
-               , w.id as workspace_id, w.name as workspace`, [id, IDLE_MINUTES]);
+               , w.id as workspace_id, w.name as workspace`, [id, DEV_IDLE_MINUTES]);
    if (!r.rowCount) return null;
    const row = r.rows[0];
    if (row.locked) {

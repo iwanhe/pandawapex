@@ -91,6 +91,12 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
       return s;
    }
 
+   // see /r/:ws/:app/keepalive: activity in an open builder page keeps the developer session from idling out
+   app.get('/builder/keepalive', async (req, reply) => {
+      const s = await loadDevSession(pool, req.cookies[DEV_COOKIE]);
+      return reply.code(s ? 204 : 401).send();
+   });
+
    registerAccounts(app, { pool, send, dev, passwordLimit: o.loginLimit });
 
    // ---------- data ----------

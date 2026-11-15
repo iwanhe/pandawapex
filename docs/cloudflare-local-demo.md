@@ -342,7 +342,7 @@ Quick Tunnel ditujukan untuk uji coba, bukan untuk demo yang dibagikan luas.
       `HOST=127.0.0.1`). Bila engine juga terbuka di LAN, pakai `RPX_TRUST_PROXY=false`.
 - [ ] **Tidak ada port forwarding** 8080 atau 5432 di router.
 - [ ] `/healthz` diblokir di Cloudflare (langkah 1.4).
-- [ ] Backup database terjadwal (`pg_dump`), dan restore pernah dicoba.
+- [ ] Backup database terjadwal dan restore pernah dicoba ([operasional.md](operasional.md)).
 
 ## 5. Verifikasi
 

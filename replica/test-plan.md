@@ -262,3 +262,24 @@ zona waktu (waktu di builder selalu ditampilkan dalam Asia/Jakarta, disengaja un
 
 Run: `npm test` 156/156, e2e 96/96 (2 skip). Bug baru: 2 (S2 BUG-009, S3 BUG-010), keduanya diperbaiki dengan tes yang gagal
 lebih dulu. Tidak ada S1/S2 yang terbuka.
+
+## Pengerasan operasional (2026-11-15)
+
+Tes: `test/ops.test.ts` (int) dan `e2e/ops-keepalive.spec.ts` (desktop + mobile).
+
+| ID | Bagian | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| OPS-H1 | session | happy | session kedaluwarsa dan idle (aplikasi dan developer) terhapus bersama state-nya; session hidup tetap bekerja dengan state-nya | int | ✅ |
+| OPS-E1 | session | edge: dua instance | purge kedua tidak jalan selama yang pertama memegang kunci; purge yang gagal (database mati) hanya tercatat, server tidak jatuh; `0` menit = mati | int | ✅ |
+| OPS-H2 | log | happy | `?P1_CARI=…`, checksum, `code` OIDC, pencarian builder: nilainya tidak ada di log; jalur, nama argumen, dan status ada | int | ✅ |
+| OPS-H3 | keep-alive | happy | aplikasi dan builder: 204, `last_seen_at` diperbarui, `expires_at` tidak; tanpa session 401 dan tidak membuat session; sudah idle 401 | int | ✅ |
+| OPS-H4 | keep-alive | happy: browser | mengetik lalu 5 menit → satu kiriman 204; tab diam 11 menit → tidak ada kiriman; tanpa aktivitas baru → tidak ada kiriman kedua | e2e | ✅ |
+| OPS-E2 | keep-alive | edge | session dihapus → 401 → halaman berhenti mengirim; halaman login tidak mengirim | e2e | ✅ |
+| OPS-H5 | backup | happy: bencana | backup → database dan role workspace dihapus → restore: role dibuat ulang, jumlah baris sama, session kosong, cookie lama ditolak, login dengan sandi lama, **simpan form sebagai role workspace berhasil**, builder dan riwayat versi ada | int | ✅ |
+| OPS-H6 | backup | happy: pilot | aplikasi DEMO (5 skema, fungsi, trigger, view) sama sebelum dan sesudah; login dan beranda 200; di server yang sama role tidak disentuh | int | ✅ |
+| OPS-E3 | backup | edge | `--keep 1` menghapus pasangan file lama; `--keep 0` ditolak; database tanpa pandawapex ditolak; file `.partial` tidak tersisa | int | ✅ |
+| OPS-N1 | restore | negatif | tujuan sudah berisi tabel, nama tidak valid, file tidak ada, file role tidak ada → ditolak, tidak ada database dibuat | int | ✅ |
+| OPS-E5 | restore | edge: `pg_restore` lebih baru dari server | parameter tak dikenal (`transaction_timeout`) ditoleransi dan data lengkap; error lain ditolak, database yang baru dibuat dihapus lagi; database kosong yang sudah ada dibiarkan dengan pesan | int (pg_restore tiruan), CI (versi asli) | ✅ |
+| OPS-E4 | backup | edge: bentuk koneksi | URL dengan sandi ter-encode, port, `sslmode`, dan bentuk socket `postgres://user@/db?host=/dir` | int | ✅ |
+| OPS-H7 | backup | happy: Docker | `docker compose run --rm rpx backup` → rusak data → restore ke `rpx_restore` → tukar nama → data kembali; server baru (volume kosong): role dibuat, `up` berhasil | manual (dijalankan), CI (backup + restore) | ✅ |
+| OPS-M1 | backup | manual: Windows | `backup-lokal.cmd` dan jadwal Task Scheduler di laptop Windows | manual | ⏳ belum dijalankan |
