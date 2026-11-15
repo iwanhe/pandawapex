@@ -76,3 +76,8 @@ export async function takeFlash(pool: pg.Pool, s: DevSession): Promise<Flash | n
 }
 
 export const newCsrfToken = () => randomBytes(32).toString('hex');
+
+/** The application changed (or appeared) after the developer's form was loaded; see importText in routes.ts. */
+export class StaleVersion extends Error {
+   constructor() { super('application changed since it was loaded'); }
+}

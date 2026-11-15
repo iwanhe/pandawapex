@@ -7,7 +7,7 @@ import { exportSpec, specToYaml } from '../spec/export.ts';
 import { SpecError, type AppSpec, type PageSpec } from '../spec/import.ts';
 import schema from '../spec/spec.schema.json' with { type: 'json' };
 import type { BuilderContext } from './routes.ts';
-import { setFlash, takeFlash, type DevSession, type Flash } from './session.ts';
+import { setFlash, StaleVersion, takeFlash, type DevSession, type Flash } from './session.ts';
 import { appUrl, runUrl, shell } from './views.ts';
 
 // S06 Page Designer (B5, flow F03) and S13 application properties.
@@ -304,7 +304,7 @@ function addComponent(page: PageSpec, action: string, regionIndex: number): stri
 interface EditorState { values: Record<string, string>; errors: Record<string, string>; problems: string[]; conflict?: boolean }
 
 function summaryHtml(st: EditorState): SafeHtml {
-   if (st.conflict) return alert('warning', 'Aplikasi sudah diubah developer lain', html`<p>Perubahan Anda belum disimpan. Muat ulang halaman ini untuk melihat versi terbaru, lalu ulangi perubahan.</p>`, raw(' tabindex="-1" data-error-summary'));
+   if (st.conflict) return alert('warning', 'Aplikasi sudah diubah di tab lain atau oleh developer lain', html`<p>Perubahan Anda belum disimpan; isian Anda masih ada di formulir. Simpan lagi untuk menimpa versi terbaru dengan isian ini, atau muat ulang halaman untuk melihat versi terbaru dulu.</p>`, raw(' tabindex="-1" data-error-summary'));
    const all = [...Object.values(st.errors), ...st.problems];
    if (!all.length) return html``;
    return alert('danger', st.problems.length ? 'Perubahan tidak dapat disimpan' : all.length === 1 ? all[0] : 'Periksa isian berikut',
@@ -385,7 +385,7 @@ function appPropsView(dev: DevSession, flash: Flash | null, app: { alias: string
 // ---------------------------------------------------------------- routes
 
 export interface DesignerContext extends BuilderContext {
-   importText: (s: DevSession, text: string) => Promise<{ pages: number }>;
+   importText: (s: DevSession, text: string, expect?: { alias: string; hash: string | null }) => Promise<{ pages: number }>;
    importedBy: (s: DevSession) => string;
    findApp: (s: DevSession, alias: string) => Promise<{ id: string; alias: string; name: string; homePage: number }>;
 }
@@ -407,9 +407,10 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
    const params = (req: FastifyRequest) => req.params as { alias: string; page: string };
    const pagesList = (spec: AppSpec) => spec.pages.map(p => ({ page: p.page, name: p.name })).sort((x, y) => x.page - y.page);
 
-   async function save(s: DevSession, spec: AppSpec): Promise<string[] | null> {
+   /** Save the changed spec. Problems from the import come back; a newer version saved meanwhile throws StaleVersion. */
+   async function save(s: DevSession, spec: AppSpec, alias: string, version: string): Promise<string[] | null> {
       try {
-         await ctx.importText(s, specToYaml(spec, { workspace: s.workspace, exportedBy: ctx.importedBy(s) }));
+         await ctx.importText(s, specToYaml(spec, { workspace: s.workspace, exportedBy: ctx.importedBy(s) }), { alias, hash: version });
          return null;
       } catch (e) {
          if (e instanceof SpecError) return e.problems;
@@ -450,67 +451,80 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
       const render = (node: NodeAt, st: EditorState, status: number) =>
          send(reply, designerView(s, null, { app: a, page, pages: pagesList(spec), version, node, ref, homePage: spec.home_page ?? 1 }, st), status);
 
-      if (b.version !== version) {
-         const node = locate(page, ref) ?? locate(page, 'page')!;
+      // someone else saved first: show the newest version, keep what this developer typed
+      const conflict = async () => {
+         const fresh = await load(s, a.alias);
+         const p2 = pageOf(fresh.spec, String(page.page));
+         const node = locate(p2, ref) ?? locate(p2, 'page')!;
          const fields = fieldsFor(node.def, node.exclude);
          const values = b.action === 'save' ? Object.fromEntries(fields.map(f => [f.key, String(b[`f.${f.key}`] ?? '')])) : valuesOf(node.obj, fields);
-         return render(node, { values, errors: {}, problems: [], conflict: true }, 409);
-      }
-      const action = String(b.action ?? '');
-      if (action.startsWith('add_')) {
-         const created = addComponent(page, action, Number(b.region ?? -1));
-         if (!created) throw new HttpError(400, 'Tidak bisa ditambahkan', action === 'add_computation' ? 'Computation membutuhkan item; tambahkan item dulu.' : 'Region tujuan tidak ada.');
-         const problems = await save(s, spec);
-         if (problems) {
-            const node = locate(page, 'page')!;
-            return render(node, { values: valuesOf(node.obj, fieldsFor(node.def, node.exclude)), errors: {}, problems }, 422);
+         return send(reply, designerView(s, null, { app: a, page: p2, pages: pagesList(fresh.spec), version: fresh.version, node, ref, homePage: fresh.spec.home_page ?? 1 },
+            { values, errors: {}, problems: [], conflict: true }), 409);
+      };
+      if (b.version !== version) return conflict();
+      const apply = async () => {
+         const action = String(b.action ?? '');
+         if (action.startsWith('add_')) {
+            const created = addComponent(page, action, Number(b.region ?? -1));
+            if (!created) throw new HttpError(400, 'Tidak bisa ditambahkan', action === 'add_computation' ? 'Computation membutuhkan item; tambahkan item dulu.' : 'Region tujuan tidak ada.');
+            const problems = await save(s, spec, a.alias, version);
+            if (problems) {
+               const node = locate(page, 'page')!;
+               return render(node, { values: valuesOf(node.obj, fieldsFor(node.def, node.exclude)), errors: {}, problems }, 422);
+            }
+            const node = locate(page, created)!;
+            await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${node.title} ditambahkan. Ubah propertinya lalu simpan.` });
+            return reply.redirect(`${base}?node=${created}`, 303);
          }
-         const node = locate(page, created)!;
-         await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${node.title} ditambahkan. Ubah propertinya lalu simpan.` });
-         return reply.redirect(`${base}?node=${created}`, 303);
-      }
 
-      const node = locate(page, ref);
-      if (!node) throw new HttpError(404, 'Komponen tidak ditemukan', 'Komponen ini sudah tidak ada di halaman. Muat ulang Page Designer.');
-      const fields = fieldsFor(node.def, node.exclude);
+         const node = locate(page, ref);
+         if (!node) throw new HttpError(404, 'Komponen tidak ditemukan', 'Komponen ini sudah tidak ada di halaman. Muat ulang Page Designer.');
+         const fields = fieldsFor(node.def, node.exclude);
 
-      if (action === 'up' || action === 'down') {
-         const to = node.index + (action === 'up' ? -1 : 1);
-         if (!node.list || to < 0 || to >= node.list.length) return reply.redirect(`${base}?node=${ref}`, 303);
-         [node.list[node.index], node.list[to]] = [node.list[to], node.list[node.index]];
-         const problems = await save(s, spec);
-         if (problems) return render(node, { values: valuesOf(node.obj, fields), errors: {}, problems }, 422);
-         const moved = ref.replace(/(\d+)$/, String(to));
-         return reply.redirect(`${base}?node=${moved}`, 303);
-      }
-      if (action === 'delete') {
-         if (!node.list) throw new HttpError(400, 'Tidak bisa dihapus', 'Halaman dihapus lewat bagian "Hapus halaman".');
-         node.list.splice(node.index, 1);
-         const problems = await save(s, spec);
-         if (problems) {
-            const fresh = await load(s, a.alias);
-            const p2 = pageOf(fresh.spec, String(page.page));
-            const back = locate(p2, ref)!;
-            return send(reply, designerView(s, null, { app: a, page: p2, pages: pagesList(fresh.spec), version: fresh.version, node: back, ref, homePage: fresh.spec.home_page ?? 1 },
-               { values: valuesOf(back.obj, fields), errors: {}, problems: [`${KIND_LABEL[node.kind]} ${node.title} tidak dihapus:`, ...problems] }), 422);
+         if (action === 'up' || action === 'down') {
+            const to = node.index + (action === 'up' ? -1 : 1);
+            if (!node.list || to < 0 || to >= node.list.length) return reply.redirect(`${base}?node=${ref}`, 303);
+            [node.list[node.index], node.list[to]] = [node.list[to], node.list[node.index]];
+            const problems = await save(s, spec, a.alias, version);
+            if (problems) return render(node, { values: valuesOf(node.obj, fields), errors: {}, problems }, 422);
+            const moved = ref.replace(/(\d+)$/, String(to));
+            return reply.redirect(`${base}?node=${moved}`, 303);
          }
-         await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${node.title} dihapus.` });
-         return reply.redirect(base, 303);
-      }
-      if (action !== 'save') throw new HttpError(400, 'Aksi tidak dikenal', 'Muat ulang Page Designer lalu coba lagi.');
+         if (action === 'delete') {
+            if (!node.list) throw new HttpError(400, 'Tidak bisa dihapus', 'Halaman dihapus lewat bagian "Hapus halaman".');
+            node.list.splice(node.index, 1);
+            const problems = await save(s, spec, a.alias, version);
+            if (problems) {
+               const fresh = await load(s, a.alias);
+               const p2 = pageOf(fresh.spec, String(page.page));
+               const back = locate(p2, ref)!;
+               return send(reply, designerView(s, null, { app: a, page: p2, pages: pagesList(fresh.spec), version: fresh.version, node: back, ref, homePage: fresh.spec.home_page ?? 1 },
+                  { values: valuesOf(back.obj, fields), errors: {}, problems: [`${KIND_LABEL[node.kind]} ${node.title} tidak dihapus:`, ...problems] }), 422);
+            }
+            await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${node.title} dihapus.` });
+            return reply.redirect(base, 303);
+         }
+         if (action !== 'save') throw new HttpError(400, 'Aksi tidak dikenal', 'Muat ulang Page Designer lalu coba lagi.');
 
-      const values = Object.fromEntries(fields.map(f => [f.key, String(b[`f.${f.key}`] ?? '')]));
-      const { obj, errors } = applyValues(node.obj, fields, values);
-      if (Object.keys(errors).length) return render(node, { values, errors, problems: [] }, 422);
-      if (node.kind === 'page' && obj.page !== page.page) {
-         return render(node, { values, errors: { page: 'Nomor halaman tidak bisa diubah di sini; buat halaman baru lalu hapus yang lama.' }, problems: [] }, 422);
+         const values = Object.fromEntries(fields.map(f => [f.key, String(b[`f.${f.key}`] ?? '')]));
+         const { obj, errors } = applyValues(node.obj, fields, values);
+         if (Object.keys(errors).length) return render(node, { values, errors, problems: [] }, 422);
+         if (node.kind === 'page' && obj.page !== page.page) {
+            return render(node, { values, errors: { page: 'Nomor halaman tidak bisa diubah di sini; buat halaman baru lalu hapus yang lama.' }, problems: [] }, 422);
+         }
+         if (node.list) node.list[node.index] = obj;
+         else { for (const k of Object.keys(page)) delete (page as unknown as Json)[k]; Object.assign(page, obj); }
+         const problems = await save(s, spec, a.alias, version);
+         if (problems) return render(node, { values, errors: {}, problems }, 422);
+         await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${nodeTitle(node.kind, obj)} disimpan.` });
+         return reply.redirect(`${base}?node=${ref}`, 303);
+      };
+      try {
+         return await apply();
+      } catch (e) {
+         if (e instanceof StaleVersion) return conflict();
+         throw e;
       }
-      if (node.list) node.list[node.index] = obj;
-      else { for (const k of Object.keys(page)) delete (page as unknown as Json)[k]; Object.assign(page, obj); }
-      const problems = await save(s, spec);
-      if (problems) return render(node, { values, errors: {}, problems }, 422);
-      await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${nodeTitle(node.kind, obj)} disimpan.` });
-      return reply.redirect(`${base}?node=${ref}`, 303);
    });
 
    app.post('/builder/apps/:alias/pages/:page/delete', async (req, reply) => {
@@ -527,7 +541,13 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
       if (String(b.confirm ?? '').trim() !== String(page.page)) return again('Ketik nomor halaman untuk mengonfirmasi. Halaman tidak dihapus.', 422);
       if (page.page === (spec.home_page ?? 1)) return again('Halaman beranda tidak bisa dihapus.', 422);
       spec.pages = spec.pages.filter(p => p !== page);
-      const problems = await save(s, spec);
+      let problems: string[] | null;
+      try {
+         problems = await save(s, spec, a.alias, version);
+      } catch (e) {
+         if (e instanceof StaleVersion) return again('Aplikasi sudah diubah developer lain. Muat ulang lalu ulangi.', 409);
+         throw e;
+      }
       if (problems) return again(`Halaman tidak dihapus karena masih dirujuk: ${problems.join(' ')}`, 422);
       await setFlash(pool, s, { kind: 'success', text: `Halaman ${page.page} (${page.name}) dihapus.` });
       return reply.redirect(appUrl(a.alias), 303);
@@ -553,7 +573,16 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
       if (b.version !== version) return send(reply, appPropsView(s, null, a, version, { values, errors: {}, problems: [], conflict: true }), 409);
       const { obj, errors } = applyValues(spec as unknown as Json, fields, values);
       if (Object.keys(errors).length) return send(reply, appPropsView(s, null, a, version, { values, errors, problems: [] }), 422);
-      const problems = await save(s, obj as unknown as AppSpec);
+      let problems: string[] | null;
+      try {
+         problems = await save(s, obj as unknown as AppSpec, a.alias, version);
+      } catch (e) {
+         if (e instanceof StaleVersion) {
+            const fresh = await load(s, a.alias);
+            return send(reply, appPropsView(s, null, a, fresh.version, { values, errors: {}, problems: [], conflict: true }), 409);
+         }
+         throw e;
+      }
       if (problems) return send(reply, appPropsView(s, null, a, version, { values, errors: {}, problems }), 422);
       await setFlash(pool, s, { kind: 'success', text: 'Properti aplikasi disimpan.' });
       return reply.redirect(`${appUrl(a.alias)}/properties`, 303);

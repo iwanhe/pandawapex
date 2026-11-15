@@ -152,7 +152,7 @@ describe('page designer (B5)', () => {
       assert.equal((await dev.post(P(2), { ...f1, node: 'item:0:2', action: 'save', 'f.label': 'Jabatan (A)' })).statusCode, 303);
       const late = await other.post(P(2), { ...f2, node: 'item:0:2', action: 'save', 'f.label': 'Jabatan (B)' });
       assert.equal(late.statusCode, 409);
-      assert.match(late.body, /Aplikasi sudah diubah developer lain/);
+      assert.match(late.body, /Aplikasi sudah diubah di tab lain atau oleh developer lain/);
       assert.match(late.body, /value="Jabatan \(B\)"/);
       assert.equal((await spec()).pages[1].regions![0].items![2].label, 'Jabatan (A)');
    });

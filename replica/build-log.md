@@ -288,3 +288,10 @@ Builder B1–B5 dan perbaikan CLI (PR #9–#16) di-merge. `npm test` 144/144, e2
 Dicoba di laptop Windows pengguna (Cmder, PostgreSQL portable): migrasi, setup, dan builder berjalan; satu temuan
 (`error:` kosong saat PostgreSQL belum menyala) diperbaiki di #16. Dokumen: `docs/checkpoint-fase2.md` (memperbarui,
 checklist, yang belum ada) dan `docs/panduan-pengguna.md` (cara pakai builder dan aplikasi).
+
+## Uji menyeluruh Fase 2: builder B1–B5 (2026-11-15), done
+
+17 kasus edge baru (`test/f2-edge.test.ts`, `e2e/f2-edge.spec.ts`). Dua bug ditemukan dan diperbaiki di `03e4211`:
+BUG-009 (S2) penyimpanan bersamaan dari versi yang sama menghapus satu perubahan tanpa pemberitahuan. Sekarang versi dicek di
+dalam transaksi impor dengan advisory lock per aplikasi. BUG-010 (S3): setelah sesi berakhir, login kembali ke halaman form,
+tidak lagi ke beranda. `npm test` 156/156, e2e 96/96 (2 skip). Tidak ada S1/S2 terbuka.
