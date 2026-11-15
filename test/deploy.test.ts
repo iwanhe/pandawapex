@@ -87,8 +87,12 @@ describe('engine on the rpx_engine role (no superuser)', () => {
    before(async () => {
       env = await setup();
       await addDeveloper(env.pool, env.ws, 'admin', PW);
-      // local test cluster: socket connections are trusted, so only the user name changes
-      const url = new URL((await env.pool.query(`select 'postgres://rpx_engine@localhost/' || current_database() || '?host=/tmp/pg' as u`)).rows[0].u);
+      // same server and database as the test, but as rpx_engine (password set here, as the deployment guide does)
+      await env.pool.query(`alter role rpx_engine with login password 'rpx-engine-test-only'`);
+      const url = new URL(process.env.TEST_DATABASE_URL ?? 'postgres://postgres@localhost/postgres?host=/tmp/pg');
+      url.username = 'rpx_engine';
+      url.password = 'rpx-engine-test-only';
+      url.pathname = `/${(await env.pool.query('select current_database() as d')).rows[0].d}`;
       engine = createPool(url.toString());
       assert.equal((await engine.query('select current_user as u, usesuper from pg_user where usename = current_user')).rows[0].usesuper, false);
       app = buildServer({ pool: engine, secret: 'x'.repeat(40), loginRateLimit: 1000 });
