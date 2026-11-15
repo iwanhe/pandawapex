@@ -230,14 +230,15 @@ export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, page
    const pageTable = html`<div class="r-table-wrap" tabindex="0" role="group" aria-label="Halaman ${a.name}">
    <table class="r-table r-table--compact">
      <caption class="r-sr-only">Halaman</caption>
-     <thead><tr><th scope="col" class="r-num">No</th><th scope="col">Nama</th><th scope="col">Alias</th><th scope="col">Jenis</th><th scope="col" class="r-num">Region</th><th scope="col">Akses</th></tr></thead>
+     <thead><tr><th scope="col" class="r-num">No</th><th scope="col">Nama</th><th scope="col">Alias</th><th scope="col">Jenis</th><th scope="col" class="r-num">Region</th><th scope="col">Akses</th><th scope="col"><span class="r-sr-only">Aksi</span></th></tr></thead>
      <tbody>${pages.map(p => html`<tr>
        <td class="r-num">${p.no}</td>
-       <td><a class="r-cell-link" href="${run}/${p.no}">${p.title ?? p.name}</a>${p.title && p.title !== p.name ? html` <span class="r-muted">(${p.name})</span>` : ''}${p.no === a.homePage ? html` <span class="r-badge">Beranda</span>` : ''}</td>
+       <td><a class="r-cell-link" href="${base}/pages/${p.no}" aria-label="Ubah halaman ${p.no}: ${p.title ?? p.name}">${p.title ?? p.name}</a>${p.title && p.title !== p.name ? html` <span class="r-muted">(${p.name})</span>` : ''}${p.no === a.homePage ? html` <span class="r-badge">Beranda</span>` : ''}</td>
        <td class="r-mono">${p.alias ?? ''}</td>
        <td>${MODE_LABEL[p.mode] ?? p.mode}</td>
        <td class="r-num">${p.regions}</td>
-       <td>${p.requiresAuth ? 'Perlu masuk' : html`<span class="r-badge r-badge--warning">Publik</span>`}</td></tr>`)}</tbody>
+       <td>${p.requiresAuth ? 'Perlu masuk' : html`<span class="r-badge r-badge--warning">Publik</span>`}</td>
+       <td class="r-table__actions"><a class="r-btn r-btn--sm r-btn--ghost" href="${run}/${p.no}" aria-label="Jalankan halaman ${p.no}">${icon('chevron-right')} Jalankan</a></td></tr>`)}</tbody>
    </table></div>`;
    const versionTable = versions.length
       ? html`<div class="r-table-wrap" tabindex="0" role="group" aria-label="Riwayat impor ${a.name}">
@@ -283,7 +284,8 @@ export function appView(dev: DevSession, flash: Flash | null, a: AppDetail, page
   </div>
   <div class="r-region__footer"><button type="submit" class="r-btn r-btn--danger">${icon('trash-2')} Hapus aplikasi</button></div>
 </form>`;
-   const actions = html`<a class="r-btn" href="${base}/export" download>${icon('file-text')} Ekspor YAML</a>
+   const actions = html`<a class="r-btn" href="${base}/properties">${icon('settings')} Properti aplikasi</a>
+      <a class="r-btn" href="${base}/export" download>${icon('file-text')} Ekspor YAML</a>
       <a class="r-btn r-btn--primary" href="${run}">${icon('chevron-right')} Jalankan</a>`;
    return shell({ dev, section: 'apps', title: a.name, crumbs: [{ label: 'Aplikasi', href: '/builder/apps' }], actions, flash, body });
 }

@@ -11,6 +11,7 @@ import {
    takeFlash, type DevSession,
 } from './session.ts';
 import { registerAccounts } from './accounts.ts';
+import { registerDesigner } from './designer.ts';
 import { registerPages } from './pages.ts';
 import { registerWizard } from './wizard.ts';
 import {
@@ -226,6 +227,8 @@ export function registerBuilder(app: FastifyInstance, o: BuilderOptions): void {
    registerWizard(app, { pool, send, dev, importText, schemas, importedBy });
    // S07 Create Page wizard: pages.ts
    registerPages(app, { pool, send, dev, importText, importedBy, findApp });
+   // S06 Page Designer + S13 application properties: designer.ts
+   registerDesigner(app, { pool, send, dev, importText, importedBy, findApp });
 
    // ---------- S04 import ----------
    app.get('/builder/apps/import', async (req, reply) => {

@@ -209,5 +209,5 @@ Lalu ulangi dari langkah 3.
 2. Daftar aplikasi: buat, hapus, impor, ekspor spec. **Selesai di B1.**
 3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang. **Selesai di B3 (8 aksi).**
 4. Create Page wizard (Blank, Form, Report, IR, Modal). **Selesai di B4** (tanpa Interactive Grid).
-5. Page Designer: tree + property editor, termasuk application properties dan application items.
+5. **Selesai di B5:** Page Designer: tree + property editor, termasuk application properties dan application items.
 6. Celah dari pilot DEMO: faceted search, region di dalam region, metric card.

@@ -412,6 +412,13 @@
     sync();
   }
 
+  // page designer: choosing another page in the picker opens it; the button is only for browsers without script
+  for (const sel of document.querySelectorAll('select[data-autosubmit]')) {
+    const fallback = sel.form && sel.form.querySelector('[data-autosubmit-fallback]');
+    if (fallback) fallback.hidden = true;
+    sel.addEventListener('change', () => sel.form.submit());
+  }
+
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
   if (summary) summary.focus();

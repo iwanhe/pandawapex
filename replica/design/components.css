@@ -65,7 +65,7 @@ a:hover { color: var(--r-color-accent-hover); }
 .r-main { grid-area: main; min-width: 0; padding: var(--r-content-pad); }
 .r-page-head { display: flex; align-items: flex-end; gap: var(--r-space-5); margin-bottom: var(--r-space-6); }
 .r-page-head h1 { margin: 0; font-size: var(--r-text-xl-size); line-height: var(--r-text-xl-line); font-weight: var(--r-text-xl-weight); }
-.r-page-head__actions { margin-left: auto; display: flex; gap: var(--r-space-3); }
+.r-page-head__actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--r-space-3); }
 .r-breadcrumb ol { display: flex; flex-wrap: wrap; gap: var(--r-space-2); list-style: none; margin: 0 0 var(--r-space-2); padding: 0; font-size: var(--r-text-sm-size); color: var(--r-color-text-muted); }
 .r-breadcrumb li + li::before { content: "/"; margin-right: var(--r-space-2); color: var(--r-color-border-strong); }
 .r-breadcrumb a { color: var(--r-color-text-muted); }
@@ -85,7 +85,7 @@ a:hover { color: var(--r-color-accent-hover); }
 @media (max-width: 639px) {
   .r-row > [class*="r-col-"], .r-form > [class*="r-col-"] { grid-column: span 12; }
   .r-page-head { flex-wrap: wrap; align-items: flex-start; }
-  .r-page-head__actions { margin-left: 0; }
+  .r-page-head__actions { margin-left: 0; justify-content: flex-start; }
 }
 
 /* ---------- region (region template: standard | plain | collapsible) ---------- */
@@ -450,3 +450,31 @@ fieldset.r-kind-picker { padding: var(--r-space-5) var(--r-space-6) var(--r-spac
 .r-sql-text { min-height: 180px; }
 details.r-help summary { cursor: pointer; }
 details.r-help ul { margin: var(--r-space-2) 0 0; padding-left: var(--r-space-6); }
+
+/* ---------- builder page designer (B5) ---------- */
+.r-btn--xs { height: 26px; padding: 0 var(--r-space-3); font-size: var(--r-text-sm-size); gap: var(--r-space-2); }
+.r-btn--xs .r-icon { width: 14px; height: 14px; }
+.r-designer { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: var(--r-grid-gap); align-items: start; }
+.r-designer__tree { position: sticky; top: calc(var(--r-header-h, 48px) + var(--r-space-5)); max-height: calc(100vh - var(--r-header-h, 48px) - 2 * var(--r-space-5)); overflow: auto; }
+.r-designer__main { min-width: 0; }
+.r-page-picker { display: flex; align-items: center; gap: var(--r-space-3); width: 100%; }
+.r-page-picker .r-label { margin: 0; }
+.r-page-picker select { flex: 1; min-width: 0; }
+.r-tree, .r-tree ul { list-style: none; margin: 0; padding: 0; }
+.r-tree ul { padding-left: var(--r-space-5); border-left: 1px solid var(--r-color-border); margin-left: var(--r-space-3); }
+.r-tree li { margin: var(--r-space-1) 0; }
+.r-tree a { display: block; padding: var(--r-space-2) var(--r-space-3); border-radius: var(--r-radius-sm); color: var(--r-color-text); text-decoration: none; overflow-wrap: anywhere; font-size: var(--r-text-sm-size); }
+.r-tree a:hover { background: var(--r-color-surface-sunken); }
+.r-tree a[aria-current="true"] { background: var(--r-color-accent-subtle); box-shadow: inset 3px 0 0 var(--r-color-accent); font-weight: 600; }
+.r-tree__kind { display: inline-block; min-width: 4.5em; color: var(--r-color-text-muted); font-size: 0.85em; font-weight: 400; }
+.r-tree__group { display: inline-block; margin: var(--r-space-3) 0 var(--r-space-1); font-size: var(--r-text-sm-size); font-weight: 600; color: var(--r-color-text-muted); }
+.r-tree__add { display: inline-block; margin-left: var(--r-space-2); }
+.r-tree__adds { display: flex; flex-wrap: wrap; gap: var(--r-space-2); margin: var(--r-space-1) 0 var(--r-space-3) var(--r-space-5); }
+.r-tree__adds .r-tree__add { margin: 0; }
+.r-prop-key { font-family: var(--r-font-mono); font-size: 0.8em; font-weight: 400; color: var(--r-color-text-muted); margin-left: var(--r-space-2); }
+.r-prop-code { min-height: 0; font-size: var(--r-text-sm-size); line-height: 1.5; tab-size: 2; white-space: pre; overflow-x: auto; }
+.r-node-actions { display: flex; flex-wrap: wrap; gap: var(--r-space-3); justify-content: flex-end; }
+@media (max-width: 900px) {
+  .r-designer { grid-template-columns: minmax(0, 1fr); }
+  .r-designer__tree { position: static; max-height: none; }
+}

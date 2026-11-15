@@ -10,7 +10,7 @@ Yang dites adalah **clone kita sendiri** (`npm run e2e`, `npm test`), bukan Orac
 | --- | --- | --- |
 | **F01 buat app dari tabel (builder)** | B3 wizard Create App | ✅ e2e (8 aksi) + integrasi |
 | **F02 tambah page Report+Form (builder)** | B4 wizard Create Page | ✅ e2e (3 aksi) + integrasi |
-| F03 Page Designer | belum dibangun | — |
+| **F03 Page Designer** | B5 Page Designer + properti aplikasi | ✅ e2e + integrasi |
 | **F04 end user edit data (core loop)** | M1 + M3 (item & LOV) + M4 (dialog) | ✅ e2e + integrasi |
 | F05 personalisasi IR | M4 (dasar, tanpa saved reports) | ✅ e2e + integrasi |
 | F06 Interactive Grid | Fase 2 | — |
@@ -212,3 +212,22 @@ teardown karena pool tanpa listener `error`; juga berisiko di produksi), diperba
 | B4-N3 | F02 | negatif: aplikasi workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
 
 Run: `npm test` 132/132, e2e 86/86 (2 skip). Bug baru: tidak ada.
+
+## Fase 2 B5: Page Designer + properti aplikasi (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B5-H1 | F03 | happy | buka halaman dari beranda aplikasi → pilih item di pohon → ubah label dan bantuan → simpan → pesan sukses; tampil di aplikasi yang berjalan; axe bersih | e2e (2 viewport), int | ✅ |
+| B5-H2 | F03 | happy: struktur | tambah region/item/tombol/validasi/proses/branch, naik/turun, hapus; urutan tersimpan | e2e, int | ✅ |
+| B5-H3 | F03 | happy: YAML dan halaman | kondisi tombol lewat YAML; ukuran dialog dan judul halaman; region di halaman tidak hilang | int | ✅ |
+| B5-H4 | S13 | happy: properti aplikasi | nama dan substitution strings tersimpan, halaman tidak tersentuh; axe bersih | e2e, int | ✅ |
+| B5-H5 | F08 | happy: setelah banyak perubahan | ekspor → impor → ekspor tetap sama | int | ✅ |
+| B5-E1 | F03 | edge: dua developer | simpan kedua ditolak 409, isian tetap, perubahan pertama utuh | int | ✅ |
+| B5-E2 | F03 | edge: komponen yang tidak ada di URL | jatuh ke properti halaman; halaman tidak ada 404 | int | ✅ |
+| B5-N1 | F03 | negatif: isian salah | YAML rusak, field wajib kosong, bukan angka, nama item tidak cocok nomor halaman, lebar kolom 20, nomor halaman diubah → 422, tidak ada yang tersimpan, ringkasan difokuskan | e2e, int | ✅ |
+| B5-N2 | F03 | negatif: hapus yang masih dirujuk | item yang dipakai link report, halaman yang dirujuk, halaman beranda → ditolak dengan alasan | int | ✅ |
+| B5-N3 | F03 | negatif: konfirmasi salah | nomor halaman salah → tidak dihapus | int | ✅ |
+| B5-N4 | F03 | negatif: workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
+
+Run: `npm test` 142/142, e2e 90/90 (2 skip). Bug baru: 1 (S3, aksi kepala halaman tidak turun baris di 390 px sehingga halaman bisa
+digeser ke samping), diperbaiki.
