@@ -176,6 +176,7 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 | `role "postgres" does not exist` | PostgreSQL dibuat dengan user Windows sebagai superuser | pakai `-U %USERNAME%` dan nama itu di `DATABASE_URL` |
 | `password authentication failed` | kata sandi di `DATABASE_URL` salah atau belum di-encode | perbaiki URL (langkah 6) |
 | `ECONNREFUSED ... 5432` | PostgreSQL belum menyala atau port lain | `start-pg.bat`; cek port di file itu |
+| `error:` tanpa pesan, atau `PostgreSQL tidak bisa dihubungi` | PostgreSQL belum menyala (`db migrate` / `setup` dijalankan sebelum `start-lokal.cmd`) | jalankan `D:\Software\PGSQL\start-pg.bat` dulu, lalu ulangi perintahnya |
 | `EADDRINUSE ... 8080` | port 8080 dipakai ORDS/Tomcat | `set "PORT=8090"` sebelum `start-lokal.cmd`, buka `localhost:8090` |
 | `DATABASE_URL is not set` | tab Cmder baru, variabel hilang | ulangi langkah 6 (untuk setup), atau pakai `start-lokal.cmd` (untuk menjalankan) |
 | Halaman 403 "akun Anda belum didaftarkan" di DEMO | user login belum punya role DEMO | `admin` menambahkan role di Users & Roles |
