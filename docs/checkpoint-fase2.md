@@ -28,31 +28,47 @@ Cara pemakaian lengkap ada di **[panduan-pengguna.md](panduan-pengguna.md)**.
 
 ## Memperbarui dari checkpoint 1
 
-Dari Cmder, di laptop yang sudah lolos checkpoint 1:
+Untuk laptop Windows (Cmder + PostgreSQL portable) yang sudah terpasang, baik dari checkpoint 1 maupun dari versi yang lebih
+baru. Data dan aplikasi buatan sendiri tetap ada.
 
-```cmd
-cd /d D:\pandawapex
-git pull
-npm install
-D:\Software\PGSQL\start-pg.bat
-set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"
-set "RPX_DEMO_PASSWORD=coba-lokal-123"
-npm run rpx -- db migrate
-npm run rpx -- demo setup
-npm run rpx -- pilot setup
-start-lokal.cmd
-```
+1. **Buka Cmder dan masuk ke folder repo.**
+   ```cmd
+   cd /d D:\pandawapex
+   ```
+2. **Ambil versi terbaru dan pasang dependensinya.**
+   ```cmd
+   git pull
+   npm install
+   ```
+   Hasil `npm install`: `up to date` atau `added/changed ... packages`, tanpa `EBADENGINE`.
+3. **Nyalakan PostgreSQL** (bila belum).
+   ```cmd
+   D:\Software\PGSQL\start-pg.bat
+   ```
+4. **Pasang migrasi database.**
+   ```cmd
+   set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"
+   npm run rpx -- db migrate
+   ```
+   Hasil: `applied 0006_builder.sql` (pertama kali dari checkpoint 1) atau `database is up to date`.
+5. **Hanya bila memperbarui dari checkpoint 1:** pasang ulang aplikasi contoh supaya akun developer `admin` untuk builder
+   dibuat.
+   ```cmd
+   set "RPX_DEMO_PASSWORD=coba-lokal-123"
+   npm run rpx -- demo setup
+   npm run rpx -- pilot setup
+   ```
+   Hasil: `demo ready: ...` dan `pilot ready: app ... (17 pages) ...`. Kedua perintah memasang ulang aplikasi contoh emp
+   dan DEMO, jadi perubahan Anda pada **kedua aplikasi contoh itu** tertimpa; aplikasi buatan sendiri tidak tersentuh.
+   Lewati langkah ini bila laptop sudah pernah memakai builder.
+6. **Jalankan.**
+   ```cmd
+   start-lokal.cmd
+   ```
+   Hasil: `Server listening at http://127.0.0.1:8080`. Biarkan jendela ini terbuka.
 
-Hasil yang harus terlihat:
-
-- `db migrate`: `applied 0006_builder.sql` (pertama kali) atau `database is up to date`.
-- `demo setup`: `demo ready: ... Open /r/demo/emp`.
-- `pilot setup`: `pilot ready: app ... (17 pages) ...`.
-- `start-lokal.cmd`: `Server listening at http://127.0.0.1:8080`. Biarkan jendela ini terbuka.
-
-PostgreSQL harus menyala **sebelum** `db migrate` dan `setup`; kalau belum, muncul `PostgreSQL tidak bisa dihubungi`
-(versi lama: `error:` tanpa pesan). `demo setup` dan `pilot setup` memasang ulang aplikasi emp dan DEMO, jadi perubahan
-pada kedua aplikasi itu tertimpa; aplikasi buatan sendiri tidak tersentuh.
+PostgreSQL harus menyala **sebelum** langkah 4 dan 5; kalau belum, muncul `PostgreSQL tidak bisa dihubungi`
+(versi lama: `error:` tanpa pesan).
 
 Instalasi dari nol tetap mengikuti langkah 1–8 di [checkpoint-fase1.md](checkpoint-fase1.md#instalasi-sekali-saja).
 
@@ -103,7 +119,8 @@ Centang setelah dicoba di laptop. Urutannya membentuk satu skenario sekitar 20 m
 - [ ] **Lebar kolom** diisi 20: ditolak dengan "Perubahan tidak dapat disimpan"
 - [ ] **Tambah region** di halaman report, isi judul dan HTML, **Naik**: region tampil di atas report saat dijalankan
 - [ ] Hapus item yang dipakai link report: ditolak dengan alasan
-- [ ] Buka halaman yang sama di dua tab, simpan di tab pertama lalu di tab kedua: tab kedua ditolak "Aplikasi sudah diubah developer lain"
+- [ ] Buka halaman yang sama di dua tab, simpan di tab pertama lalu di tab kedua: tab kedua ditolak dengan pesan
+      "Aplikasi sudah diubah di tab lain atau oleh developer lain", dan isian tab kedua tetap ada
 
 **Properti, riwayat, impor**
 
@@ -126,21 +143,31 @@ Centang setelah dicoba di laptop. Urutannya membentuk satu skenario sekitar 20 m
 
 ## Tag checkpoint
 
-Proxy sesi ini tidak bisa membuat tag di GitHub, jadi tag dibuat dari laptop (seperti `fase1-checkpoint`):
+Tag `fase1-checkpoint`, `fase2-checkpoint`, dan `fase2-checkpoint-final` sudah ada di GitHub. Untuk kembali melihat kode
+pada checkpoint ini: `git checkout fase2-checkpoint-final` (kembali ke versi terbaru dengan `git checkout main`).
+
+Tag dibuat dari laptop karena sesi Claude tidak bisa membuat tag di GitHub:
 
 ```cmd
 cd /d D:\pandawapex
 git pull
-git tag -a fase2-checkpoint -m "Checkpoint 2: builder B1-B5" <commit merge PR dokumen ini>
-git push origin fase2-checkpoint
+git tag -a <nama-tag> -m "<keterangan>" <commit>
+git push origin <nama-tag>
 ```
 
-Commit merge ditampilkan di halaman PR setelah di-merge, atau dengan `git log --oneline -1` setelah `git pull`.
+## Setelah checkpoint 2
+
+| PR | Isi |
+| --- | --- |
+| #18 | Uji menyeluruh builder: 17 kasus tepi baru. Diperbaiki: dua penyimpanan bersamaan dari versi yang sama tidak lagi menghapus salah satu perubahan diam-diam (BUG-009); setelah sesi developer berakhir, login kembali ke halaman yang sedang diedit (BUG-010) |
+| #11 | Demo publik lewat Cloudflare Tunnel untuk Docker, Ubuntu, dan Windows ([cloudflare-local-demo.md](cloudflare-local-demo.md)); pengaturan baru `RPX_BUILDER_HOSTS` dan `RPX_TRUST_PROXY`; engine bisa berjalan sebagai role `rpx_engine` |
+
+Kondisi terbaru: `npm test` 160 lulus, tes browser 96 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
+`0006_builder.sql`, jadi memperbarui cukup dengan `git pull` (lihat langkah di atas).
 
 ## Langkah berikutnya
 
 1. Catatan dari uji lokal Tim PANDAWA diperbaiki lebih dulu.
-2. Uji penuh Fase 2 (`/replica-test`): semua flow builder dengan kasus tepi, dan bug dilaporkan di `replica/bugs.md`.
-3. Interactive Grid: menutup must-have terakhir dan flow F06.
-4. Dynamic Actions.
-5. Developer toolbar dan debug (F10).
+2. Interactive Grid: menutup must-have terakhir dan flow F06.
+3. Dynamic Actions.
+4. Developer toolbar dan debug (F10).

@@ -34,7 +34,7 @@ RPX_DEMO_PASSWORD='<min 10 karakter>' npm run rpx -- pilot setup
 | 302 | Detail Permintaan (master-detail, dari f170134) | ✅ | tata letak: panel kanan belum bisa menumpuk header + baris (lihat celah) |
 | 310 / 311 | Baris Permintaan | ✅ | baris dari permintaan yang sudah diajukan tidak bisa diubah |
 | 400 | Rekap Permintaan | ✅ | |
-| 500 / 501 | Users & Roles | ✅ | role per username; akun login tetap dibuat lewat `rpx user add` |
+| 500 / 501 | Users & Roles | ✅ | role per username; akun login dibuat di builder (**Pengguna aplikasi**) atau `rpx user add` |
 | 510 / 511 | Document Types & Approval | ✅ | |
 | 9999 | Login | diganti | login bawaan pandawapex (argon2, kunci akun, rate limit); "remember username" tidak dibawa |
 
@@ -82,8 +82,8 @@ kunci baris setelah submit, approval level 2 di atas 10 jt, maker-checker, rejec
 2. **Sub-region / kolom bersarang.** Halaman 302 di APEX menaruh header dan baris di satu kolom kanan; grid pandawapex
    belum punya region di dalam region, jadi baris turun ke bawah. Fungsinya sama, tata letaknya berbeda.
 3. **Metric card / KPI** (versi f170134 Home). Sementara memakai classic report satu baris.
-4. **Akun login dari halaman Users & Roles.** Role diatur di aplikasi, tetapi akun login tetap dibuat lewat CLI.
-   Ini bagian dari must-have "Kelola developer dan end user" (Fase 2).
+4. **Akun login dari halaman Users & Roles.** Role diatur di aplikasi. Akun login dibuat di builder (**Pengguna aplikasi**,
+   sejak Fase 2 B2) atau lewat `rpx user add`, belum dari halaman Users & Roles aplikasi ini.
 5. **Pesan untuk nilai di luar daftar.** Mengubah baris milik permintaan yang sudah diajukan ditolak dengan
    "No. Permintaan: pilihan … tidak ada di daftar", bukan pesan trigger yang lebih jelas. APEX menampilkan nilai
    ekstra lalu membiarkan trigger menolak. Pertimbangkan opsi per item untuk melewati cek daftar.
