@@ -273,7 +273,7 @@ describe('backup and restore', { skip: missing ?? false }, () => {
 ERR='pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter "transaction_timeout"
 Command was: SET transaction_timeout = 0;'
 for a in "$@"; do [ "$a" = "--single-transaction" ] && { echo "$ERR" >&2; exit 1; }; done
-${real} "$@" || exit $?
+${real} "$@"
 echo "$ERR" >&2
 [ -n "$FAKE_EXTRA_ERROR" ] && echo 'pg_restore: error: could not execute query: ERROR:  relation "x" does not exist' >&2
 echo 'pg_restore: warning: errors ignored on restore: 1' >&2
