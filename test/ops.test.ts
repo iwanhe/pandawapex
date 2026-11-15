@@ -1,7 +1,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -261,6 +261,55 @@ describe('backup and restore', { skip: missing ?? false }, () => {
          await app.close();
          await pool.end();
          await admin(async c => { await c.query(`drop database ${target} with (force)`); await c.query(`drop role if exists ws_${env.ws}`); });
+      }
+   });
+
+   test('a pg_restore newer than the server (unknown settings) still restores; any other error fails and cleans up', { skip: process.platform === 'win32' }, async () => {
+      // Stand-in for pg_restore 17 against PostgreSQL 16: it sets transaction_timeout, which 16 does not know. With
+      // --single-transaction that aborts everything; without it the error is reported at the end and the exit code is 1.
+      const real = execFileSync('sh', ['-c', 'command -v pg_restore'], { encoding: 'utf8' }).trim();
+      const bin = mkdtempSync(join(tmpdir(), 'rpx-fakepg-'));
+      writeFileSync(join(bin, 'pg_restore'), `#!/bin/sh
+ERR='pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter "transaction_timeout"
+Command was: SET transaction_timeout = 0;'
+for a in "$@"; do [ "$a" = "--single-transaction" ] && { echo "$ERR" >&2; exit 1; }; done
+${real} "$@" || exit $?
+echo "$ERR" >&2
+[ -n "$FAKE_EXTRA_ERROR" ] && echo 'pg_restore: error: could not execute query: ERROR:  relation "x" does not exist' >&2
+echo 'pg_restore: warning: errors ignored on restore: 1' >&2
+exit 1
+`);
+      chmodSync(join(bin, 'pg_restore'), 0o755);
+      const env = await setup();
+      const savedBin = process.env.PGBIN;
+      try {
+         const db = await dbOf(env.pool);
+         const bk = await backup(urlOf(db), dir);
+         process.env.PGBIN = bin;
+         const target = `${db}_n`;
+         made.push(target);
+         const r = await restore(ADMIN_URL, bk.dump, target);
+         assert.deepEqual([r.workspaces, r.applications, r.appUsers], [1, 1, 2]);
+         const pool = createPool(urlOf(target));
+         try {
+            assert.equal((await pool.query(`select count(*)::int as n from ${env.schema}.karyawan`)).rows[0].n,
+               (await env.pool.query(`select count(*)::int as n from ${env.schema}.karyawan`)).rows[0].n);
+         } finally {
+            await pool.end();
+         }
+         // another error on top: not accepted, and the database this restore created is gone again
+         process.env.FAKE_EXTRA_ERROR = '1';
+         await assert.rejects(restore(ADMIN_URL, bk.dump, `${db}_x`), /relation "x" does not exist/);
+         assert.equal(await admin(async c => (await c.query('select count(*)::int as n from pg_database where datname = $1', [`${db}_x`])).rows[0].n), 0);
+         // into a database that existed (empty): it is left as it is, and the message says what to do
+         await admin(c => c.query(`create database ${db}_y`));
+         made.push(`${db}_y`);
+         await assert.rejects(restore(ADMIN_URL, bk.dump, `${db}_y`), /berisi sebagian data/);
+      } finally {
+         delete process.env.FAKE_EXTRA_ERROR;
+         if (savedBin === undefined) delete process.env.PGBIN; else process.env.PGBIN = savedBin;
+         rmSync(bin, { recursive: true, force: true });
+         await env.close();
       }
    });
 

@@ -279,6 +279,7 @@ Tes: `test/ops.test.ts` (int) dan `e2e/ops-keepalive.spec.ts` (desktop + mobile)
 | OPS-H6 | backup | happy: pilot | aplikasi DEMO (5 skema, fungsi, trigger, view) sama sebelum dan sesudah; login dan beranda 200; di server yang sama role tidak disentuh | int | ✅ |
 | OPS-E3 | backup | edge | `--keep 1` menghapus pasangan file lama; `--keep 0` ditolak; database tanpa pandawapex ditolak; file `.partial` tidak tersisa | int | ✅ |
 | OPS-N1 | restore | negatif | tujuan sudah berisi tabel, nama tidak valid, file tidak ada, file role tidak ada → ditolak, tidak ada database dibuat | int | ✅ |
+| OPS-E5 | restore | edge: `pg_restore` lebih baru dari server | parameter tak dikenal (`transaction_timeout`) ditoleransi dan data lengkap; error lain ditolak, database yang baru dibuat dihapus lagi; database kosong yang sudah ada dibiarkan dengan pesan | int (pg_restore tiruan), CI (versi asli) | ✅ |
 | OPS-E4 | backup | edge: bentuk koneksi | URL dengan sandi ter-encode, port, `sslmode`, dan bentuk socket `postgres://user@/db?host=/dir` | int | ✅ |
 | OPS-H7 | backup | happy: Docker | `docker compose run --rm rpx backup` → rusak data → restore ke `rpx_restore` → tukar nama → data kembali; server baru (volume kosong): role dibuat, `up` berhasil | manual (dijalankan), CI (backup + restore) | ✅ |
 | OPS-M1 | backup | manual: Windows | `backup-lokal.cmd` dan jadwal Task Scheduler di laptop Windows | manual | ⏳ belum dijalankan |

@@ -64,6 +64,43 @@ function run(tool: 'pg_dump' | 'pg_restore', args: string[], env: NodeJS.Process
    });
 }
 
+const UNKNOWN_SETTING = /unrecognized configuration parameter/;
+const restoreErrors = (stderr: string) => stderr.split('\n').filter(l => /^pg_restore: error: /.test(l));
+
+/**
+ * All or nothing when possible: one transaction, stop at the first error. A pg_restore newer than the server (17
+ * against 16, say) starts by setting parameters the server does not know; that error is harmless but aborts a
+ * single transaction, so nothing can be restored that way. Only then, and only because nothing was committed, the
+ * restore runs again statement by statement and is accepted if those are the only errors. Anything else fails, and a
+ * database this restore created is dropped again so that a second attempt starts clean.
+ */
+async function pgRestore(url: string, target: string, dumpFile: string, created: boolean): Promise<void> {
+   const env = { ...pgEnv(withDatabase(url, target)), PGDATABASE: target };
+   const args = ['--no-password', `--dbname=${target}`, dumpFile];
+   try {
+      await run('pg_restore', ['--single-transaction', '--exit-on-error', ...args], env);
+      return;
+   } catch (e) {
+      const errs = restoreErrors((e as Error).message.replace(/^pg_restore gagal: /, ''));
+      if (!errs.length || !errs.every(l => UNKNOWN_SETTING.test(l))) throw e;
+   }
+   let failure: Error | null = null;
+   try {
+      await run('pg_restore', args, env);
+   } catch (e) {
+      const errs = restoreErrors((e as Error).message.replace(/^pg_restore gagal: /, ''));
+      const real = errs.filter(l => !UNKNOWN_SETTING.test(l));
+      if (!errs.length || real.length) failure = new Error(`pg_restore gagal: ${real.join('; ') || (e as Error).message}`);
+   }
+   if (!failure) return;
+   if (created) {
+      const admin = createPool(url);
+      try { await admin.query(`drop database if exists ${ident(target)} with (force)`); } finally { await admin.end(); }
+      throw failure;
+   }
+   throw new Error(`${failure.message}\nDatabase "${target}" sekarang berisi sebagian data. Hapus dan buat ulang database itu sebelum mencoba lagi.`);
+}
+
 const ident = (s: string) => `"${s.replaceAll('"', '""')}"`;
 const literal = (s: string) => `'${s.replaceAll("'", "''")}'`;
 
@@ -174,6 +211,7 @@ export async function restore(url: string, dumpFile: string, target: string, log
 
    const admin = createPool(url);
    const rolesCreated: string[] = [];
+   let created = false;
    try {
       const exists = await admin.query('select 1 from pg_database where datname = $1', [target]);
       if (exists.rowCount) {
@@ -190,6 +228,7 @@ export async function restore(url: string, dumpFile: string, target: string, log
          }
       } else {
          await admin.query(`create database ${ident(target)}`);
+         created = true;
          log(`database ${target} dibuat`);
       }
       const c = await admin.connect();
@@ -204,7 +243,7 @@ export async function restore(url: string, dumpFile: string, target: string, log
       await admin.end();
    }
 
-   await run('pg_restore', ['--no-password', '--single-transaction', '--exit-on-error', `--dbname=${target}`, dumpFile], { ...pgEnv(targetUrl), PGDATABASE: target });
+   await pgRestore(url, target, dumpFile, created);
    log('data dipulihkan');
 
    const pool = createPool(targetUrl);

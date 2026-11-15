@@ -291,7 +291,7 @@ Isi form dan kata sandi tidak pernah ditulis ke log.
 | Gejala | Penyebab | Solusi |
 | --- | --- | --- |
 | `pg_dump tidak ditemukan` | folder PostgreSQL tidak dikenal | isi `PGHOME` dengan folder PostgreSQL, mis. `set "PGHOME=D:\Software\PGSQL"` |
-| `pg_dump gagal: ... server version mismatch` | `pg_dump` lebih lama daripada server PostgreSQL | pakai `pg_dump` dari versi PostgreSQL yang sama dengan server (arahkan `PGHOME` ke sana) |
+| `pg_dump gagal: ... server version mismatch` | `pg_dump` lebih lama daripada server PostgreSQL | pakai `pg_dump` dari versi PostgreSQL yang sama dengan server (arahkan `PGHOME` ke sana). `pg_dump` yang lebih baru daripada server tidak masalah |
 | `database "..." tidak berisi pandawapex` | `DATABASE_URL` menunjuk database yang salah | periksa nama database di akhir `DATABASE_URL` |
 | `file role tidak ditemukan` | file `.roles.sql` tidak ikut disalin | taruh file `.roles.sql` pasangannya di folder yang sama dengan `.dump` |
 | `database "..." sudah berisi tabel` | nama di `--to` sudah dipakai | pilih nama lain, mis. `--to rpx_restore2`, atau hapus database uji lama |

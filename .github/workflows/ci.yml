@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: pg_dump --version && pg_restore --version   # used by test/ops.test.ts (backup and restore)
       - run: npm test
       - run: npm run rpx -- app check examples/emp/app.yaml
       - run: npm run e2e

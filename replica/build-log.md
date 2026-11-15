@@ -318,6 +318,10 @@ Lebih sulit dari perkiraan:
   Koneksi untuk `pg_dump` kini diurai oleh `pg` sendiri.
 - **`pg_dump` harus sama versinya dengan server.** Debian di image `node:22-slim` membawa klien 15, server 16; image kini
   memasang klien 16 dari repositori PGDG.
+- **`pg_restore` yang lebih baru daripada server** (di CI: klien 17/18, server 16) membuka koneksi dengan `SET
+  transaction_timeout`, yang tidak dikenal server 16. Dalam satu transaksi itu membatalkan semuanya. Restore mencoba dulu
+  secara atomik; bila gagal hanya karena parameter tak dikenal, diulang per perintah dan diterima hanya bila itu
+  satu-satunya jenis error. Error lain menggagalkan restore dan database yang baru dibuat dihapus lagi.
 - **Keep-alive tanpa melemahkan batas idle.** Mengirim tanda selama tab terbuka akan membuat laptop yang ditinggal tetap
   login sampai 8 jam. Tanda hanya dikirim bila ada aktivitas sejak kiriman sebelumnya.
 
