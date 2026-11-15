@@ -305,7 +305,7 @@ tidak lagi ke beranda. `npm test` 156/156, e2e 96/96 (2 skip). Tidak ada S1/S2 t
 | Keep-alive | done | `GET /r/:ws/:app/keepalive` dan `/builder/keepalive`; `rpx.js` mengirim paling sering tiap 5 menit dan hanya bila ada ketikan/klik sejak kiriman terakhir; berhenti setelah 401; halaman login tidak mengirim |
 | Backup / restore | done | `rpx backup [--dir] [--keep]`, `rpx restore <file> --to <db>`; `backup-lokal.cmd`; service `rpx` (profil tools) di Compose, image memuat `pg_dump` 16 dari PGDG; panduan `docs/operasional.md` |
 
-Verifikasi: `test/ops.test.ts` (9 tes) dan `e2e/ops-keepalive.spec.ts` (3 × 2 viewport, memakai jam palsu Playwright). Alur Docker
+Verifikasi: `test/ops.test.ts` (10 tes) dan `e2e/ops-keepalive.spec.ts` (3 × 2 viewport, memakai jam palsu Playwright). Alur Docker
 dijalankan sungguhan: backup, merusak data, restore ke `rpx_restore`, tukar nama database, lalu restore ke server baru (volume
 kosong) yang membuat ulang role `rpx_engine`, `rpx_user_code`, `ws_demo`, `ws_pandawa`.
 

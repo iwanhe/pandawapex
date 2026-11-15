@@ -165,7 +165,7 @@ git push origin <nama-tag>
 | #19 | Semua dokumentasi diperbarui dan ditulis langkah demi langkah; tutorial aplikasi pertama |
 | #20 | Pengerasan operasional ([operasional.md](operasional.md)): `rpx backup` / `rpx restore` dan `backup-lokal.cmd`, pembersihan session kedaluwarsa otomatis, nilai argumen URL tidak lagi masuk log, sesi tidak habis selama pengguna masih bekerja di halaman |
 
-Kondisi terbaru: `npm test` 169 lulus, tes browser 102 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
+Kondisi terbaru: `npm test` 170 lulus, tes browser 102 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
 `0006_builder.sql`, jadi memperbarui cukup dengan `git pull` (lihat langkah di atas).
 
 ## Langkah berikutnya
