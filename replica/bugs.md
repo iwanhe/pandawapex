@@ -188,7 +188,6 @@ Status: fixed in `03e4211`. Untuk POST dipakai Referer, tetapi hanya bila dari h
 
 - **Isian builder hilang saat sesi developer berakhir** (lanjutan BUG-010): developer kembali ke halaman yang benar, tetapi perubahan yang belum tersimpan hilang. Batas idle builder 1 jam. Bila tim sering kena, pertimbangkan perpanjangan sesi otomatis selama tab builder terbuka.
 - **Query SQL report di wizard Create Page hanya dideskripsikan** (`limit 0`), tidak dijalankan. Query yang lambat (`pg_sleep`) tetap diterima dan baru dihentikan saat runtime oleh `statement_timeout` 30 detik. Disengaja, tapi developer tidak mendapat peringatan saat membuat halaman.
-
 - **Isian hilang saat session kedaluwarsa** (F04-E7): setelah login ulang user kembali ke form, tetapi ketikannya hilang. APEX berperilaku serupa. Kalau terasa mengganggu bagi user gudang yang lama di satu form, pertimbangkan perpanjangan session otomatis.
 - **Access log memuat argumen URL** (`P2_EMPNO=…`) sekali sebelum redirect 303. Sudah tercatat di `backend.md`, rencana redaksi di M5.
 - **Format angka** di report memakai `to_char` + `replace` di SQL contoh. Format mask per item (M3) harus menggantikan pola ini.

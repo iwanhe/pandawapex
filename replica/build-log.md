@@ -289,7 +289,7 @@ Dicoba di laptop Windows pengguna (Cmder, PostgreSQL portable): migrasi, setup, 
 (`error:` kosong saat PostgreSQL belum menyala) diperbaiki di #16. Dokumen: `docs/checkpoint-fase2.md` (memperbarui,
 checklist, yang belum ada) dan `docs/panduan-pengguna.md` (cara pakai builder dan aplikasi).
 
-### 2026-11-15 uji menyeluruh Fase 2 (builder B1–B5)
+## Uji menyeluruh Fase 2: builder B1–B5 (2026-11-15), done
 
 17 kasus edge baru (`test/f2-edge.test.ts`, `e2e/f2-edge.spec.ts`). Dua bug ditemukan dan diperbaiki di `03e4211`:
 BUG-009 (S2) penyimpanan bersamaan dari versi yang sama menghapus satu perubahan tanpa pemberitahuan. Sekarang versi dicek di
