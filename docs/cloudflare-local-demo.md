@@ -77,7 +77,7 @@ Jangan pasang Access di `demo.domain-anda.com` atau di seluruh domain: pengguna 
 
 ## A. Docker (Ubuntu, atau Windows dengan Docker Desktop)
 
-Prasyarat: instalasi Docker dari [install-lokal.md](install-lokal.md#a-docker-compose-paling-cepat) sudah berjalan di
+Prasyarat: instalasi Docker dari [install-lokal.md](install-lokal.md#a-docker-compose) sudah berjalan di
 `http://localhost:8080`. Ubuntu memakai Docker Engine + plugin Compose ([docs.docker.com/engine/install/ubuntu](https://docs.docker.com/engine/install/ubuntu/)).
 Windows memakai Docker Desktop dengan WSL 2.
 

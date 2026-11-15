@@ -1,22 +1,25 @@
 # Panduan penggunaan pandawapex
 
 Panduan ini untuk developer Tim PANDAWA yang membuat dan mengubah aplikasi di **builder** pandawapex, dan untuk
-pengguna yang menjalankan aplikasinya. Instalasi di laptop Windows ada di [checkpoint-fase2.md](checkpoint-fase2.md).
+pengguna yang menjalankan aplikasinya. Belum terpasang? Ikuti [install-lokal.md](install-lokal.md) dulu.
+
+Baru pertama kali memakai builder? Baca bagian 1, lalu kerjakan tutorial di bagian 2 dari awal sampai akhir.
 
 Isi:
 
 1. [Konsep dasar](#1-konsep-dasar)
-2. [Masuk ke builder](#2-masuk-ke-builder)
-3. [Mengelola akun](#3-mengelola-akun)
-4. [Membuat aplikasi dari tabel](#4-membuat-aplikasi-dari-tabel)
-5. [Menambah halaman](#5-menambah-halaman)
-6. [Mengubah halaman di Page Designer](#6-mengubah-halaman-di-page-designer)
-7. [Properti aplikasi](#7-properti-aplikasi)
-8. [Ekspor, impor, dan riwayat versi](#8-ekspor-impor-dan-riwayat-versi)
-9. [Menjalankan aplikasi (pengguna)](#9-menjalankan-aplikasi-pengguna)
-10. [Perintah CLI](#10-perintah-cli)
-11. [Catatan untuk developer APEX](#11-catatan-untuk-developer-apex)
-12. [Pertanyaan umum](#12-pertanyaan-umum)
+2. [Tutorial: aplikasi pertama dari tabel sendiri](#2-tutorial-aplikasi-pertama-dari-tabel-sendiri)
+3. [Masuk ke builder](#3-masuk-ke-builder)
+4. [Mengelola akun](#4-mengelola-akun)
+5. [Membuat aplikasi dari tabel](#5-membuat-aplikasi-dari-tabel)
+6. [Menambah halaman](#6-menambah-halaman)
+7. [Mengubah halaman di Page Designer](#7-mengubah-halaman-di-page-designer)
+8. [Properti aplikasi](#8-properti-aplikasi)
+9. [Ekspor, impor, dan riwayat versi](#9-ekspor-impor-dan-riwayat-versi)
+10. [Menjalankan aplikasi (pengguna)](#10-menjalankan-aplikasi-pengguna)
+11. [Perintah CLI](#11-perintah-cli)
+12. [Catatan untuk developer APEX](#12-catatan-untuk-developer-apex)
+13. [Pertanyaan umum](#13-pertanyaan-umum)
 
 ## 1. Konsep dasar
 
@@ -33,9 +36,152 @@ Isi:
 | **Spec** | definisi aplikasi dalam YAML; builder menyimpan setiap perubahan sebagai spec baru di riwayat versi | export file / APEXlang |
 
 Akun developer dan akun pengguna aplikasi terpisah. Developer yang ingin mencoba aplikasinya sendiri perlu membuat akun
-pengguna aplikasi untuk dirinya (bagian 3).
+pengguna aplikasi untuk dirinya (bagian 4).
 
-## 2. Masuk ke builder
+## 2. Tutorial: aplikasi pertama dari tabel sendiri
+
+Dalam tutorial ini Anda membuat aplikasi **Stok Barang** dari nol: satu workspace baru, satu tabel, lalu aplikasinya dibuat
+lewat builder. Waktu sekitar 20 menit. Syarat: pandawapex sudah terpasang dan aplikasi contoh bisa dibuka
+([install-lokal.md](install-lokal.md)).
+
+Langkah 1–4 memakai terminal (sekali saja per workspace). Langkah 5–11 dilakukan di browser.
+
+### Langkah 1. Buka terminal di folder repo dan isi `DATABASE_URL`
+
+Pakai perintah yang sesuai cara instalasi Anda:
+
+| Cara instalasi | Perintah |
+| --- | --- |
+| Cmder + PostgreSQL portable | `cd /d D:\pandawapex` lalu `set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"` |
+| PowerShell + installer | `cd C:\pandawapex` lalu `$env:DATABASE_URL = "postgres://postgres:<katasandi>@localhost:5432/rpx"` |
+| Linux / macOS | `cd pandawapex` lalu `export DATABASE_URL="postgres://$USER@/rpx?host=/var/run/postgresql"` (macOS: `postgres://$USER@localhost/rpx`) |
+| Docker | `cd pandawapex`. Tidak perlu `DATABASE_URL`; perintah `npm run rpx -- …` di bawah diganti `docker compose run --rm setup node src/cli/rpx.ts …` |
+
+PostgreSQL harus sudah menyala.
+
+### Langkah 2. Buat workspace dan skema
+
+Workspace adalah wadah aplikasi, developer, dan pengguna. Skema adalah tempat tabel aplikasi di PostgreSQL.
+
+```bash
+npm run rpx -- ws create latihan --schema latihan_app
+```
+
+Hasil: `workspace latihan ready (role ws_latihan)`. Perintah ini membuat skema `latihan_app` dan role `ws_latihan`.
+Kode aplikasi nanti berjalan sebagai role itu, sehingga hanya bisa menyentuh tabel di skema `latihan_app`.
+
+### Langkah 3. Buat tabel
+
+Buka psql:
+
+| Cara instalasi | Perintah |
+| --- | --- |
+| Cmder + PostgreSQL portable | `"D:\Software\PGSQL\bin\psql.exe" -h localhost -U postgres -d rpx` |
+| PowerShell + installer | `& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d rpx` |
+| Linux / macOS | `psql rpx` |
+| Docker | `docker compose exec db psql -U postgres -d rpx` |
+
+Tempel SQL berikut, lalu tekan Enter:
+
+```sql
+create table latihan_app.barang (
+  id      integer generated always as identity primary key,
+  nama    varchar(100) not null,
+  stok    integer not null default 0,
+  harga   numeric(12,2),
+  aktif   boolean not null default true
+);
+insert into latihan_app.barang (nama, stok, harga) values ('Kertas A4', 20, 55000), ('Tinta printer', 5, 120000);
+```
+
+Hasil: `CREATE TABLE` dan `INSERT 0 2`. Keluar dari psql dengan `\q`.
+
+Dua hal penting:
+- **Primary key memakai `generated always as identity`** (nomor otomatis). Tabel dengan primary key yang diisi manual
+  hanya bisa dibuatkan report, belum form.
+- Tabel dibuat oleh user yang sama dengan yang menjalankan `ws create` (`postgres`), sehingga role `ws_latihan` otomatis
+  mendapat hak baca dan tulis. Kalau tabel dibuat oleh user lain, berikan hak sendiri:
+  `grant select, insert, update, delete on latihan_app.barang to ws_latihan;`
+
+### Langkah 4. Buat akun developer untuk workspace ini
+
+Ganti `budi` dan kata sandinya dengan milik Anda (kata sandi minimal 10 karakter):
+
+```bash
+npm run rpx -- dev add --ws latihan --username budi --password "sandi-budi-123" --admin
+```
+
+Hasil: `developer budi ready in workspace latihan; sign in at /builder`. `--admin` membuat Anda administrator workspace,
+sehingga bisa menambah developer lain dari builder.
+
+### Langkah 5. Pastikan server berjalan dan masuk ke builder
+
+1. Jalankan server bila belum (`start-lokal.cmd`, `npm start`, atau Docker sudah berjalan).
+2. Buka http://localhost:8080/builder.
+3. Isi **Workspace** `latihan`, **Nama pengguna** `budi`, **Kata sandi** dari langkah 4, klik **Masuk**.
+
+Hasil: halaman **Beranda** workspace latihan, dengan 0 aplikasi.
+
+### Langkah 6. Buat aplikasi dari tabel
+
+1. Klik **Buat aplikasi**.
+2. **Nama aplikasi**: `Stok Barang`. **Alias** terisi sendiri menjadi `stok-barang`.
+3. **Skema parsing**: `latihan_app` (satu-satunya pilihan).
+4. **Batasi ke grup**: biarkan kosong.
+5. Di daftar tabel, centang **barang**. Kolom *Yang dibuat* harus berbunyi **Report + form**.
+6. Klik **Buat aplikasi**.
+
+Hasil: beranda aplikasi dengan pesan *Aplikasi Stok Barang dibuat: 2 halaman dari 1 tabel*. Halaman 1 adalah report
+**Barang**, halaman 2 adalah **Form barang** (dialog). Ada juga peringatan bahwa workspace belum punya pengguna aplikasi:
+itu dikerjakan di langkah berikutnya.
+
+### Langkah 7. Buat akun pengguna aplikasi
+
+Akun developer tidak bisa dipakai untuk login ke aplikasi. Buat akun pengguna:
+
+1. Menu kiri **Pengguna aplikasi → Tambah pengguna**.
+2. **Nama pengguna** `sri`, **Kata sandi** dan **Ulangi kata sandi** minimal 10 karakter. Email dan grup boleh kosong.
+3. Klik **Tambah pengguna**.
+
+Hasil: pesan *Pengguna sri ditambahkan*.
+
+### Langkah 8. Jalankan aplikasinya
+
+1. Menu kiri **Aplikasi** → klik **Stok Barang** → tombol **Jalankan** (kanan atas). Aplikasi terbuka di
+   `http://localhost:8080/r/latihan/stok-barang`.
+2. Login sebagai `sri`.
+3. Report **Barang** menampilkan dua baris: Kertas A4 dan Tinta printer.
+4. Klik **Tambah**. Form terbuka sebagai dialog dengan isian Nama, Stok, Harga, dan Aktif. Isi `Map plastik`, stok `50`,
+   harga `3500`, lalu **Simpan**.
+
+Hasil: dialog tertutup, report memuat tiga baris, dan pesan sukses tampil. Coba juga klik nomor di kolom pertama untuk
+mengubah baris, **Cari**, dan **CSV**.
+
+### Langkah 9. Ubah label di Page Designer
+
+1. Kembali ke tab builder, buka beranda aplikasi **Stok Barang**.
+2. Di region **Halaman**, klik **Form barang** (halaman 2). Page Designer terbuka: pohon komponen di kiri, properti di kanan.
+3. Di pohon, klik **Item P2_HARGA**.
+4. Ubah **Label** menjadi `Harga satuan (Rp)`, isi **Bantuan** dengan `Harga per satuan, tanpa titik ribuan.`
+5. Klik **Simpan**. Hasil: pesan *Item P2_HARGA disimpan*.
+6. Di tab aplikasi, buka lagi form barang: label dan teks bantuan baru sudah tampil.
+
+### Langkah 10. Simpan spec aplikasi
+
+Di beranda aplikasi, klik **Ekspor YAML**. File `stok-barang.yaml` terunduh: seluruh definisi aplikasi dalam satu file teks.
+Simpan di repositori Git proyek Anda. File ini bisa diimpor ulang di server lain (bagian 9).
+
+### Langkah 11. Selanjutnya
+
+- Tambah halaman report dari query SQL atau halaman kosong: [bagian 6](#6-menambah-halaman).
+- Batasi menu atau halaman untuk grup tertentu: buat aturan otorisasi di [Properti aplikasi](#8-properti-aplikasi), lalu
+  beri grup ke pengguna di **Pengguna aplikasi**.
+- Tabel lain: buat di psql seperti langkah 3, lalu di beranda aplikasi **Tambah halaman → Report + form**.
+
+Menghapus hasil latihan: di beranda aplikasi paling bawah, hapus aplikasi dengan mengetik aliasnya. Tabel di
+`latihan_app` tetap ada; hapus dengan `drop schema latihan_app cascade;` di psql bila tidak diperlukan lagi.
+
+## 3. Masuk ke builder
 
 1. Buka `http://<server>:8080/builder` (di laptop: http://localhost:8080/builder).
 2. Isi **Workspace**, **Nama pengguna**, dan **Kata sandi** akun developer.
@@ -43,8 +189,13 @@ pengguna aplikasi untuk dirinya (bagian 3).
 Aturan login:
 
 - Salah kata sandi 5 kali → akun developer dikunci. Administrator membukanya di menu **Developer**, atau lewat CLI
-  `rpx dev add` (bagian 10).
-- Sesi builder berakhir setelah 1 jam tidak dipakai atau 8 jam sejak login.
+  `rpx dev add` (bagian 11).
+- Sesi builder berakhir setelah 1 jam tidak dipakai atau 8 jam sejak login. Setelah login lagi, Anda kembali ke halaman
+  yang sedang dibuka. Perubahan yang belum disimpan saat sesi berakhir hilang, jadi simpan secara berkala.
+- Lupa kata sandi developer: administrator workspace mengatur ulang di menu **Developer**, atau dari terminal
+  `npm run rpx -- dev add --ws <workspace> --username <nama> --password "<sandi-baru>"` (sekaligus membuka kunci).
+- Di server demo publik, builder hanya bisa dibuka dari hostname tertentu (pengaturan `RPX_BUILDER_HOSTS`). Di alamat lain
+  `/builder` menjawab *Halaman tidak ditemukan*.
 - **Keluar** di kanan atas mengakhiri sesi. Nama Anda di kanan atas membuka **Akun saya** (ganti kata sandi).
 
 Menu kiri:
@@ -56,7 +207,7 @@ Menu kiri:
 | **Pengguna aplikasi** | akun login aplikasi dan grupnya |
 | **Developer** | akun developer (hanya terlihat oleh administrator) |
 
-## 3. Mengelola akun
+## 4. Mengelola akun
 
 ### Pengguna aplikasi
 
@@ -83,7 +234,7 @@ kunci, hapus. Akun sendiri tidak bisa dikunci, diturunkan, atau dihapus dari sin
 
 Ganti kata sandi sendiri: isi kata sandi sekarang, kata sandi baru, dan ulangi. Sesi builder Anda di perangkat lain berakhir.
 
-## 4. Membuat aplikasi dari tabel
+## 5. Membuat aplikasi dari tabel
 
 **Aplikasi → Buat aplikasi** (atau tombol yang sama di Beranda):
 
@@ -119,7 +270,7 @@ dan satu entri menu. Isian form mengikuti tipe kolom:
 Kolom `NOT NULL` tanpa default menjadi wajib diisi. Setelah dibuat, beranda aplikasi memberi tahu bila workspace belum
 punya pengguna aplikasi.
 
-## 5. Menambah halaman
+## 6. Menambah halaman
 
 Di beranda aplikasi, region **Halaman → Tambah halaman**. Pilih jenisnya:
 
@@ -142,7 +293,7 @@ Isian umum: **Nama halaman** (kosong = nama tabel), **Nomor halaman** (terisi no
 - Saat **Tambah halaman**, query dicoba dulu sebagai role workspace tanpa mengambil data, lalu dibatalkan. Kesalahan
   (kolom tidak ada, tanpa hak akses) ditampilkan dengan pesan PostgreSQL dan halaman tidak dibuat.
 
-## 6. Mengubah halaman di Page Designer
+## 7. Mengubah halaman di Page Designer
 
 Buka dari beranda aplikasi: klik **nama halaman** di region Halaman. Tombol **Jalankan** di baris yang sama membuka
 halaman itu di aplikasi.
@@ -195,11 +346,16 @@ Tombol di atas editor:
 - **Hapus halaman** (saat halaman dipilih): ketik nomor halaman. Halaman beranda tidak bisa dihapus; halaman yang masih
   dirujuk link, branch, atau menu juga ditolak dengan daftar rujukannya.
 
-Setiap **Simpan** diperiksa seperti impor dan masuk riwayat versi. Bila developer lain menyimpan perubahan pada
-aplikasi yang sama setelah Anda membuka halaman ini, simpan Anda ditolak dengan pesan *Aplikasi sudah diubah developer lain*;
-isian tetap di layar. Muat ulang, lalu ulangi perubahannya.
+Setiap **Simpan** diperiksa seperti impor dan masuk riwayat versi. Bila aplikasi yang sama diubah setelah Anda membuka
+halaman ini (oleh developer lain, atau oleh Anda sendiri di tab lain), simpan Anda ditolak dengan pesan *Aplikasi sudah diubah
+di tab lain atau oleh developer lain*. Isian Anda tetap di formulir. Pilih salah satu:
 
-## 7. Properti aplikasi
+- **Simpan** lagi: isian Anda menimpa versi terbaru (perubahan orang lain pada komponen ini hilang);
+- muat ulang halaman untuk melihat versi terbaru dulu, lalu ulangi perubahan Anda.
+
+Hal yang sama berlaku untuk **Properti aplikasi** dan wizard **Tambah halaman**.
+
+## 8. Properti aplikasi
 
 Beranda aplikasi → **Properti aplikasi**. Berisi atribut tingkat aplikasi: nama, versi, skema parsing, halaman beranda,
 zona waktu, substitution strings, autentikasi, otorisasi aplikasi, menu navigasi, daftar pilihan bersama (LOV), aturan
@@ -227,7 +383,7 @@ KOTA: Kudus
 - { label: Mutasi, icon: pencil, page: 4, authorization: pengelola_sdm }
 ```
 
-## 8. Ekspor, impor, dan riwayat versi
+## 9. Ekspor, impor, dan riwayat versi
 
 - **Ekspor YAML** (beranda aplikasi, atau tombol Ekspor di daftar aplikasi) mengunduh spec aplikasi saat ini. File ini
   cocok disimpan di Git.
@@ -240,7 +396,7 @@ KOTA: Kudus
   `rpx app export` / `rpx app import`.
 - **Hapus aplikasi** (beranda aplikasi, paling bawah): ketik alias. Tabel dan data di skema tidak disentuh.
 
-## 9. Menjalankan aplikasi (pengguna)
+## 10. Menjalankan aplikasi (pengguna)
 
 Alamat aplikasi: `/r/<workspace>/<alias>`, mis. http://localhost:8080/r/pandawa/demo. Pengguna login dengan akun
 pengguna aplikasi (atau tombol SSO bila aplikasi memakai SSO).
@@ -262,7 +418,7 @@ pengguna aplikasi (atau tombol SSO bila aplikasi memakai SSO).
 
 **Sesi**: berakhir setelah lama tidak dipakai; pengguna diminta login lagi lalu kembali ke halaman semula.
 
-## 10. Perintah CLI
+## 11. Perintah CLI
 
 Dijalankan dari folder repo dengan `npm run rpx -- <perintah>`. Butuh `DATABASE_URL` (user PostgreSQL superuser/owner).
 
@@ -277,7 +433,7 @@ Dijalankan dari folder repo dengan `npm run rpx -- <perintah>`. Butuh `DATABASE_
 | `dev add --ws <ws> --username <u> --password <p> [--admin]` | tambah developer; dijalankan ulang = atur ulang kata sandi dan buka kunci |
 | `demo setup` / `pilot setup` | pasang ulang aplikasi contoh emp (workspace `demo`) / DEMO (workspace `pandawa`) beserta developer `admin` |
 
-## 11. Catatan untuk developer APEX
+## 12. Catatan untuk developer APEX
 
 - **Bind selalu teks** (seperti VARCHAR2). Cast sendiri: `where empno = :P2_EMPNO::int`.
 - **String kosong = NULL**, sehingga `:P1_CARI is null` berperilaku seperti di APEX.
@@ -288,7 +444,7 @@ Dijalankan dari folder repo dengan `npm run rpx -- <perintah>`. Butuh `DATABASE_
   ada di [examples/demo-permintaan/PORTING.md](../examples/demo-permintaan/PORTING.md).
 - Aturan spec lengkap: [README](../README.md#aturan-spec-yang-perlu-diketahui-developer-apex).
 
-## 12. Pertanyaan umum
+## 13. Pertanyaan umum
 
 **Saya sudah login ke builder tapi tidak bisa login ke aplikasi.** Akun developer dan pengguna aplikasi terpisah. Buat akun
 di **Pengguna aplikasi**.
@@ -305,6 +461,13 @@ Ekspor dulu bila perubahannya ingin disimpan. Aplikasi buatan sendiri tidak ters
 
 **Bisakah dua developer mengubah aplikasi yang sama?** Bisa, bergantian. Bila bertabrakan, simpan yang kedua ditolak tanpa
 menimpa yang pertama. Belum ada kunci halaman eksplisit.
+
+**Builder menjawab *Halaman tidak ditemukan*.** Server dijalankan dengan `RPX_BUILDER_HOSTS` (mode demo publik). Buka
+builder lewat hostname yang terdaftar, atau, di laptop sendiri, jalankan server di jendela terminal baru tanpa variabel itu.
+
+**Saya mengubah aplikasi contoh lalu perubahannya hilang setelah memperbarui pakai Docker.** Docker menjalankan
+`demo setup` dan `pilot setup` setiap kali image dibangun ulang. Ekspor aplikasi contoh sebelum memperbarui, atau buat
+aplikasi sendiri.
 
 **Interactive Grid, Dynamic Actions, drag-drop tata letak?** Belum ada. Lihat bagian "Belum ada" di
 [checkpoint-fase2.md](checkpoint-fase2.md#yang-belum-ada).

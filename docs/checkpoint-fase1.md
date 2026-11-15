@@ -2,12 +2,14 @@
 
 2026-11-13 · Iwan Herdian
 
-> **Sudah ada checkpoint berikutnya:** [checkpoint-fase2.md](checkpoint-fase2.md) (builder B1–B5). Dokumen ini tetap menjadi
-> acuan instalasi dari nol; memperbarui laptop yang sudah terpasang ada di checkpoint 2.
+> **Dokumen ini masih berlaku** sebagai panduan instalasi dari nol di Windows dengan Cmder + PostgreSQL portable. Langkah
+> dan hasil yang ditulis di bawah sudah disesuaikan dengan versi terbaru (termasuk builder). Setelah selesai:
+> - memakai builder: [panduan-pengguna.md](panduan-pengguna.md);
+> - memperbarui laptop yang sudah terpasang: [checkpoint-fase2.md](checkpoint-fase2.md#memperbarui-dari-checkpoint-1);
+> - cara lain (Docker, PowerShell, Linux/macOS): [install-lokal.md](install-lokal.md).
 
-Fase 1 (runtime) selesai di `main` commit `cc279c6`. Dokumen ini adalah titik cek: kalau semua langkah di bawah berhasil
-di laptop Windows tanpa Docker, kita lanjut ke Fase 2 (builder). Untuk Docker Compose atau PowerShell, lihat
-[install-lokal.md](install-lokal.md).
+Fase 1 (runtime) selesai di `main` commit `cc279c6` dan menjadi titik cek sebelum Fase 2 (builder). Angka di tabel ini adalah
+kondisi saat checkpoint 1; kondisi terbaru ada di [checkpoint-fase2.md](checkpoint-fase2.md).
 
 | Ukuran | Nilai di checkpoint |
 | --- | --- |
@@ -79,13 +81,14 @@ Delapan langkah, sekitar 10 menit. Setiap langkah ditutup dengan hasil yang haru
    ```cmd
    npm run rpx -- demo setup
    ```
-   Hasil: `applied 0001_schema.sql` sampai `applied 0005_items_lov.sql`, lalu `demo ready: ... Open /r/demo/emp`.
+   Hasil: `applied 0001_schema.sql` sampai `applied 0006_builder.sql`, lalu `demo ready: ... Open /r/demo/emp`.
+   Perintah ini juga membuat developer `admin` untuk builder di workspace `demo`.
 8. **Pasang pilot DEMO Permintaan Barang.**
    ```cmd
    npm run rpx -- pilot setup
    ```
    Hasil: `pilot ready: app ... (17 pages); users admin (ADMIN), budi (REQUESTER), sari (MANAGER), dodi (DIRECTOR),
-   gudang (WAREHOUSE) ... Open /r/pandawa/demo`.
+   gudang (WAREHOUSE) ... Open /r/pandawa/demo`. Developer `admin` untuk builder juga dibuat di workspace `pandawa`.
 
 Langkah 7 dan 8 aman dijalankan ulang: data contoh tidak digandakan, dan baris `NOTICE: ... already exists, skipping` itu normal.
 
@@ -108,13 +111,16 @@ Skrip itu menyalakan PostgreSQL bila belum (lewat `start-pg.bat`, yang menunggu 
 | `PORT` | `8080` | port 8080 dipakai ORDS/Tomcat |
 
 - Hasil: log `Server listening at http://127.0.0.1:8080`. Biarkan tab terbuka; `Ctrl+C` untuk berhenti.
+- Variabel lain (`RPX_DATABASE_URL`, `RPX_BUILDER_HOSTS`, dan seterusnya) hanya untuk demo publik lewat Cloudflare
+  Tunnel ([cloudflare-local-demo.md, bagian C](cloudflare-local-demo.md#c-windows-tanpa-docker-cmder--postgresql-portable)).
+  Untuk pemakaian lokal, jangan diisi. Kalau pernah mengisinya di tab Cmder, buka tab baru sebelum `start-lokal.cmd`.
 - `RPX_SECRET` dibuat acak setiap start, jadi semua user login ulang setelah restart. Wajar untuk percobaan.
 
 | Aplikasi | Alamat |
 | --- | --- |
 | DEMO Permintaan Barang | http://localhost:8080/r/pandawa/demo |
 | Data Karyawan | http://localhost:8080/r/demo/emp |
-| Builder (Fase 2) | http://localhost:8080/builder |
+| Builder | http://localhost:8080/builder |
 
 ## Akun login
 
@@ -140,9 +146,10 @@ Pengguna aplikasi dan developer juga bisa dikelola dari builder: **Pengguna apli
 User baru lewat CLI: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
 lewat **Administration → Users & Roles** (login sebagai `admin`).
 
-## Checklist sebelum Fase 2
+## Checklist uji aplikasi
 
-Centang setiap butir setelah dicoba di laptop. Semua harus lolos sebelum builder dimulai.
+Centang setiap butir setelah dicoba di laptop. Checklist ini menguji aplikasi yang berjalan; checklist builder ada di
+[checkpoint-fase2.md](checkpoint-fase2.md#checklist-checkpoint-2).
 
 **Instalasi**
 
@@ -184,23 +191,12 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 | `DATABASE_URL is not set` | tab Cmder baru, variabel hilang | ulangi langkah 6 (untuk setup), atau pakai `start-lokal.cmd` (untuk menjalankan) |
 | Halaman 403 "akun Anda belum didaftarkan" di DEMO | user login belum punya role DEMO | `admin` menambahkan role di Users & Roles |
 
-## Memperbarui, mengulang, dan Fase 2
+## Memperbarui dan mengulang
 
-**Memperbarui ke versi terbaru** (data tetap ada; migrasi baru dipasang otomatis):
+**Memperbarui ke versi terbaru**: ikuti [checkpoint-fase2.md](checkpoint-fase2.md#memperbarui-dari-checkpoint-1).
+Data dan aplikasi buatan sendiri tetap ada.
 
-```cmd
-cd /d D:\pandawapex
-git pull
-npm install
-D:\Software\PGSQL\start-pg.bat
-set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"
-set "RPX_DEMO_PASSWORD=coba-lokal-123"
-npm run rpx -- db migrate
-npm run rpx -- demo setup
-npm run rpx -- pilot setup
-```
-
-**Mengulang dari nol** (semua data contoh dan perubahan hilang):
+**Mengulang dari nol** (semua aplikasi, akun, dan data contoh hilang):
 
 ```cmd
 "D:\Software\PGSQL\bin\psql.exe" -h localhost -U postgres -c "drop database rpx with (force)"
@@ -208,12 +204,8 @@ npm run rpx -- pilot setup
 
 Lalu ulangi dari langkah 3.
 
-**Fase 2 (builder)** dimulai setelah checklist di atas lolos. Urutannya mengikuti 8 must-have yang tersisa dan celah dari pilot:
+## Setelah checkpoint 1
 
-1. Login developer per workspace, dan kelola akun developer serta end user dari UI (akun pilot saat ini masih lewat CLI).
-   **Selesai di B1 (login developer) dan B2 (kelola akun dari UI).**
-2. Daftar aplikasi: buat, hapus, impor, ekspor spec. **Selesai di B1.**
-3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang. **Selesai di B3 (8 aksi).**
-4. Create Page wizard (Blank, Form, Report, IR, Modal). **Selesai di B4** (tanpa Interactive Grid).
-5. **Selesai di B5:** Page Designer: tree + property editor, termasuk application properties dan application items.
-6. Celah dari pilot DEMO: faceted search, region di dalam region, metric card.
+Fase 2 (builder) sudah selesai sampai checkpoint 2: login developer, kelola akun dari UI, wizard Create App dan Create
+Page, Page Designer, properti aplikasi. Lihat [checkpoint-fase2.md](checkpoint-fase2.md). Celah dari pilot DEMO
+(faceted search, region di dalam region, metric card) masih terbuka.

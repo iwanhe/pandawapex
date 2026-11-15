@@ -3,9 +3,37 @@
 Low-code runtime ala Oracle APEX di atas **PostgreSQL**, untuk kebutuhan internal KCSI / Tim PANDAWA.
 Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode, aset, atau nama milik Oracle.
 
-> Status: **Fase 2, checkpoint 2** (B1–B5). Runtime + builder visual: login developer, akun, wizard Create App dan
-> Create Page, Page Designer, properti aplikasi, ekspor/impor. Cara pakai: **[docs/panduan-pengguna.md](docs/panduan-pengguna.md)**.
+> **Status: Fase 2, checkpoint 2** (builder B1–B5), ditambah uji menyeluruh builder dan panduan demo publik lewat
+> Cloudflare Tunnel. Yang sudah bisa: menjalankan aplikasi (report, form, dialog, daftar pilihan, otorisasi, SSO) dan
+> membuatnya dari builder visual (wizard dari tabel, Page Designer, akun, ekspor/impor).
 > Belum ada: Interactive Grid, Dynamic Actions, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
+
+## Mulai dari sini
+
+Baru pertama kali? Pilih baris yang sesuai, lalu ikuti dokumennya dari atas ke bawah.
+
+| Saya ingin… | Baca | Waktu |
+| --- | --- | --- |
+| memasang di laptop Windows dengan **Cmder + PostgreSQL portable** (cara Tim PANDAWA) | [docs/checkpoint-fase1.md](docs/checkpoint-fase1.md) | ± 15 menit |
+| memasang dengan **Docker** (Windows, Linux, macOS) | [docs/install-lokal.md, bagian A](docs/install-lokal.md#a-docker-compose) | ± 10 menit |
+| memasang di Windows dengan **PostgreSQL installer + PowerShell** | [docs/install-lokal.md, bagian B](docs/install-lokal.md#b-windows-dengan-postgresql-installer-powershell) | ± 15 menit |
+| memasang di **Linux / macOS tanpa Docker** | [docs/install-lokal.md, bagian C](docs/install-lokal.md#c-linux-atau-macos-tanpa-docker) | ± 15 menit |
+| **memperbarui** instalasi yang sudah ada ke versi terbaru | [docs/install-lokal.md#memperbarui-ke-versi-terbaru](docs/install-lokal.md#memperbarui-ke-versi-terbaru) | ± 5 menit |
+| membuat **aplikasi pertama** dari tabel sendiri | [docs/panduan-pengguna.md, bagian 2](docs/panduan-pengguna.md#2-tutorial-aplikasi-pertama-dari-tabel-sendiri) | ± 20 menit |
+| memakai builder sehari-hari (wizard, Page Designer, akun, ekspor) | [docs/panduan-pengguna.md](docs/panduan-pengguna.md) | |
+| membuka demo ke **internet** lewat Cloudflare Tunnel | [docs/cloudflare-local-demo.md](docs/cloudflare-local-demo.md) | ± 30 menit |
+| memindahkan aplikasi APEX ke pandawapex | [examples/demo-permintaan/PORTING.md](examples/demo-permintaan/PORTING.md) | |
+| mengubah kode pandawapex (tes, struktur folder) | bagian [Tes](#tes) dan [Struktur](#struktur) di bawah | |
+
+Setelah terpasang, alamat yang dipakai (port bawaan 8080):
+
+| Yang dibuka | Alamat | Login bawaan |
+| --- | --- | --- |
+| Builder (untuk developer) | http://localhost:8080/builder | workspace `pandawa` atau `demo`, user `admin` |
+| Aplikasi pilot DEMO Permintaan Barang | http://localhost:8080/r/pandawa/demo | `admin`, `budi`, `sari`, `dodi`, `gudang` |
+| Aplikasi contoh Data Karyawan | http://localhost:8080/r/demo/emp | `admin`, `tamu` |
+
+Semua akun contoh memakai kata sandi yang Anda isi di `RPX_DEMO_PASSWORD` saat instalasi.
 
 ## Cara kerja singkat
 
@@ -18,51 +46,57 @@ Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode
 Bind variable ala APEX (`:P2_EMPNO`) diterjemahkan ke parameter PostgreSQL (`$1`) untuk SQL,
 atau ke `rpx_rt.v('P2_EMPNO')` di dalam blok PL/pgSQL.
 
-## Menjalankan lokal
+## Builder
 
-Cara tercepat (Docker Compose, tanpa SSO) dan cara Windows tanpa Docker: **[docs/install-lokal.md](docs/install-lokal.md)**.
-Windows dengan Cmder dan PostgreSQL portable: instalasi dari nol di **[docs/checkpoint-fase1.md](docs/checkpoint-fase1.md)**,
-memperbarui ke builder dan checklist uji builder di **[docs/checkpoint-fase2.md](docs/checkpoint-fase2.md)**.
-
-Manual, langkah demi langkah:
-
-Prasyarat: Node.js ≥ 22.18 (TypeScript dijalankan langsung lewat type stripping; Node 20 gagal dengan `Unknown file extension ".ts"`), PostgreSQL ≥ 14 (diuji di 16).
-
-```bash
-npm install
-export DATABASE_URL=postgres://postgres@localhost/rpx     # role superuser/owner untuk migrasi & CLI
-export RPX_SECRET=$(openssl rand -hex 32)                 # kunci HMAC checksum URL & item
-
-npm run rpx -- db migrate
-npm run rpx -- ws create demo --schema demo_app
-psql "$DATABASE_URL" -f examples/emp/seed.sql             # tabel contoh di schema demo_app
-npm run rpx -- app import examples/emp/app.yaml --ws demo
-npm run rpx -- user add --ws demo --username iwan --password 'rahasia123'
-
-npm run rpx -- dev add --ws demo --username admin --password 'rahasia123' --admin
-
-npm run dev                                               # http://localhost:8080/r/demo/emp/1
-```
-
-**Builder**: http://localhost:8080/builder, masuk dengan workspace + akun developer (`rpx dev add`; `demo setup` dan
-`pilot setup` membuat developer `admin`). Panduan lengkap: [docs/panduan-pengguna.md](docs/panduan-pengguna.md).
+Builder ada di `/builder` dan memakai **akun developer**, yang terpisah dari akun pengguna aplikasi. `demo setup` dan
+`pilot setup` membuat developer `admin`; developer lain dibuat dari menu **Developer** di builder atau dengan
+`npm run rpx -- dev add`. Panduan lengkap: [docs/panduan-pengguna.md](docs/panduan-pengguna.md).
 
 | Di builder | Isi |
 | --- | --- |
 | Beranda, Aplikasi | ringkasan workspace, daftar aplikasi, impor/ekspor spec YAML, riwayat versi, hapus aplikasi |
 | Buat aplikasi | wizard dari tabel: Interactive Report + form dialog per tabel |
 | Tambah halaman | report + form, report dari tabel atau query SQL, form, halaman kosong |
-| Page Designer | struktur halaman + editor properti untuk semua atribut spec; konflik antar developer terdeteksi |
+| Page Designer | struktur halaman + editor properti untuk semua atribut spec; simpan bersamaan oleh dua developer terdeteksi |
 | Properti aplikasi | nama, beranda, substitution strings, menu, LOV, otorisasi, application items |
 | Pengguna aplikasi, Developer, Akun saya | akun login aplikasi dan grupnya, akun developer, ganti kata sandi |
 
-Ekspor dari CLI: `npm run rpx -- app export demo --ws pandawa --out demo.yaml`; ekspor lalu impor lagi menghasilkan metadata yang sama.
+## Perintah CLI
 
-Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.
+Dijalankan dari folder repo. Semua perintah kecuali `app check` butuh `DATABASE_URL` (user PostgreSQL superuser/pemilik database).
 
-**Demo publik lewat Cloudflare Tunnel** (Docker, Ubuntu tanpa Docker, atau Windows tanpa Docker), termasuk role `rpx_engine`,
-builder di hostname terpisah yang dilindungi Cloudflare Access (`RPX_BUILDER_HOSTS`), dan `RPX_TRUST_PROXY`:
-**[docs/cloudflare-local-demo.md](docs/cloudflare-local-demo.md)**.
+```bash
+npm run rpx -- db migrate                                   # pasang migrasi database terbaru
+npm run rpx -- demo setup                                   # aplikasi contoh Data Karyawan (workspace demo)
+npm run rpx -- pilot setup                                  # pilot DEMO Permintaan Barang (workspace pandawa)
+npm run rpx -- ws create gudang --schema gudang_app         # workspace baru + role ws_gudang + akses ke skema
+npm run rpx -- app check apps/penerimaan.yaml               # periksa spec tanpa database
+npm run rpx -- app import apps/penerimaan.yaml --ws gudang  # impor atau ganti aplikasi
+npm run rpx -- app export demo --ws pandawa --out demo.yaml # ekspor spec aplikasi
+npm run rpx -- user add --ws gudang --username sri --password 'min-10-karakter' --group Gudang
+npm run rpx -- dev add --ws gudang --username budi --password 'min-10-karakter' --admin
+```
+
+Detail tiap perintah: [panduan-pengguna.md, bagian 11](docs/panduan-pengguna.md#11-perintah-cli).
+
+## Konfigurasi
+
+Engine dan CLI dikonfigurasi lewat variabel lingkungan. Daftar lengkap dengan penjelasan ada di [`.env.example`](.env.example).
+
+| Variabel | Untuk | Kapan diisi |
+| --- | --- | --- |
+| `DATABASE_URL` | koneksi superuser/pemilik untuk CLI (migrasi, setup, impor) | selalu, saat menjalankan `npm run rpx` |
+| `RPX_DATABASE_URL` | koneksi engine; bila kosong memakai `DATABASE_URL` | produksi/demo publik: role `rpx_engine` |
+| `RPX_SECRET` | kunci acak ≥ 32 karakter untuk checksum URL dan form | selalu (`start-lokal.cmd` membuatnya otomatis) |
+| `PORT`, `HOST` | port dan alamat dengar (bawaan `8080`, `0.0.0.0`; `start-lokal.cmd` memakai `127.0.0.1`) | port 8080 sudah dipakai |
+| `RPX_SECURE_COOKIES` | `1` = cookie hanya lewat HTTPS | di balik HTTPS |
+| `RPX_PUBLIC_URL` | alamat publik, untuk callback SSO | di balik domain / SSO |
+| `RPX_TRUST_PROXY` | proxy yang dipercaya untuk IP klien: `true` (bawaan), `false`, `1` | `1` di balik Cloudflare Tunnel |
+| `RPX_BUILDER_HOSTS` | hostname yang boleh membuka builder; `none` = builder mati | demo publik |
+
+Untuk pemakaian lokal biasa, empat variabel terakhir (`RPX_SECURE_COOKIES` sampai `RPX_BUILDER_HOSTS`) tidak perlu diisi.
+Demo publik:
+[docs/cloudflare-local-demo.md](docs/cloudflare-local-demo.md).
 
 SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/backend.md](replica/backend.md#konfigurasi-sso-di-spec).
 
@@ -88,33 +122,47 @@ SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/back
 
 ## Tes
 
+Butuh role PostgreSQL yang boleh `CREATE DATABASE` dan `CREATE ROLE` (superuser lokal). Setiap file tes membuat database
+sementara sendiri lalu menghapusnya.
+
 ```bash
-# butuh role PostgreSQL yang boleh CREATE DATABASE dan CREATE ROLE (superuser lokal)
-export TEST_DATABASE_URL=postgres://postgres@localhost/postgres
-npm test            # unit + integrasi; tiap file tes membuat database sementara
-npm run typecheck
+export TEST_DATABASE_URL=postgres://postgres@localhost/postgres   # Windows cmd: set "TEST_DATABASE_URL=..."
+npm run typecheck        # pemeriksaan tipe TypeScript
+npm test                 # unit + integrasi (node:test) terhadap PostgreSQL nyata
+
+npx playwright install chromium   # sekali saja, mengunduh browser untuk tes e2e
+npm run e2e              # tes browser (desktop 1440 px + mobile 390 px), dengan pemeriksaan aksesibilitas axe
 ```
+
+Tes e2e menjalankan server sendiri di port 8099 dengan database `rpx_e2e`. CI (`.github/workflows`) menjalankan semua
+langkah di atas plus instalasi Docker untuk setiap pull request.
 
 ## Struktur
 
 ```
-db/migrations/      migrasi SQL (0001 = schema rpx + rpx_rt)
-src/engine/         server, session, render (show), accept, bind translator, report & form
+db/migrations/      migrasi SQL (0001 = schema rpx + rpx_rt, ..., 0006 = builder)
+src/engine/         server, session, render halaman, proses, bind translator, report & form
 src/spec/           JSON Schema spec + importer YAML -> rpx.* + exporter rpx.* -> YAML
 src/builder/        builder (/builder): login & sesi developer, akun, wizard Create App / Create Page,
                     Page Designer + properti aplikasi, introspeksi tabel, generator halaman, impor/ekspor
-src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add
-src/client/         tokens.css + components.css (design system) + rpx.js
-examples/emp/       aplikasi contoh (report + form karyawan)
-examples/demo-permintaan/  pilot porting dari APEX (17 halaman)
-docs/               panduan pengguna, checkpoint instalasi
+src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add | demo/pilot setup
+src/client/         tokens.css + components.css (design system) + rpx.js (perilaku di browser)
+examples/emp/       aplikasi contoh Data Karyawan (report + form dialog)
+examples/demo-permintaan/  pilot porting dari APEX (17 halaman, approval 2 level)
+docs/               instalasi, panduan pengguna, checkpoint, demo publik
 test/               tes integrasi (node:test) terhadap PostgreSQL nyata
-replica/            dokumen perencanaan: recon, arsitektur, design system, build log
+e2e/                tes browser Playwright
+tools/              skrip pendukung: skor parity, sensus komponen APEX, diff screenshot
+replica/            dokumen perencanaan: recon, arsitektur, design system, build log, test plan, bugs
+Dockerfile, docker-compose.yml, docker-compose.cloudflare.yml   instalasi Docker dan overlay Cloudflare Tunnel
+start-lokal.cmd     menjalankan pandawapex di Windows tanpa Docker (Cmder)
+.env.example        daftar semua variabel lingkungan
 ```
 
 ## Dokumen
 
-- [Panduan penggunaan](docs/panduan-pengguna.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Checkpoint 2 (builder)](docs/checkpoint-fase2.md) · [Checkpoint 1 (instalasi)](docs/checkpoint-fase1.md)
+- [Instalasi lokal](docs/install-lokal.md) · [Checkpoint 1: Windows + Cmder dari nol](docs/checkpoint-fase1.md) · [Checkpoint 2: builder](docs/checkpoint-fase2.md)
+- [Panduan penggunaan](docs/panduan-pengguna.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Porting dari APEX](examples/demo-permintaan/PORTING.md)
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
 - [Design system](replica/design/components.md)
