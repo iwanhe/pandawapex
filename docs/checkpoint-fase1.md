@@ -2,6 +2,9 @@
 
 2026-11-13 · Iwan Herdian
 
+> **Sudah ada checkpoint berikutnya:** [checkpoint-fase2.md](checkpoint-fase2.md) (builder B1–B5). Dokumen ini tetap menjadi
+> acuan instalasi dari nol; memperbarui laptop yang sudah terpasang ada di checkpoint 2.
+
 Fase 1 (runtime) selesai di `main` commit `cc279c6`. Dokumen ini adalah titik cek: kalau semua langkah di bawah berhasil
 di laptop Windows tanpa Docker, kita lanjut ke Fase 2 (builder). Untuk Docker Compose atau PowerShell, lihat
 [install-lokal.md](install-lokal.md).
@@ -189,8 +192,10 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 cd /d D:\pandawapex
 git pull
 npm install
+D:\Software\PGSQL\start-pg.bat
 set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"
 set "RPX_DEMO_PASSWORD=coba-lokal-123"
+npm run rpx -- db migrate
 npm run rpx -- demo setup
 npm run rpx -- pilot setup
 ```

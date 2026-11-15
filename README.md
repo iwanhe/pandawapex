@@ -3,12 +3,15 @@
 Low-code runtime ala Oracle APEX di atas **PostgreSQL**, untuk kebutuhan internal KCSI / Tim PANDAWA.
 Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode, aset, atau nama milik Oracle.
 
-> Status: **Fase 1, M0–M1**. Runtime membaca aplikasi dari spec YAML; builder visual menyusul di Fase 2.
+> Status: **Fase 2, checkpoint 2** (B1–B5). Runtime + builder visual: login developer, akun, wizard Create App dan
+> Create Page, Page Designer, properti aplikasi, ekspor/impor. Cara pakai: **[docs/panduan-pengguna.md](docs/panduan-pengguna.md)**.
+> Belum ada: Interactive Grid, Dynamic Actions, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
 
 ## Cara kerja singkat
 
-1. Developer menulis aplikasi sebagai YAML (`examples/emp/app.yaml`): page, region, item, button, proses, branch.
-2. `rpx app import` memvalidasi spec dan menyimpannya ke tabel metadata `rpx.*`.
+1. Developer membuat aplikasi di builder (`/builder`), atau menulisnya sebagai YAML (`examples/emp/app.yaml`):
+   page, region, item, button, proses, branch. Builder juga menyimpan setiap perubahan sebagai spec YAML.
+2. Spec divalidasi lalu disimpan ke tabel metadata `rpx.*` (lewat builder atau `rpx app import`), dengan riwayat versi.
 3. Engine (Node + Fastify) merender page dari metadata, menyimpan session state di PostgreSQL, dan menjalankan
    SQL/PL/pgSQL milik developer di bawah role workspace (`ws_*`), bukan sebagai role engine.
 
@@ -18,7 +21,8 @@ atau ke `rpx_rt.v('P2_EMPNO')` di dalam blok PL/pgSQL.
 ## Menjalankan lokal
 
 Cara tercepat (Docker Compose, tanpa SSO) dan cara Windows tanpa Docker: **[docs/install-lokal.md](docs/install-lokal.md)**.
-Windows dengan Cmder dan PostgreSQL portable, lengkap dengan checklist uji: **[docs/checkpoint-fase1.md](docs/checkpoint-fase1.md)** (checkpoint akhir Fase 1).
+Windows dengan Cmder dan PostgreSQL portable: instalasi dari nol di **[docs/checkpoint-fase1.md](docs/checkpoint-fase1.md)**,
+memperbarui ke builder dan checklist uji builder di **[docs/checkpoint-fase2.md](docs/checkpoint-fase2.md)**.
 
 Manual, langkah demi langkah:
 
@@ -40,12 +44,19 @@ npm run rpx -- dev add --ws demo --username admin --password 'rahasia123' --admi
 npm run dev                                               # http://localhost:8080/r/demo/emp/1
 ```
 
-**Builder** (Fase 2, mulai B1): http://localhost:8080/builder, masuk dengan workspace + akun developer (`rpx dev add`;
-`demo setup` dan `pilot setup` membuat developer `admin`). Isinya beranda workspace, daftar aplikasi, wizard buat
-aplikasi dari tabel (Interactive Report + form dialog per tabel), wizard tambah halaman (report + form, report dari tabel
-atau SQL, form, halaman kosong), Page Designer (struktur halaman + editor properti) dan properti aplikasi, impor dan ekspor spec YAML, riwayat impor, hapus aplikasi, serta kelola akun: pengguna aplikasi (grup, reset kata
-sandi, kunci), developer (khusus administrator), dan ganti kata sandi sendiri. Ekspor dari CLI:
-`npm run rpx -- app export demo --ws pandawa --out demo.yaml`; ekspor lalu impor lagi menghasilkan metadata yang sama.
+**Builder**: http://localhost:8080/builder, masuk dengan workspace + akun developer (`rpx dev add`; `demo setup` dan
+`pilot setup` membuat developer `admin`). Panduan lengkap: [docs/panduan-pengguna.md](docs/panduan-pengguna.md).
+
+| Di builder | Isi |
+| --- | --- |
+| Beranda, Aplikasi | ringkasan workspace, daftar aplikasi, impor/ekspor spec YAML, riwayat versi, hapus aplikasi |
+| Buat aplikasi | wizard dari tabel: Interactive Report + form dialog per tabel |
+| Tambah halaman | report + form, report dari tabel atau query SQL, form, halaman kosong |
+| Page Designer | struktur halaman + editor properti untuk semua atribut spec; konflik antar developer terdeteksi |
+| Properti aplikasi | nama, beranda, substitution strings, menu, LOV, otorisasi, application items |
+| Pengguna aplikasi, Developer, Akun saya | akun login aplikasi dan grupnya, akun developer, ganti kata sandi |
+
+Ekspor dari CLI: `npm run rpx -- app export demo --ws pandawa --out demo.yaml`; ekspor lalu impor lagi menghasilkan metadata yang sama.
 
 Semua variabel lingkungan ada di [`.env.example`](.env.example). Untuk produksi, jalankan engine dengan role `rpx_engine` (`RPX_DATABASE_URL`), bukan superuser, dan set `RPX_SECURE_COOKIES=1` serta `RPX_PUBLIC_URL` di balik HTTPS.
 
@@ -86,16 +97,20 @@ npm run typecheck
 db/migrations/      migrasi SQL (0001 = schema rpx + rpx_rt)
 src/engine/         server, session, render (show), accept, bind translator, report & form
 src/spec/           JSON Schema spec + importer YAML -> rpx.* + exporter rpx.* -> YAML
-src/builder/        builder (/builder): login developer, workspace, daftar aplikasi, impor/ekspor
+src/builder/        builder (/builder): login & sesi developer, akun, wizard Create App / Create Page,
+                    Page Designer + properti aplikasi, introspeksi tabel, generator halaman, impor/ekspor
 src/cli/            rpx db migrate | ws create | app import/export/check | user add | dev add
 src/client/         tokens.css + components.css (design system) + rpx.js
 examples/emp/       aplikasi contoh (report + form karyawan)
+examples/demo-permintaan/  pilot porting dari APEX (17 halaman)
+docs/               panduan pengguna, checkpoint instalasi
 test/               tes integrasi (node:test) terhadap PostgreSQL nyata
 replica/            dokumen perencanaan: recon, arsitektur, design system, build log
 ```
 
 ## Dokumen
 
+- [Panduan penggunaan](docs/panduan-pengguna.md) · [Checkpoint 2 (builder)](docs/checkpoint-fase2.md) · [Checkpoint 1 (instalasi)](docs/checkpoint-fase1.md)
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
 - [Design system](replica/design/components.md)

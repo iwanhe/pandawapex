@@ -281,3 +281,10 @@ Lebih sulit dari perkiraan:
 - **Deskripsi di JSON Schema berbahasa Inggris** (untuk penulis spec); editor memakai teks bantuan sendiri.
 
 Belum: drag-drop grid tata letak, kunci halaman eksplisit, undo (riwayat versi bisa diunduh dan diimpor ulang).
+
+## Checkpoint 2 (2026-11-15)
+
+Builder B1–B5 dan perbaikan CLI (PR #9–#16) di-merge. `npm test` 144/144, e2e 90/90 (2 skip), parity 68.1, must-have 29/30.
+Dicoba di laptop Windows pengguna (Cmder, PostgreSQL portable): migrasi, setup, dan builder berjalan; satu temuan
+(`error:` kosong saat PostgreSQL belum menyala) diperbaiki di #16. Dokumen: `docs/checkpoint-fase2.md` (memperbarui,
+checklist, yang belum ada) dan `docs/panduan-pengguna.md` (cara pakai builder dan aplikasi).
