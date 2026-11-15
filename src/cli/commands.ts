@@ -94,6 +94,21 @@ export async function addUser(pool: pg.Pool, workspace: string, username: string
    return r.rows[0].id;
 }
 
+/** A developer (builder sign-in) in a workspace; updates the password and unlocks when it exists. */
+export async function addDeveloper(pool: pg.Pool, workspace: string, username: string, password: string,
+                                   opts: { email?: string; admin?: boolean } = {}): Promise<string> {
+   if (password.length < 10) throw new Error('password must be at least 10 characters');
+   const ws = await pool.query('select id from rpx.workspaces where name = $1', [workspace]);
+   if (!ws.rowCount) throw new Error(`workspace "${workspace}" does not exist`);
+   const r = await pool.query(
+      `insert into rpx.dev_users (workspace_id, username, email, pwd_hash, is_admin) values ($1, $2, $3, $4, $5)
+       on conflict (workspace_id, username) do update set pwd_hash = excluded.pwd_hash, is_admin = excluded.is_admin
+                                                         , locked = false, failed_logins = 0, updated_at = now()
+       returning id`,
+      [ws.rows[0].id, username, opts.email ?? `${username}@localhost`, await hash(password), opts.admin ?? false]);
+   return r.rows[0].id;
+}
+
 export const PILOT_SCHEMAS = ['apx_demo', 'apx_demo_sec_pkg', 'apx_demo_doc_pkg', 'apx_demo_approval_pkg', 'apx_demo_request_pkg'];
 export const PILOT_USERS: [string, string][] = [
    ['admin', 'ADMIN'], ['budi', 'REQUESTER'], ['sari', 'MANAGER'], ['dodi', 'DIRECTOR'], ['gudang', 'WAREHOUSE'],
@@ -117,6 +132,7 @@ export async function setupPilot(pool: pg.Pool, password: string, ws = 'pandawa'
    }
    const r = await importApp(pool, ws, readFileSync(new URL('app.yaml', root), 'utf8'));
    for (const [user] of PILOT_USERS) await addUser(pool, ws, user, password);
+   await addDeveloper(pool, ws, 'admin', password, { admin: true });   // builder sign-in (/builder)
    return r;
 }
 

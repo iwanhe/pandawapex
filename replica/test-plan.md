@@ -8,9 +8,9 @@ Yang dites adalah **clone kita sendiri** (`npm run e2e`, `npm test`), bukan Orac
 
 | flow | status build | dites |
 | --- | --- | --- |
-| F01 buat app dari tabel (builder) | belum dibangun (Fase 2) | — |
-| F02 tambah page Report+Form (builder) | belum dibangun | — |
-| F03 Page Designer | belum dibangun | — |
+| **F01 buat app dari tabel (builder)** | B3 wizard Create App | ✅ e2e (8 aksi) + integrasi |
+| **F02 tambah page Report+Form (builder)** | B4 wizard Create Page | ✅ e2e (3 aksi) + integrasi |
+| **F03 Page Designer** | B5 Page Designer + properti aplikasi | ✅ e2e + integrasi |
 | **F04 end user edit data (core loop)** | M1 + M3 (item & LOV) + M4 (dialog) | ✅ e2e + integrasi |
 | F05 personalisasi IR | M4 (dasar, tanpa saved reports) | ✅ e2e + integrasi |
 | F06 Interactive Grid | Fase 2 | — |
@@ -137,3 +137,128 @@ membandingkan ke database.
 
 Run: integrasi 93/93, e2e 72/72 (2 di-skip). Bug baru dari axe: tabel scroll tidak bisa difokus keyboard, diperbaiki (lihat build-log).
 
+
+## Fase 2 B1: builder (2026-11-13)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B1-H1 | builder | happy | login developer → beranda → cari aplikasi → buat → ekspor → impor balik (ganti) → hapus; axe bersih di setiap layar | e2e (2 viewport), int | ✅ |
+| B1-H2 | builder | happy | ekspor → impor → ekspor menghasilkan teks spec yang sama; metadata 16 tabel identik (emp, DEMO, kitchen sink) | int | ✅ |
+| B1-E1 | builder | edge: tanpa sesi | GET ke halaman builder → login lalu kembali ke alamat semula; alamat kembali di luar `/builder` diabaikan | int | ✅ |
+| B1-E2 | builder | edge: idle 1 jam / logout / cookie lama dipakai ulang | kembali ke login dengan pesan sesi berakhir | int | ✅ |
+| B1-E3 | builder | edge: impor alias yang sudah ada | 409, spec tetap di kotak; dengan centang "Ganti" berhasil, riwayat bertambah | e2e, int | ✅ |
+| B1-E4 | builder | edge: impor YAML rusak / spec tidak valid / skema bukan milik workspace | 422 dengan daftar masalah, tidak ada yang tersimpan | int | ✅ |
+| B1-E5 | builder | edge: textarea mengirim CRLF | diimpor sama dengan LF | int | ✅ |
+| B1-E6 | builder | edge: cari `%` | dicari harfiah, bukan wildcard | int | ✅ |
+| B1-E7 | builder | edge: keyboard saja | login dan keluar tanpa mouse | e2e | ✅ |
+| B1-N1 | builder | negatif: sandi salah / workspace salah / akun aplikasi | satu pesan yang sama, 401 | e2e, int | ✅ |
+| B1-N2 | builder | negatif: 5 kali salah | akun dikunci; `rpx dev add` membuka; akun dikunci → sesi terbuka hilang | int | ✅ |
+| B1-N3 | builder | negatif: data workspace lain | daftar kosong; buka, ekspor, hapus aplikasi workspace lain → 404 | int | ✅ |
+| B1-N4 | builder | negatif: POST tanpa token CSRF | login 403, hapus 403 | int | ✅ |
+| B1-N5 | builder | negatif: hapus dengan alias salah | 422, aplikasi tetap ada | e2e, int | ✅ |
+| B1-N6 | builder | negatif: unduh versi milik aplikasi lain / id tidak valid | 404 | int | ✅ |
+
+Run: `npm test` 108/108, e2e 76/76 (2 skip, sama seperti sebelumnya). Bug baru: tidak ada.
+
+## Fase 2 B2: kelola akun (2026-11-14)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B2-H1 | akun | happy: pengguna aplikasi | tambah dengan grup → atur ulang sandi → kunci → buka → hapus; akun baru bisa login ke aplikasi workspace; axe bersih | e2e (2 viewport), int | ✅ |
+| B2-H2 | akun | happy: developer | administrator menambah developer, menjadikannya administrator, menghapusnya; axe bersih | e2e, int | ✅ |
+| B2-H3 | akun | happy: ganti sandi sendiri | sandi baru berlaku, sesi lain berakhir, sesi ini tetap | int | ✅ |
+| B2-E1 | akun | edge: grup berubah saat pengguna sedang login | akses ke halaman ber-grup langsung berubah (diberi dan dicabut) tanpa login ulang | int | ✅ |
+| B2-E2 | akun | edge: banyak pengguna, cari `%` | paging 50 per halaman; `%` dicari harfiah | int | ✅ |
+| B2-E3 | akun | edge: developer dinaikkan / diturunkan saat sesinya terbuka | menu dan akses Developer berubah di request berikutnya | int | ✅ |
+| B2-N1 | akun | negatif: isian salah | nama dipakai, email salah, sandi < 10, konfirmasi beda, nama grup berspasi, sandi baru sama dengan lama → 422 dengan pesan per field | e2e, int | ✅ |
+| B2-N2 | akun | negatif: reset / kunci | sesi pengguna berakhir; sandi lama ditolak; akun terkunci ditolak login | int | ✅ |
+| B2-N3 | akun | negatif: developer biasa | halaman dan POST Developer → 403, tidak ada perubahan | int | ✅ |
+| B2-N4 | akun | negatif: administrator pada akun sendiri | kunci, turunkan, hapus diri sendiri → dialihkan ke Akun saya, tidak ada perubahan | int | ✅ |
+| B2-N5 | akun | negatif: workspace lain / id tidak valid / tanpa token CSRF | 404 / 404 / 403 | int | ✅ |
+| B2-N6 | akun | negatif: sandi sekarang salah | 422, ringkasan error difokuskan | e2e, int | ✅ |
+
+Run: `npm test` 117/117, e2e 80/80 (2 skip). Bug baru: tidak ada.
+
+## Fase 2 B3: wizard Create App (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B3-H1 | F01 | happy | beranda builder → Buat aplikasi → nama → centang tabel → Buat → Jalankan → login → Interactive Report tampil, ≤ 8 aksi; Tambah lewat form dialog berhasil; axe bersih | e2e (2 viewport), int | ✅ (8 aksi) |
+| B3-H2 | F01 | happy: tiga tabel | 5 halaman (2 report + form, 1 report saja), menu per tabel, FK tampil sebagai nama, enum/timestamp/boolean/textarea di form, baris tersimpan dengan default kolom | int | ✅ |
+| B3-H3 | F01 | happy: batasi ke grup | anggota grup bisa membuka; bukan anggota 403 dengan pesan grup | int | ✅ |
+| B3-E1 | F01 | edge: tabel tanpa PK, PK komposit tanpa default, view, kolom wajib bytea, tanpa hak tulis | report saja, dengan alasan tertulis | int, e2e | ✅ |
+| B3-E2 | F01 | edge: tanpa hak SELECT, nama tabel campur huruf besar | checkbox nonaktif dengan alasan; dikirim paksa → ditolak | int | ✅ |
+| B3-E3 | F01 | edge: tanpa tabel dipilih | satu halaman beranda kosong; beranda aplikasi memberi tahu bila belum ada pengguna aplikasi | int | ✅ |
+| B3-E4 | F01 | edge: tanpa JavaScript, ganti skema | tombol "Tampilkan tabel" lewat GET; token CSRF dibuang dari alamat (303), isian tetap | int | ✅ |
+| B3-N1 | F01 | negatif: alias bentrok, grup tidak valid, > 10 tabel, tabel yang tidak ada | 422 dengan pesan, pilihan tetap tercentang, ringkasan error difokuskan, tidak ada aplikasi dibuat | e2e, int | ✅ |
+| B3-N2 | F01 | negatif: kolom wajib dikosongkan di form hasil wizard | 422 | int | ✅ |
+
+Run: `npm test` 124/124 (3× berturut-turut setelah perbaikan listener pool), e2e 84/84 (2 skip). Bug baru: 1 (tes kadang gagal saat
+teardown karena pool tanpa listener `error`; juga berisiko di produksi), diperbaiki.
+
+## Fase 2 B4: wizard Create Page (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B4-H1 | F02 | happy | beranda aplikasi → Tambah halaman → pilih tabel → Tambah: halaman N dan N+1, menu, riwayat versi `dev:admin`; pengguna aplikasi menambah baris lewat form; ≤ 6 aksi; axe bersih | e2e (2 viewport), int | ✅ (3 aksi) |
+| B4-H2 | F02 | happy: report dari SQL | kolom dan tipe dari query, bind item boleh, titik koma di akhir dibuang; halaman tampil dengan data | e2e, int | ✅ |
+| B4-H3 | F02 | happy: form saja | halaman biasa, kembali ke halaman pilihan setelah simpan; LOV lama dengan nama sama tidak ditimpa (`DEPARTEMEN_2`) | int | ✅ |
+| B4-H4 | F02 | happy: halaman kosong | alias dari nama, menu dengan ikon dokumen | int | ✅ |
+| B4-E1 | F02 | edge: query salah / tanpa alias / kolom ganda / tanpa hak | pesan dari PostgreSQL atau penjelasan; tidak ada halaman dibuat | e2e, int | ✅ |
+| B4-E2 | F02 | edge: query yang mengubah data | `delete`, `select 1; delete`, CTE `delete … returning` ditolak, jumlah baris tidak berubah | int | ✅ |
+| B4-E3 | F02 | edge: isian dan pilihan tetap setelah error | jenis, sumber SQL, nama tetap; ringkasan error difokuskan | e2e, int | ✅ |
+| B4-N1 | F02 | negatif: nomor halaman dipakai / 0 / bukan angka / N+1 dipakai | 422, menyebut nomor bebas berikutnya | int | ✅ |
+| B4-N2 | F02 | negatif: tabel tanpa form untuk jenis form, tabel tidak ada, halaman kembali tidak ada, jenis tidak dikenal | 422 dengan alasan | int | ✅ |
+| B4-N3 | F02 | negatif: aplikasi workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
+
+Run: `npm test` 132/132, e2e 86/86 (2 skip). Bug baru: tidak ada.
+
+## Fase 2 B5: Page Designer + properti aplikasi (2026-11-15)
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| B5-H1 | F03 | happy | buka halaman dari beranda aplikasi → pilih item di pohon → ubah label dan bantuan → simpan → pesan sukses; tampil di aplikasi yang berjalan; axe bersih | e2e (2 viewport), int | ✅ |
+| B5-H2 | F03 | happy: struktur | tambah region/item/tombol/validasi/proses/branch, naik/turun, hapus; urutan tersimpan | e2e, int | ✅ |
+| B5-H3 | F03 | happy: YAML dan halaman | kondisi tombol lewat YAML; ukuran dialog dan judul halaman; region di halaman tidak hilang | int | ✅ |
+| B5-H4 | S13 | happy: properti aplikasi | nama dan substitution strings tersimpan, halaman tidak tersentuh; axe bersih | e2e, int | ✅ |
+| B5-H5 | F08 | happy: setelah banyak perubahan | ekspor → impor → ekspor tetap sama | int | ✅ |
+| B5-E1 | F03 | edge: dua developer | simpan kedua ditolak 409, isian tetap, perubahan pertama utuh | int | ✅ |
+| B5-E2 | F03 | edge: komponen yang tidak ada di URL | jatuh ke properti halaman; halaman tidak ada 404 | int | ✅ |
+| B5-N1 | F03 | negatif: isian salah | YAML rusak, field wajib kosong, bukan angka, nama item tidak cocok nomor halaman, lebar kolom 20, nomor halaman diubah → 422, tidak ada yang tersimpan, ringkasan difokuskan | e2e, int | ✅ |
+| B5-N2 | F03 | negatif: hapus yang masih dirujuk | item yang dipakai link report, halaman yang dirujuk, halaman beranda → ditolak dengan alasan | int | ✅ |
+| B5-N3 | F03 | negatif: konfirmasi salah | nomor halaman salah → tidak dihapus | int | ✅ |
+| B5-N4 | F03 | negatif: workspace lain, tanpa token CSRF | 404, 403 | int | ✅ |
+
+Run: `npm test` 142/142, e2e 90/90 (2 skip). Bug baru: 1 (S3, aksi kepala halaman tidak turun baris di 390 px sehingga halaman bisa
+digeser ke samping), diperbaiki.
+
+## Uji menyeluruh Fase 2: builder B1–B5 (2026-11-15, build `e2cce86` → `03e4211`)
+
+Kasus baru dari daftar edge case `replica-test` yang belum dicakup tes per milestone. Tes: `test/f2-edge.test.ts` (int) dan
+`e2e/f2-edge.spec.ts` (desktop + mobile).
+
+| ID | Flow | Jenis | Hasil yang diharapkan | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| F01-E5 | F01/F02/F03 | edge: markup di nama aplikasi, nama halaman, label, bantuan | di-escape di semua layar builder dan runtime | int | ✅ |
+| F01-E6 | F01 | edge: input sangat panjang, aksen, emoji | nama 500 karakter dan alias 200 → 422; "Pengajuan Cuti — Ñoño 🎉" tersimpan dan tampil; alias ber-aksen → 422 | int | ✅ |
+| F02-E5 | F02 | edge: nama halaman 400 karakter / hanya emoji; label item 5000 karakter | 422 / diterima / diterima | int | ✅ |
+| B2-E4 | akun | edge: nama pengguna 61 karakter, emoji, spasi | 422 | int | ✅ |
+| F02-E6 | F02 | edge: kirim ganda wizard halaman | satu halaman, satu menu | int (+ guard kirim ganda di klien) | ✅ |
+| F03-E3 | F03 | edge: dua developer menyimpan bersamaan | keduanya tersimpan atau satu 409; tidak ada yang hilang diam-diam | int | ✅ setelah fix (BUG-009) |
+| F02-E4 | F02/F03 | edge: wizard halaman bersamaan dengan simpan designer | sama seperti di atas; 409 menyimpan isian | int | ✅ setelah fix (BUG-009) |
+| F03-E2 | F03 | edge: dua tab | simpan kedua → peringatan difokuskan, isian tetap; simpan lagi = menimpa dengan sengaja | e2e | ✅ |
+| S13-E1 | S13 | edge: properti dari tab lama setelah halaman ditambah di tab lain | 409, halaman baru tetap ada | int | ✅ |
+| F03-E4 | F03 | edge: sesi berakhir saat mengedit | login lalu kembali ke komponen yang sama; Referer dari situs lain, runtime, atau login diabaikan | int | ✅ setelah fix (BUG-010) |
+| F02-N4 | F02 | negatif: SQL report membaca `rpx.dev_users`, `rpx.sessions`, `rpx.app_users`, `rpx.app_versions` | 422 (role workspace tidak punya hak) | int | ✅ |
+| F02-E7 | F02 | edge: query lambat (`pg_sleep(20)`) | wizard tidak menunggu (< 5 detik) | int | ✅ (lihat "To check") |
+| F03-E5 | F03 | edge: ganti nama item yang masih dirujuk | 422 dengan alasan, nama lama tetap | int | ✅ |
+| F03-N5 | F03 | negatif: aplikasi dihapus di tab lain lalu Simpan | 404 dengan tautan ke daftar aplikasi | int | ✅ |
+| B1-E8 | builder | edge: Back setelah keluar | `Cache-Control: no-store` di halaman builder; Back menampilkan login, bukan data | int, e2e | ✅ |
+| B1-E9 | builder | edge: spec > 1 MB | 413 berupa halaman HTML dengan tautan kembali | int | ✅ |
+| F01-E1 | F01/F03 | edge: keyboard saja | login → wizard → buat aplikasi → designer → ubah label → simpan, tanpa mouse | e2e (2 viewport) | ✅ |
+
+Tidak dites: jaringan lambat dan offline (semua layar builder dirender server, tanpa state di klien selain guard kirim ganda);
+zona waktu (waktu di builder selalu ditampilkan dalam Asia/Jakarta, disengaja untuk KCSI).
+
+Run: `npm test` 156/156, e2e 96/96 (2 skip). Bug baru: 2 (S2 BUG-009, S3 BUG-010), keduanya diperbaiki dengan tes yang gagal
+lebih dulu. Tidak ada S1/S2 yang terbuka.

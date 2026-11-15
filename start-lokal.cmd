@@ -18,4 +18,5 @@ for /f %%i in ('node -e "console.log(require('crypto').randomBytes(32).toString(
 
 cd /d "%~dp0"
 echo pandawapex: http://localhost:%PORT%/r/pandawa/demo  dan  http://localhost:%PORT%/r/demo/emp
+echo builder   : http://localhost:%PORT%/builder
 npm start

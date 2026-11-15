@@ -351,6 +351,74 @@
     }
   });
 
+  // builder import: a chosen (or dropped) YAML file is read into the spec textarea; the form itself stays urlencoded
+  const specText = (form) => form && form.querySelector('textarea[name="spec"]');
+  const loadSpecFile = (form, file) => {
+    if (!file) return;
+    const help = form.querySelector('#spec-file-help');
+    if (file.size > 900 * 1024) { if (help) help.textContent = `${file.name} terlalu besar (maksimal 900 KB).`; return; }
+    const r = new FileReader();
+    r.onload = () => {
+      specText(form).value = String(r.result);
+      if (help) help.textContent = `${file.name} dimuat (${(file.size / 1024).toFixed(1)} KB). Periksa lalu tekan Impor.`;
+    };
+    r.readAsText(file);
+  };
+  document.addEventListener('change', (e) => {
+    if (e.target.matches && e.target.matches('[data-spec-file]')) loadSpecFile(e.target.closest('form'), e.target.files[0]);
+  });
+  for (const drop of document.querySelectorAll('[data-spec-drop]')) {
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.setAttribute('data-dragover', ''); });
+    drop.addEventListener('dragleave', () => drop.removeAttribute('data-dragover'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      drop.removeAttribute('data-dragover');
+      loadSpecFile(drop.closest('form'), e.dataTransfer.files[0]);
+    });
+  }
+
+  // create-app wizard: the alias follows the name until it is edited by hand; another schema reloads its table list
+  for (const alias of document.querySelectorAll('[data-alias-from]')) {
+    const src = document.getElementById(alias.getAttribute('data-alias-from'));
+    if (!src) continue;
+    const slug = (v) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^[^a-z]+/, '').replace(/-+$/, '').slice(0, 60);
+    let manual = alias.value !== '' && alias.value !== slug(src.value);
+    alias.addEventListener('input', () => { manual = alias.value !== ''; });
+    src.addEventListener('input', () => { if (!manual) alias.value = slug(src.value); });
+  }
+  for (const sel of document.querySelectorAll('select[data-reload-tables]')) {
+    sel.addEventListener('change', () => {
+      const form = sel.form;
+      const q = new URLSearchParams();
+      for (const k of ['name', 'alias', 'schema', 'group']) if (form.elements[k] && form.elements[k].value) q.set(k, form.elements[k].value);
+      location.assign(`${form.getAttribute('action')}?${q}`);
+    });
+  }
+
+  // create-page wizard: show only the fields that apply to the chosen page kind and data source
+  for (const form of document.querySelectorAll('form[data-page-wizard]')) {
+    const sync = () => {
+      const kind = (form.querySelector('input[name="kind"]:checked') || {}).value;
+      const source = kind === 'report' ? (form.querySelector('input[name="source"]:checked') || {}).value : 'table';
+      for (const el of form.querySelectorAll('[data-show-for]')) {
+        let show = el.getAttribute('data-show-for').split(' ').includes(kind);
+        const src = el.getAttribute('data-show-source');
+        if (show && src) show = src === source;
+        el.hidden = !show;
+      }
+    };
+    form.addEventListener('change', (e) => { if (e.target.name === 'kind' || e.target.name === 'source') sync(); });
+    sync();
+  }
+
+  // page designer: choosing another page in the picker opens it; the button is only for browsers without script
+  for (const sel of document.querySelectorAll('select[data-autosubmit]')) {
+    const fallback = sel.form && sel.form.querySelector('[data-autosubmit-fallback]');
+    if (fallback) fallback.hidden = true;
+    sel.addEventListener('change', () => sel.form.submit());
+  }
+
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
   if (summary) summary.focus();

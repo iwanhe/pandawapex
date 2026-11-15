@@ -19,6 +19,7 @@ import { bindValues } from './session.ts';
 import { finishLogin, identityFrom, OidcSetupError, oidcConfiguration, startLogin } from './oidc.ts';
 import rateLimit from '@fastify/rate-limit';
 import { dialogClosed, dialogTopRedirect, errorPage, loginPage } from './templates.ts';
+import { registerBuilder } from '../builder/routes.ts';
 
 export interface ServerOptions {
    pool: pg.Pool;
@@ -72,6 +73,9 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       reply.header('Cache-Control', 'public, max-age=3600');
       return reply.type(STATIC_TYPES[ext]).send(readFileSync(file));
    });
+
+   // ---------- builder (Phase 2) ----------
+   registerBuilder(app, { pool: opts.pool, secureCookies: opts.secureCookies ?? false, loginLimit });
 
    app.get('/healthz', async () => {
       await opts.pool.query('select 1');
@@ -379,7 +383,9 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
    // ---------- errors (S27) ----------
    app.setErrorHandler((err, req, reply) => {
       const params = req.params as { ws?: string; app?: string } | undefined;
-      const back = params?.ws && params.app ? `/r/${encodeURIComponent(params.ws)}/${encodeURIComponent(params.app)}` : null;
+      const back = req.url.startsWith('/builder')
+         ? (req.url.startsWith('/builder/apps/') ? '/builder/apps' : '/builder')
+         : params?.ws && params.app ? `/r/${encodeURIComponent(params.ws)}/${encodeURIComponent(params.app)}` : null;
       if (err instanceof HttpError) {
          return html(reply, errorPage(err.status, err.title, err.message, back).value, err.status);
       }
@@ -395,7 +401,7 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
       if (!opts.logger) console.error(`[${ref}]`, err);
       return html(reply, errorPage(500, 'Terjadi kesalahan', `Permintaan tidak dapat diproses. Sebutkan kode referensi ${ref} saat melapor.`, back).value, 500);
    });
-   app.setNotFoundHandler((_req, reply) => html(reply, errorPage(404, 'Halaman tidak ditemukan', 'Alamat yang Anda buka tidak ada.', null).value, 404));
+   app.setNotFoundHandler((req, reply) => html(reply, errorPage(404, 'Halaman tidak ditemukan', 'Alamat yang Anda buka tidak ada.', req.url.startsWith('/builder') ? '/builder' : null).value, 404));
 
    return app;
 }

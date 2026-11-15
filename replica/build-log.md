@@ -150,3 +150,148 @@ Lebih sulit dari perkiraan:
   ditulis sebagai `jsonb_populate_record(new, ...)`.
 - **axe menemukan bug a11y baru**: tabel di kolom sempit bisa di-scroll tetapi tidak bisa difokus keyboard. Diperbaiki untuk
   semua report.
+
+## Fase 2 B1: fondasi builder (2026-11-13), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S01 login developer | done | `/builder/login`: workspace + username + sandi; sesi `rpx_dev` (path `/builder`) terpisah dari sesi aplikasi; CSRF double-submit sebelum login, token sesi sesudahnya; rate limit; kunci setelah 5 gagal; sesi 8 jam, idle 1 jam; akun dikunci → sesinya hilang |
+| S02 beranda workspace | done | jumlah aplikasi, halaman, skema, developer; 5 aplikasi terakhir diubah |
+| S03 daftar aplikasi | done | cari nama/alias (wildcard `%`/`_` dicari harfiah), jalankan, ekspor; dua empty state |
+| S04 buat / impor | done | buat aplikasi kosong (1 halaman beranda); impor dari file (FileReader → textarea, form tetap urlencoded) atau tempel; konfirmasi ganti bila alias sudah ada; daftar masalah spec |
+| S05 beranda aplikasi | done | ringkasan, daftar halaman, riwayat impor 20 terakhir + unduh teks persis per versi, hapus dengan ketik alias |
+| CLI | done | `rpx app export`, `rpx dev add`; `demo setup` / `pilot setup` membuat developer `admin` |
+
+Semua query builder dibatasi ke workspace developer yang login; aplikasi workspace lain dijawab 404, sama dengan yang tidak ada.
+`imported_by` dari builder tercatat `dev:<username>`.
+
+Verifikasi: `npm test` 108/108 (+3 ekspor bolak-balik, +12 builder), e2e 76/76 (+2 skenario builder × 2 viewport), axe bersih
+di S01–S05, screenshot `replica/clone-screens/S01..S05-{1440,390}.png`.
+
+Lebih sulit dari perkiraan:
+- **Ekspor yang bisa diimpor ulang persis sama**: spec dibangun ulang dari tabel metadata, bukan teks impor terakhir, jadi setiap
+  nilai default harus dihilangkan dengan aturan yang sama seperti importer mengisinya. Diuji dengan snapshot 16 tabel untuk emp,
+  DEMO, dan spec "kitchen sink".
+- **Timestamp sebagai teks**: pool engine sengaja mengembalikan `timestamptz` sebagai teks; builder mengubahnya ke Date sendiri.
+
+Belum (B2 dan seterusnya): kelola akun developer dan end user dari UI, Create App wizard dari tabel, Create Page wizard, Page Designer.
+
+## Fase 2 B2: kelola akun dari builder (2026-11-14), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S19 pengguna aplikasi | done | `/builder/users`: daftar + cari + paging 50; tambah (nama, email, kata sandi, grup); detail: grup, atur ulang kata sandi (sesi pengguna diakhiri), kunci / buka kunci, hapus dengan ketik nama |
+| S19 developer | done | `/builder/developers`, khusus administrator: tambah, jadikan administrator / developer biasa, atur ulang kata sandi, kunci, hapus; akun sendiri dialihkan ke Akun saya, jadi administrator tidak bisa mengunci atau menurunkan dirinya |
+| S19 akun saya | done | `/builder/account`: ganti kata sandi (cek sandi lama, rate limit); sesi lain milik developer itu berakhir, sesi ini tetap |
+
+Grup yang ditawarkan diambil dari authorization scheme `group_member` semua aplikasi di workspace (dengan nama aplikasinya) dan
+grup yang sudah dipakai pengguna. Perubahan grup berlaku langsung: cache otorisasi "once per session" milik pengguna itu dikosongkan.
+Akun SSO tanpa kata sandi tidak punya form atur ulang, dan halamannya menjelaskan bahwa grup SSO ditimpa klaim IdP saat login.
+
+Verifikasi: `npm test` 117/117 (+9 di `test/b2.test.ts`), e2e 80/80 (+2 skenario × 2 viewport, axe bersih), screenshot
+`S19-users`, `S19-user`, `S19-developers`, `S19-account` (1440 dan 390). Parity 58.7 → 59.8, must-have 25/30.
+
+Lebih sulit dari perkiraan:
+- **Kolom `citext` dalam array** (`array_agg(alias)`) tidak di-parse driver pg dan datang sebagai teks `{emp}`; perlu cast `::text[]`.
+- **Grup harus berlaku tanpa login ulang.** Grup dibaca per request, tetapi hasil scheme `once_per_session` disimpan di sesi;
+  tanpa mengosongkan cache itu, pengguna yang baru diberi grup tetap ditolak sampai login ulang.
+
+Belum: wizard Create App dari tabel (B3), wizard Create Page, Page Designer.
+
+## Fase 2 B3: wizard Create App dari tabel (2026-11-15), done
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S04 wizard | done | satu layar: nama (alias terisi otomatis), skema (daftar tabel dimuat ulang saat skema diganti; tanpa JS lewat tombol), batasi ke grup (opsional), pilih tabel/view dengan keterangan apa yang akan dibuat dan alasannya bila tidak bisa |
+| Generator | done | per tabel: Interactive Report (FK ditampilkan sebagai nama dari tabel referensi lewat left join, maks 12 kolom, sort kolom teks pertama) + form dialog (`form_init` / `form_dml` / `close_dialog`, tombol Tambah, Hapus dengan konfirmasi) |
+| Tipe kolom → item | done | angka → number, date → date, timestamp → datetime, boolean → switch, varchar > 250 → textarea, enum → select (LOV statis), FK → select (LOV SQL bersama per tabel referensi), bytea/json/array tidak dipakai, kolom generated tidak diedit, NOT NULL tanpa default → wajib |
+| Aturan tabel | done | report + form bila ada PK dengan default (identity/serial/uuid default) dan role workspace punya INSERT/UPDATE/DELETE; report saja untuk view, tanpa PK, PK tanpa default, tanpa hak tulis, atau kolom wajib bertipe tak didukung; tidak bisa bila tanpa SELECT atau nama tabel perlu kutip |
+| Beranda aplikasi | done | pemberitahuan bila workspace belum punya pengguna aplikasi (akun developer tidak bisa login ke aplikasi) |
+
+Flow F01 diukur di e2e: dari beranda builder sampai Interactive Report hasil wizard tampil = **8 aksi** (buat aplikasi, nama,
+centang tabel, buat, jalankan, nama pengguna, kata sandi, masuk), sesuai target recon. Form dialog hasil wizard menambah baris.
+
+Verifikasi: `npm test` 124/124 (+7 di `test/b3.test.ts`, termasuk 11 tabel kasus tepi: enum, uuid, view, tanpa PK, PK komposit,
+bytea wajib, tanpa hak SELECT, tanpa hak tulis, nama campur huruf besar), e2e 84/84 (+2 × 2 viewport, axe bersih),
+screenshot `S04-wizard`, `S21-generated` (1440 dan 390). Parity 59.8 → 62.0, must-have 26/30.
+
+Lebih sulit dari perkiraan:
+- **PK alami** (tanpa default) belum bisa ditambah lewat form, karena engine menganggap PK terisi = ubah baris. Wizard jujur
+  membuat report saja dan menulis alasannya; dukungan PK alami dicatat untuk nanti.
+- **Hak akses dicek untuk role workspace**, bukan untuk koneksi builder (superuser), termasuk tabel referensi FK; kalau tidak,
+  halaman yang dibuat wizard gagal saat dijalankan pengguna.
+- **Tes kadang gagal saat teardown**: koneksi pool yang menganggur menerima "terminating connection" saat database tes di-drop,
+  dan karena pool tidak punya listener `error`, Node menganggapnya error tak tertangani. Ini juga celah di produksi (restart
+  database bisa mematikan server), jadi `createPool` sekarang memasang listener yang mencatat lalu melanjutkan.
+
+Belum: wizard Create Page (B4), Page Designer (B5), dukungan PK alami di form.
+
+## Fase 2 B4: wizard Create Page (2026-11-15), done (tanpa Interactive Grid)
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S07 wizard | done | dari beranda aplikasi (tombol *Tambah halaman* di region Halaman); jenis halaman sebagai kartu pilihan; field yang tidak relevan disembunyikan dengan JS (tanpa JS semua tampil, server mengabaikan yang tidak dipakai) |
+| Report + form | done | dua nomor halaman (N dan N+1), form dialog, link baris + tombol Tambah |
+| Report | done | dari tabel (termasuk tabel "report saja") atau dari query SQL; query dicoba dulu sebagai role workspace dengan skema parsing, semua bind `null`, `limit 0`, timeout 5 detik, di transaksi yang di-rollback; kolom dan tipenya diambil dari hasil itu |
+| Form | done | dialog atau halaman biasa; setelah simpan/batal kembali ke halaman pilihan |
+| Halaman kosong | done | satu region teks |
+| Cara menyimpan | done | spec aplikasi diekspor, halaman ditambahkan, lalu diimpor lagi: lewat pemeriksaan yang sama dengan impor biasa dan tercatat di riwayat versi (`dev:<username>`) |
+
+Aturan: nomor halaman 1–99998 dan belum dipakai (report + form butuh dua nomor); alias halaman unik; LOV yang sudah ada dengan nama
+sama tetapi isi berbeda tidak ditimpa (LOV baru diberi akhiran, mis. `DEPARTEMEN_2`); query harus diawali SELECT/WITH, tidak boleh
+lebih dari satu perintah, setiap kolom harus punya nama sederhana dan unik.
+
+Flow F02 diukur di e2e: dari beranda aplikasi sampai halaman report + form tersimpan = **3 aksi** (tambah halaman, pilih tabel,
+tambah), target recon sekitar 6.
+
+Verifikasi: `npm test` 132/132 (+8 di `test/b4.test.ts`: halaman baru dipakai pengguna aplikasi, form normal kembali ke halaman 1,
+report SQL dengan bind, 8 query yang ditolak tanpa mengubah data, 10 isian salah, isolasi workspace), e2e 86/86 (+1 × 2 viewport,
+axe bersih), screenshot `S07` (1440 dan 390). Parity 62.0 → 63.0; must-have 26/30 selesai + 3 sebagian.
+
+Lebih sulit dari perkiraan:
+- **Memeriksa query tanpa menjalankannya.** `limit 0` di dalam subquery + transaksi yang di-rollback + role workspace mencegah
+  perubahan data, termasuk CTE `delete … returning` (ditolak PostgreSQL di dalam FROM) dan beberapa perintah sekaligus (ditolak
+  protokol extended).
+- **Nama aksesibel kartu pilihan** awalnya berisi seluruh deskripsi, sehingga "Report" juga cocok dengan "Report + form" dan
+  "query SQL". Judul kartu kini menjadi label, deskripsinya `aria-describedby`.
+
+Belum: Interactive Grid di wizard (menunggu region IG di engine), classic report, hapus/ubah halaman (Page Designer, B5).
+
+## Fase 2 B5: Page Designer + properti aplikasi (2026-11-15), done (tanpa drag-drop)
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S06 Page Designer | done | `/builder/apps/:alias/pages/:no`; kiri: pohon halaman (region → item, tombol, kolom; validasi, proses, branch, computation) dengan tombol tambah; kanan: editor properti komponen terpilih; pindah halaman lewat pilihan di atas pohon; tombol naik/turun/hapus; hapus halaman dengan ketik nomor |
+| Editor properti | done | dibuat dari `spec.schema.json`: enum → select, boolean → (bawaan)/ya/tidak, integer → angka, SQL/HTML/kode → textarea mono, objek kecil (source, sort, chart) dipecah jadi field sendiri, struktur bersarang (kondisi, link, LOV, cascade) sebagai YAML; label dan bantuan dalam bahasa Indonesia, kunci spec ditampilkan kecil di samping label |
+| S13 Properti aplikasi | done | `/builder/apps/:alias/properties`: semua atribut tingkat aplikasi kecuali alias dan halaman (menu, LOV, otorisasi, application items, computations, autentikasi sebagai YAML) |
+| Beranda aplikasi | done | nama halaman membuka Page Designer, kolom *Jalankan* per halaman, tombol *Properti aplikasi* |
+
+Setiap simpan: spec diekspor, satu komponen diubah, lalu diimpor lagi (pemeriksaan sama dengan impor, satu entri riwayat versi).
+**Konflik antar developer** dicegah dengan token versi (spec hash): bila aplikasi berubah sejak form dibuka, simpan ditolak 409 dan isian
+tetap di layar. Menghapus komponen yang masih dirujuk (mis. item yang dipakai link report) ditolak dengan daftar letak rujukannya.
+
+Verifikasi: `npm test` 142/142 (+10 di `test/b5.test.ts`), e2e 90/90 (+2 × 2 viewport, axe bersih), screenshot `S06`, `S13`
+(1440 dan 390). Parity 63.0 → 68.1; must-have 29/30 (sisa: Create Page wizard tanpa Interactive Grid).
+
+Lebih sulit dari perkiraan:
+- **Editor generik tanpa kehilangan data.** Komponen disalin utuh lalu hanya field yang tampil yang ditimpa, sehingga anak (item di
+  region, region di halaman) dan atribut lain tidak hilang; urutan kunci dipertahankan agar ekspor tetap rapi.
+- **Bug tata letak di HP yang baru terlihat dengan tombol ketiga**: aksi di kepala halaman tidak turun baris dan membuat halaman
+  bisa digeser ke samping di 390 px. `.r-page-head__actions` kini `flex-wrap`.
+- **Deskripsi di JSON Schema berbahasa Inggris** (untuk penulis spec); editor memakai teks bantuan sendiri.
+
+Belum: drag-drop grid tata letak, kunci halaman eksplisit, undo (riwayat versi bisa diunduh dan diimpor ulang).
+
+## Checkpoint 2 (2026-11-15)
+
+Builder B1–B5 dan perbaikan CLI (PR #9–#16) di-merge. `npm test` 144/144, e2e 90/90 (2 skip), parity 68.1, must-have 29/30.
+Dicoba di laptop Windows pengguna (Cmder, PostgreSQL portable): migrasi, setup, dan builder berjalan; satu temuan
+(`error:` kosong saat PostgreSQL belum menyala) diperbaiki di #16. Dokumen: `docs/checkpoint-fase2.md` (memperbarui,
+checklist, yang belum ada) dan `docs/panduan-pengguna.md` (cara pakai builder dan aplikasi).
+
+## Uji menyeluruh Fase 2: builder B1–B5 (2026-11-15), done
+
+17 kasus edge baru (`test/f2-edge.test.ts`, `e2e/f2-edge.spec.ts`). Dua bug ditemukan dan diperbaiki di `03e4211`:
+BUG-009 (S2) penyimpanan bersamaan dari versi yang sama menghapus satu perubahan tanpa pemberitahuan. Sekarang versi dicek di
+dalam transaksi impor dengan advisory lock per aplikasi. BUG-010 (S3): setelah sesi berakhir, login kembali ke halaman form,
+tidak lagi ke beranda. `npm test` 156/156, e2e 96/96 (2 skip). Tidak ada S1/S2 terbuka.

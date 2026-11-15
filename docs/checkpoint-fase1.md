@@ -2,6 +2,9 @@
 
 2026-11-13 · Iwan Herdian
 
+> **Sudah ada checkpoint berikutnya:** [checkpoint-fase2.md](checkpoint-fase2.md) (builder B1–B5). Dokumen ini tetap menjadi
+> acuan instalasi dari nol; memperbarui laptop yang sudah terpasang ada di checkpoint 2.
+
 Fase 1 (runtime) selesai di `main` commit `cc279c6`. Dokumen ini adalah titik cek: kalau semua langkah di bawah berhasil
 di laptop Windows tanpa Docker, kita lanjut ke Fase 2 (builder). Untuk Docker Compose atau PowerShell, lihat
 [install-lokal.md](install-lokal.md).
@@ -111,6 +114,7 @@ Skrip itu menyalakan PostgreSQL bila belum (lewat `start-pg.bat`, yang menunggu 
 | --- | --- |
 | DEMO Permintaan Barang | http://localhost:8080/r/pandawa/demo |
 | Data Karyawan | http://localhost:8080/r/demo/emp |
+| Builder (Fase 2) | http://localhost:8080/builder |
 
 ## Akun login
 
@@ -127,7 +131,13 @@ Semua akun memakai kata sandi `RPX_DEMO_PASSWORD` dari langkah 6 (contoh: `coba-
 | Data Karyawan | `admin` | grup SDM | ubah, tambah, hapus karyawan; Mutasi |
 | Data Karyawan | `tamu` | tanpa grup | hanya melihat |
 
-User baru: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
+**Builder** (`/builder`) memakai akun developer, terpisah dari akun aplikasi di atas: workspace `pandawa` atau `demo`,
+username `admin`, kata sandi yang sama. Developer lain: `npm run rpx -- dev add --ws pandawa --username nama --password "min10karakter"`
+(menjalankan ulang perintah ini juga membuka akun yang terkunci setelah 5 kali salah sandi).
+
+Pengguna aplikasi dan developer juga bisa dikelola dari builder: **Pengguna aplikasi** dan **Developer** di menu kiri.
+
+User baru lewat CLI: `npm run rpx -- user add --ws pandawa --username nama --password "min10karakter"`, lalu beri role di DEMO
 lewat **Administration → Users & Roles** (login sebagai `admin`).
 
 ## Checklist sebelum Fase 2
@@ -169,6 +179,7 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 | `role "postgres" does not exist` | PostgreSQL dibuat dengan user Windows sebagai superuser | pakai `-U %USERNAME%` dan nama itu di `DATABASE_URL` |
 | `password authentication failed` | kata sandi di `DATABASE_URL` salah atau belum di-encode | perbaiki URL (langkah 6) |
 | `ECONNREFUSED ... 5432` | PostgreSQL belum menyala atau port lain | `start-pg.bat`; cek port di file itu |
+| `error:` tanpa pesan, atau `PostgreSQL tidak bisa dihubungi` | PostgreSQL belum menyala (`db migrate` / `setup` dijalankan sebelum `start-lokal.cmd`) | jalankan `D:\Software\PGSQL\start-pg.bat` dulu, lalu ulangi perintahnya |
 | `EADDRINUSE ... 8080` | port 8080 dipakai ORDS/Tomcat | `set "PORT=8090"` sebelum `start-lokal.cmd`, buka `localhost:8090` |
 | `DATABASE_URL is not set` | tab Cmder baru, variabel hilang | ulangi langkah 6 (untuk setup), atau pakai `start-lokal.cmd` (untuk menjalankan) |
 | Halaman 403 "akun Anda belum didaftarkan" di DEMO | user login belum punya role DEMO | `admin` menambahkan role di Users & Roles |
@@ -181,8 +192,10 @@ Dua baris pertama sudah terjadi saat instalasi checkpoint ini.
 cd /d D:\pandawapex
 git pull
 npm install
+D:\Software\PGSQL\start-pg.bat
 set "DATABASE_URL=postgres://postgres@localhost:5432/rpx"
 set "RPX_DEMO_PASSWORD=coba-lokal-123"
+npm run rpx -- db migrate
 npm run rpx -- demo setup
 npm run rpx -- pilot setup
 ```
@@ -198,8 +211,9 @@ Lalu ulangi dari langkah 3.
 **Fase 2 (builder)** dimulai setelah checklist di atas lolos. Urutannya mengikuti 8 must-have yang tersisa dan celah dari pilot:
 
 1. Login developer per workspace, dan kelola akun developer serta end user dari UI (akun pilot saat ini masih lewat CLI).
-2. Daftar aplikasi: buat, hapus, impor, ekspor spec.
-3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang.
-4. Create Page wizard (Blank, Form, Report, IR, Modal).
-5. Page Designer: tree + property editor, termasuk application properties dan application items.
+   **Selesai di B1 (login developer) dan B2 (kelola akun dari UI).**
+2. Daftar aplikasi: buat, hapus, impor, ekspor spec. **Selesai di B1.**
+3. Create App wizard dari tabel (Report + Form), target 8 klik atau kurang. **Selesai di B3 (8 aksi).**
+4. Create Page wizard (Blank, Form, Report, IR, Modal). **Selesai di B4** (tanpa Interactive Grid).
+5. **Selesai di B5:** Page Designer: tree + property editor, termasuk application properties dan application items.
 6. Celah dari pilot DEMO: faceted search, region di dalam region, metric card.

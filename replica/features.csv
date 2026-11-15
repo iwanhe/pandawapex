@@ -1,13 +1,13 @@
 feature,area,priority,original,clone,notes
 Workspace dengan mapping ke PostgreSQL schema,workspace,must,yes,yes,"M0: rpx ws create (role ws_*, grants, default privileges)"
-Login developer per workspace,workspace,must,yes,no,S01
-Kelola developer dan end user (accounts),workspace,must,yes,partial,M1: end user via CLI rpx user add; developer accounts & UI belum
-Daftar aplikasi + create/delete app,builder,must,yes,no,S03
-Create App wizard dari tabel (Report+Form),builder,must,yes,no,F01; target <= 8 klik
-Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,no,S07
-Page Designer: tree + property editor,builder,must,yes,no,S06; versi awal boleh tanpa drag-drop grid
-Application properties + substitution strings,builder,must,yes,partial,"M1: lewat spec YAML (substitutions, timezone); belum ada UI"
-Application items & computations on login,builder,must,yes,partial,"M2: application items + computations (on_new_session, after_authentication, before_header, after_submit; static/item/sql/plpgsql_fn) lewat spec; UI builder di Fase 2"
+Login developer per workspace,workspace,must,yes,yes,"B1 S01: /builder/login (workspace + akun developer), sesi terpisah dari aplikasi, CSRF, rate limit, kunci setelah 5 gagal, idle 1 jam"
+Kelola developer dan end user (accounts),workspace,must,yes,yes,"B2 S19: /builder/users (tambah, grup, reset sandi, kunci, hapus; grup berlaku langsung ke sesi terbuka), /builder/developers (khusus administrator), /builder/account (ganti sandi sendiri); CLI rpx user add / dev add tetap ada"
+Daftar aplikasi + create/delete app,builder,must,yes,yes,"B1 S02/S03/S05: beranda workspace, daftar + cari, buat aplikasi kosong, hapus dengan ketik alias"
+Create App wizard dari tabel (Report+Form),builder,must,yes,yes,"B3 S04: pilih skema + tabel → per tabel Interactive Report + form dialog (FK jadi select LOV, enum jadi select, tipe kolom → tipe item), report saja bila tanpa PK/default/hak tulis dengan alasan, opsi batasi ke grup; F01 dari beranda builder sampai app jalan = 8 aksi (e2e)"
+Create Page wizard (Blank/Form/Report/IR/IG/Modal),builder,must,yes,partial,"B4 S07: report + form, Interactive Report (tabel atau query SQL yang dicoba sebagai role workspace), form (dialog atau halaman biasa, kembali ke halaman pilihan), halaman kosong; opsi menu; nomor halaman dicek. Belum: Interactive Grid (engine belum punya), classic report"
+Page Designer: tree + property editor,builder,must,yes,yes,"B5 S06: tree halaman (region, item, tombol, kolom, validasi, proses, branch, computation) + property editor dari JSON Schema spec (semua atribut; objek bersarang sebagai YAML); tambah, naik/turun, hapus komponen; hapus halaman; tanpa drag-drop grid"
+Application properties + substitution strings,builder,must,yes,yes,"B5 S13: /builder/apps/:alias/properties — nama, versi, skema parsing, beranda, zona waktu, substitution strings, autentikasi, menu, LOV, otorisasi"
+Application items & computations on login,builder,must,yes,yes,"M2: runtime; B5: diubah di Properti aplikasi (application_items, computations sebagai YAML) dan computation halaman di Page Designer"
 List of Values static & SQL,shared components,must,yes,yes,M3: LOV inline per item atau bersama (lovs: NAMA) — static/SQL; nilai yang dikirim harus ada di daftar
 Authentication: built-in accounts,security,must,yes,yes,"M1: argon2id, lock setelah 5 gagal, session baru saat login"
 Authentication: OIDC/social sign-in,security,must,yes,yes,"Backend: OIDC code+PKCE, provisioning, grup dari klaim, batas domain; tested dengan mock IdP"
@@ -38,8 +38,8 @@ IR control break + aggregate + highlight,regions,should,yes,no,
 Faceted search,regions,should,yes,no,
 Cards region,regions,should,yes,no,
 File upload item,items,should,yes,no,simpan ke bytea atau object storage
-Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,partial,M0: import + validasi JSON Schema/semantik; export belum
-Page locking antar developer,builder,should,yes,no,
+Export / import aplikasi sebagai spec file (YAML),lifecycle,should,yes,yes,"B1: rpx app export + Ekspor/Impor di builder, unduh versi dari riwayat; ekspor-impor bolak-balik tanpa perubahan (test/export.test.ts)"
+Page locking antar developer,builder,should,yes,partial,"B5: deteksi konflik optimistis (token versi = spec hash); simpan kedua ditolak 409 dengan isian tetap. Belum: kunci halaman eksplisit"
 Developer Toolbar + session state viewer,runtime,should,yes,no,S26
 Debug messages per page view,runtime,should,yes,no,S28
 Activity log (page views + timing),runtime,should,yes,no,
