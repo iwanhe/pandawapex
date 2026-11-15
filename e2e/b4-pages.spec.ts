@@ -61,7 +61,7 @@ test('B4-H1 F02: add a report + form page and a SQL report to an application', a
    await expect(page.getByRole('status').filter({ hasText: 'Halaman 4 (Lokasi) ditambahkan.' })).toBeVisible();
 
    // run the new report
-   await page.getByRole('link', { name: 'Departemen', exact: true }).click();
+   await page.getByRole('link', { name: 'Jalankan halaman 2' }).click();
    await page.getByLabel('Nama pengguna').fill(E2E.user);
    await page.getByLabel('Kata sandi').fill(E2E.password);
    await page.getByRole('button', { name: 'Masuk' }).click();

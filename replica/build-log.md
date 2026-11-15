@@ -256,3 +256,28 @@ Lebih sulit dari perkiraan:
   "query SQL". Judul kartu kini menjadi label, deskripsinya `aria-describedby`.
 
 Belum: Interactive Grid di wizard (menunggu region IG di engine), classic report, hapus/ubah halaman (Page Designer, B5).
+
+## Fase 2 B5: Page Designer + properti aplikasi (2026-11-15), done (tanpa drag-drop)
+
+| layar | status | catatan |
+| --- | --- | --- |
+| S06 Page Designer | done | `/builder/apps/:alias/pages/:no`; kiri: pohon halaman (region → item, tombol, kolom; validasi, proses, branch, computation) dengan tombol tambah; kanan: editor properti komponen terpilih; pindah halaman lewat pilihan di atas pohon; tombol naik/turun/hapus; hapus halaman dengan ketik nomor |
+| Editor properti | done | dibuat dari `spec.schema.json`: enum → select, boolean → (bawaan)/ya/tidak, integer → angka, SQL/HTML/kode → textarea mono, objek kecil (source, sort, chart) dipecah jadi field sendiri, struktur bersarang (kondisi, link, LOV, cascade) sebagai YAML; label dan bantuan dalam bahasa Indonesia, kunci spec ditampilkan kecil di samping label |
+| S13 Properti aplikasi | done | `/builder/apps/:alias/properties`: semua atribut tingkat aplikasi kecuali alias dan halaman (menu, LOV, otorisasi, application items, computations, autentikasi sebagai YAML) |
+| Beranda aplikasi | done | nama halaman membuka Page Designer, kolom *Jalankan* per halaman, tombol *Properti aplikasi* |
+
+Setiap simpan: spec diekspor, satu komponen diubah, lalu diimpor lagi (pemeriksaan sama dengan impor, satu entri riwayat versi).
+**Konflik antar developer** dicegah dengan token versi (spec hash): bila aplikasi berubah sejak form dibuka, simpan ditolak 409 dan isian
+tetap di layar. Menghapus komponen yang masih dirujuk (mis. item yang dipakai link report) ditolak dengan daftar letak rujukannya.
+
+Verifikasi: `npm test` 142/142 (+10 di `test/b5.test.ts`), e2e 90/90 (+2 × 2 viewport, axe bersih), screenshot `S06`, `S13`
+(1440 dan 390). Parity 63.0 → 68.1; must-have 29/30 (sisa: Create Page wizard tanpa Interactive Grid).
+
+Lebih sulit dari perkiraan:
+- **Editor generik tanpa kehilangan data.** Komponen disalin utuh lalu hanya field yang tampil yang ditimpa, sehingga anak (item di
+  region, region di halaman) dan atribut lain tidak hilang; urutan kunci dipertahankan agar ekspor tetap rapi.
+- **Bug tata letak di HP yang baru terlihat dengan tombol ketiga**: aksi di kepala halaman tidak turun baris dan membuat halaman
+  bisa digeser ke samping di 390 px. `.r-page-head__actions` kini `flex-wrap`.
+- **Deskripsi di JSON Schema berbahasa Inggris** (untuk penulis spec); editor memakai teks bantuan sendiri.
+
+Belum: drag-drop grid tata letak, kunci halaman eksplisit, undo (riwayat versi bisa diunduh dan diimpor ulang).
