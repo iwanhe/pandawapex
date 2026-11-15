@@ -170,8 +170,9 @@ Arti tiap baris:
 
 - `semua role sudah ada` muncul di server yang sama. Di server baru tertulis `role dibuat: ...`. Role yang sudah ada tidak
   pernah diubah, termasuk kata sandinya.
-- `data dipulihkan`: seluruh isi backup masuk dalam satu transaksi. Bila ada yang gagal, tidak ada yang tersimpan dan
-  perintah berhenti dengan pesan error.
+- `data dipulihkan`: seluruh isi backup sudah masuk. Bila ada yang gagal, perintah berhenti dengan pesan error dan data
+  yang setengah masuk tidak dibiarkan diam-diam: database yang baru dibuat dihapus lagi, atau pesannya menyebutkan
+  apa yang harus dibersihkan sebelum mencoba lagi.
 - Bila backup berasal dari versi pandawapex yang lebih lama, migrasi yang lebih baru dipasang otomatis dan disebutkan.
 - Angka di baris `restore selesai` adalah isi backup. Cocokkan dengan yang Anda harapkan.
 

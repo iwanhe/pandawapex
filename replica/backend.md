@@ -66,7 +66,7 @@ dokumentasi resmi saat mengonfigurasi.
 | Isolasi antar-user | ✅ | session, checksum URL, dan token versi baris terikat ke salt per session (dites: link dari session lain → 403) |
 | **Lost update** | ✅ | form_init menandatangani hash baris (HMAC per session); form_dml membaca ulang `FOR UPDATE` dan menolak bila berbeda. Berlaku untuk update dan delete. Validasi gagal tidak "menyegarkan" versi diam-diam |
 | Seed data realistis | ✅ | `examples/emp/seed.sql` (nama fiktif) |
-| Backup | ✅ | `rpx backup` (pg_dump format custom + file role yang dibutuhkan database) dan `rpx restore` (hanya ke database baru/kosong, satu transaksi, lalu migrasi); `backup-lokal.cmd` untuk Task Scheduler; service `rpx` di Docker Compose. Diuji bolak-balik termasuk kehilangan role workspace. Panduan: `docs/operasional.md`. Menjadwalkan dan menyalin ke luar mesin tetap tugas operator |
+| Backup | ✅ | `rpx backup` (pg_dump format custom + file role yang dibutuhkan database) dan `rpx restore` (hanya ke database baru/kosong; satu transaksi, atau per perintah bila `pg_restore` lebih baru daripada server; lalu migrasi); `backup-lokal.cmd` untuk Task Scheduler; service `rpx` di Docker Compose. Diuji bolak-balik termasuk kehilangan role workspace. Panduan: `docs/operasional.md`. Menjadwalkan dan menyalin ke luar mesin tetap tugas operator |
 
 ## Email & jobs
 
