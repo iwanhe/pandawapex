@@ -303,3 +303,5 @@ Aplikasi contoh emp (halaman 2 dan 4) dan aplikasi uji `e2e/da-app.yaml` (semua 
 | DA-H3 | browser | happy | data yang sudah Magang dibuka di dialog: grup Keahlian langsung tersembunyi (`on_load`) | e2e | ✅ |
 | DA-H4 | browser | happy | enable/disable saat load dan saat switch berubah; key release menyalin nilai; confirm + submit_page; field yang di-disable tetap terkirim | e2e | ✅ |
 | DA-H5 | browser | happy | refresh region memuat ulang satu region dari server tanpa menghapus isian lain | e2e | ✅ |
+
+Run: `npm test` 195/195, e2e 112/112 (2 skip). Bug baru: tidak ada.

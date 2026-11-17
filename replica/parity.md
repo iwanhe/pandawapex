@@ -166,7 +166,7 @@ Not shippable yet: 18 must-have features are not done.
 - [should] runtime: Debug messages per page view, no  (S28)
 - [should] runtime: Developer Toolbar + session state viewer, no  (S26)
 - [should] runtime: Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return, no
-- [should] runtime: Dynamic Actions: show/hide/set value/refresh/submit, partial  (DA1: semua aksi di browser; execute server code dan editor formulir di DA2)
+- [should] runtime: Dynamic Actions: show/hide/set value/refresh/submit, no  (hard part #5)
 - [should] ui: Translations berbasis text message, no  (fitur 26.1; ID/EN untuk subsidiary)
 - [should] lifecycle: Export / import aplikasi sebagai spec file (YAML), partial  (M0: import + validasi JSON Schema/semantik; export belum)
 - [should] runtime: Error handling function + pesan ramah, partial  (M1: halaman error ramah + kode referensi; error handling function per app belum)

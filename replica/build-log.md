@@ -336,6 +336,10 @@ Event `change`, `key_release`, `click` (tombol `defined_by_da`), `page_load`; ko
 Disimpan di tabel `rpx.dynamic_actions`/`rpx.da_actions` yang sudah ada sejak 0001 (tidak ada migrasi baru), ikut ekspor/impor,
 dan bisa diubah sebagai YAML di Page Designer. Sensus komponen: 78.2% → 82.1%.
 
+Verifikasi: `npm test` 195/195 (+24 di `test/da.test.ts`, kitchen sink ekspor dengan dynamic action, Page Designer), e2e 112/112
+(+5 × 2 viewport di `e2e/da.spec.ts`, axe bersih). Parity 68.1 → 68.8. Contoh: emp halaman 2 (Magang menyembunyikan Keahlian)
+dan halaman 4 (tombol *Kosongkan isian*); aplikasi uji `e2e/da-app.yaml`.
+
 Yang lebih sulit dari perkiraan:
 
 - **REQUEST dari browser.** Server hanya menerima REQUEST dari tombol yang dirender (ditandatangani di form). Request
