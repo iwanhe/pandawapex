@@ -133,7 +133,7 @@ Centang setelah dicoba di laptop. Urutannya membentuk satu skenario sekitar 20 m
 | Belum | Sementara |
 | --- | --- |
 | Interactive Grid (edit banyak baris di tabel) | form dialog per baris |
-| Dynamic Actions (tampil/sembunyi, set nilai, refresh tanpa submit) | kondisi di sisi server, cascading LOV |
+| Dynamic action yang menjalankan PL/pgSQL (*execute server code*), editor dynamic action berbentuk formulir | proses saat submit; dynamic action ditulis sebagai YAML di Page Designer |
 | Drag-drop tata letak di Page Designer | **Lebar kolom** dan **Mulai baris baru** di editor properti, urutan lewat Naik/Turun |
 | Form untuk tabel dengan primary key diisi manual | report saja; atau tambahkan identity/serial |
 | Kunci halaman eksplisit antar developer | deteksi konflik saat simpan |
@@ -163,14 +163,16 @@ git push origin <nama-tag>
 | #11 | Demo publik lewat Cloudflare Tunnel untuk Docker, Ubuntu, dan Windows ([cloudflare-local-demo.md](cloudflare-local-demo.md)); pengaturan baru `RPX_BUILDER_HOSTS` dan `RPX_TRUST_PROXY`; engine bisa berjalan sebagai role `rpx_engine` |
 | #19 | Semua dokumentasi diperbarui dan ditulis langkah demi langkah; tutorial aplikasi pertama |
 | #20 | Pengerasan operasional ([operasional.md](operasional.md)): `rpx backup` / `rpx restore` dan `backup-lokal.cmd`, pembersihan session kedaluwarsa otomatis, nilai argumen URL tidak lagi masuk log, sesi tidak habis selama pengguna masih bekerja di halaman |
+| #21 | `backup-lokal.cmd` tidak lagi berhenti di `pause` saat dijadwalkan |
+| #22 | **Dynamic Actions tahap 1**: aksi di browser (tampil/sembunyi, enable/disable, isi dan kosongkan nilai, refresh region, konfirmasi, submit) saat item berubah, tombol diklik, atau halaman dibuka. Lihat [panduan-pengguna.md](panduan-pengguna.md#dynamic-actions-aksi-di-browser) |
 
-Kondisi terbaru: `npm test` 170 lulus, tes browser 102 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
+Kondisi terbaru: `npm test` 195 lulus, tes browser 112 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
 `0006_builder.sql`, jadi memperbarui cukup dengan `git pull` (lihat langkah di atas).
 
 ## Langkah berikutnya
 
 1. Catatan dari uji lokal Tim PANDAWA diperbaiki lebih dulu.
-2. Dynamic Actions: celah terbesar menurut sensus komponen aplikasi contoh APEX (cakupan 78,2% menjadi 86,5%).
+2. Dynamic Actions tahap 2: *execute server code* dengan *items to submit/return*, refresh dengan nilai item terbaru, editor di Page Designer.
 3. Region tambahan: list, tab, dynamic content, cards.
 4. Interactive Grid: menutup must-have terakhir dan flow F06.
 5. Format angka/tanggal saat input, upload file.

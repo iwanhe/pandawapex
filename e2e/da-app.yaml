@@ -1,0 +1,57 @@
+# Aplikasi uji untuk e2e/da.spec.ts: semua jenis dynamic action DA1 di satu halaman.
+app: da
+name: Uji dynamic action
+parsing_schema: demo_app
+pages:
+  - page: 1
+    name: Uji dynamic action
+    regions:
+      - static_id: isian
+        title: Isian
+        type: static
+        items:
+          - { name: P1_KIRIM, type: switch, label: Kirim lewat email, col_span: 6 }
+          - { name: P1_EMAIL, type: text, label: Alamat email, col_span: 6 }
+          - { name: P1_NAMA, type: text, label: Nama, col_span: 6 }
+          - { name: P1_SAPAAN, type: text, label: Sapaan, col_span: 6 }
+          - { name: P1_HASIL, type: display_only, label: Hasil }
+        buttons:
+          - { name: MUAT, label: Muat ulang jumlah, action: defined_by_da, style: ghost }
+          - { name: KIRIM, label: Kirim, hot: true, action: defined_by_da }
+      - static_id: jumlah
+        title: Jumlah karyawan
+        type: classic_report
+        source: { sql: "select count(*) as jumlah from karyawan" }
+    dynamic_actions:
+      - name: email_jika_kirim
+        event: change
+        items: [P1_KIRIM]
+        when: { item_equals: { item: P1_KIRIM, value: "Y" } }
+        actions:
+          - { action: enable, items: [P1_EMAIL] }
+        else:
+          - { action: disable, items: [P1_EMAIL] }
+      - name: sapaan_dari_nama
+        event: key_release
+        items: [P1_NAMA]
+        actions:
+          - { action: set_value, items: [P1_SAPAAN], from_item: P1_NAMA }
+      - name: muat_jumlah
+        event: click
+        button: MUAT
+        actions:
+          - { action: refresh, regions: [jumlah] }
+      - name: kirim
+        event: click
+        button: KIRIM
+        actions:
+          - { action: confirm, message: Kirim sekarang? }
+          - { action: submit_page }
+    processes:
+      - name: kirim
+        type: plpgsql
+        when_button: KIRIM
+        success_msg: Terkirim.
+        code: "perform rpx_rt.set_item('P1_HASIL', 'terkirim ke ' || coalesce(:P1_EMAIL, '-') || ' untuk ' || coalesce(:P1_SAPAAN, '-'));"
+    branches:
+      - { page: 1 }

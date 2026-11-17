@@ -327,3 +327,23 @@ Lebih sulit dari perkiraan:
 
 `backup-lokal.cmd` dijalankan di laptop Windows pengguna (2026-11-15): berhasil. Temuan: `start-pg.bat` diakhiri `pause`,
 yang akan menahan backup terjadwal; skrip kini memanggilnya dengan `< nul`. Belum: jadwal Task Scheduler.
+
+## Dynamic Actions tahap 1 (2026-11-17), done (tanpa execute server code)
+
+Event `change`, `key_release`, `click` (tombol `defined_by_da`), `page_load`; kondisi di browser (`item_equals`,
+`item_not_equals`, `item_in`, `item_not_in`, `item_null`, `item_not_null`) dengan cabang `actions`/`else`; aksi `show`, `hide`,
+`enable`, `disable`, `set_value` (nilai tetap atau dari item lain), `clear`, `refresh`, `confirm`, `submit_page`; `on_load`.
+Disimpan di tabel `rpx.dynamic_actions`/`rpx.da_actions` yang sudah ada sejak 0001 (tidak ada migrasi baru), ikut ekspor/impor,
+dan bisa diubah sebagai YAML di Page Designer. Sensus komponen: 78.2% → 82.1%.
+
+Yang lebih sulit dari perkiraan:
+
+- **REQUEST dari browser.** Server hanya menerima REQUEST dari tombol yang dirender (ditandatangani di form). Request
+  `submit_page` ikut ditandatangani, tetapi hanya untuk dynamic action yang tombolnya memang tampil; nama tombol lain
+  tidak boleh dipakai sebagai request, supaya kondisi dan otorisasi tombol itu tidak bisa dilewati.
+- **Field yang di-disable.** Browser tidak mengirim field disabled; untuk checkbox itu berarti "dikosongkan" di server.
+  Field yang di-disable dynamic action diaktifkan lagi tepat sebelum submit, jadi nilainya tetap terkirim.
+- **Keadaan setelah halaman dimuat ulang sebagian.** Setelah dialog ditutup (refresh isi halaman) dan setelah cascading
+  LOV mengganti field, aksi `on_load` dijalankan lagi supaya field yang tersembunyi tidak muncul kembali.
+
+Belum (DA2): `execute_server_code` dengan items to submit/return, refresh dengan nilai item terbaru, editor formulir.

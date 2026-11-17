@@ -1,5 +1,10 @@
-# Parity: pandawapex vs Oracle APEX (2026-11-13)
+# Parity: pandawapex vs Oracle APEX (2026-11-17)
 
+> **Update setelah Dynamic Actions tahap 1 (DA1):** feature parity **68.8** (dari 68.1), must-have **29/30**. Cakupan komponen
+> APEX nyata (sensus 35 aplikasi contoh Oracle) naik dari 78.2% ke **82.1%**: dynamic action dari 0% ke **46.1%**. Event
+> change/click/page load/key release dihitung *parsial* karena aksi di baliknya belum lengkap (execute server code menyusul di DA2,
+> execute JavaScript sengaja tidak didukung).
+>
 > **Update setelah M3 (item & LOV):** feature parity **53.3**, must-have **22/30**, runtime saja **63.5**, **must-have runtime 93.8**.
 > Sisa must-have hampir semuanya builder (Fase 2) dan akun developer. Cakupan komponen APEX nyata (sensus 35 aplikasi contoh Oracle,
 > lihat bagian "Sensus komponen") naik dari 74.5% ke **77.6%**; celah terbesar kini **Dynamic Actions** (1.492 komponen, 0%).
@@ -52,6 +57,7 @@ python3 tools/apex_census.py ../oracle-apex/sample-apps ../oracle-apex/starter-a
 | proses | 1.689 | 89.8% | 89.8% | IG DML 42, invoke API 40, human task 37, workflow 21 |
 | region | 6.249 | 67.1% | 67.1% | list 199, chart 189, region display selector 153, dynamic content 113, content row 108, IG 72, cards 71 |
 | **dynamic action** | 1.492 | 0% | 0% | click 544, after close dialog 441, page load 95 |
+| dynamic action, setelah DA1 | 1.492 | | **46.1%** | parsial: click 544, after close dialog 441, change 278, page load 95, key release 17; belum: after refresh 22, custom 21, keypress 20 |
 | tombol, application item | 3.308 | 100% | 100% | — |
 
 Arti untuk urutan kerja: setelah item, celah runtime terbesar adalah **Dynamic Actions**. Sepertiga di antaranya
@@ -160,7 +166,7 @@ Not shippable yet: 18 must-have features are not done.
 - [should] runtime: Debug messages per page view, no  (S28)
 - [should] runtime: Developer Toolbar + session state viewer, no  (S26)
 - [should] runtime: Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return, no
-- [should] runtime: Dynamic Actions: show/hide/set value/refresh/submit, no  (hard part #5)
+- [should] runtime: Dynamic Actions: show/hide/set value/refresh/submit, partial  (DA1: semua aksi di browser; execute server code dan editor formulir di DA2)
 - [should] ui: Translations berbasis text message, no  (fitur 26.1; ID/EN untuk subsidiary)
 - [should] lifecycle: Export / import aplikasi sebagai spec file (YAML), partial  (M0: import + validasi JSON Schema/semantik; export belum)
 - [should] runtime: Error handling function + pesan ramah, partial  (M1: halaman error ramah + kode referensi; error handling function per app belum)

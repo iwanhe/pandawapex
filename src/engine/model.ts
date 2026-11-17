@@ -56,12 +56,22 @@ export interface ProcessDef {
    name: string; point: string; type: string; regionId: string | null; code: string | null;
    whenButton: string | null; successMsg: string | null; errorMsg: string | null; condition: Condition | null;
 }
+/** A dynamic action as the browser gets it (spec names; see DynamicActionSpec). */
+export interface DaActionDef {
+   action: string; items?: string[]; regions?: string[]; buttons?: string[];
+   value?: string; from_item?: string; message?: string; request?: string; on_load?: boolean;
+}
+export interface DaDef {
+   name: string; event: string; items?: string[]; button?: string; when: Record<string, unknown> | null;
+   actions: DaActionDef[]; else: DaActionDef[];
+}
 export interface BranchDef { target: Target; whenButton: string | null; condition: Condition | null }
 export interface PageDef {
    id: string; no: number; alias: string | null; name: string; title: string | null; requiresAuth: boolean;
    breadcrumbParent: number | null; regions: RegionDef[]; items: ItemDef[]; buttons: ButtonDef[];
    validations: ValidationDef[]; processes: ProcessDef[]; branches: BranchDef[];
    authzId: string | null; computations: ComputationDef[]; mode: 'normal' | 'modal'; dialogSize: 'sm' | 'md' | 'lg';
+   dynamicActions: DaDef[];
 }
 export interface NavDef {
    label: string; icon: string | null; target: { page?: number; url?: string }; children: NavDef[];
@@ -127,6 +137,12 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
       `select b.* from rpx.branches b join rpx.pages p on p.id = b.page_id where p.app_id = $1 order by b.seq`, [appId])).rows;
    const authzQ = (await pool.query('select * from rpx.authz_schemes where app_id = $1', [appId])).rows;
    const compQ = (await pool.query('select * from rpx.computations where app_id = $1 order by seq', [appId])).rows;
+   const daQ = (await pool.query(
+      `select d.* from rpx.dynamic_actions d join rpx.pages p on p.id = d.page_id where p.app_id = $1 order by d.seq`, [appId])).rows;
+   const daActQ = (await pool.query(
+      `select x.* from rpx.da_actions x join rpx.dynamic_actions d on d.id = x.da_id join rpx.pages p on p.id = d.page_id
+       where p.app_id = $1 order by x.seq`, [appId])).rows;
+   const daAction = (x: any): DaActionDef => JSON.parse(JSON.stringify({ action: x.action_type, ...x.affected, ...x.attributes }));
    const navQ = (await pool.query(
       `select e.* from rpx.nav_entries e join rpx.nav_lists l on l.id = e.list_id
        where l.app_id = $1 and l.name = 'navigation_menu' order by e.seq`, [appId])).rows;
@@ -193,6 +209,11 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
          branches: brQ.filter(b => b.page_id === p.id).map(b => ({ target: b.target, whenButton: b.when_button, condition: b.condition })),
          authzId: p.authz_scheme_id, mode: p.page_mode === 'modal' ? 'modal' : 'normal', dialogSize: p.attributes?.dialog_size ?? 'md',
          computations: compQ.filter(x => x.page_id === p.id).map(computation),
+         dynamicActions: daQ.filter(d => d.page_id === p.id).map(d => ({
+            name: d.name, event: d.event, items: d.selection?.items, button: d.selection?.button, when: d.client_condition,
+            actions: daActQ.filter(x => x.da_id === d.id && x.fire_when).map(daAction),
+            else: daActQ.filter(x => x.da_id === d.id && !x.fire_when).map(daAction),
+         })),
       };
       pages.set(page.no, page);
       if (page.alias) pageAliases.set(page.alias, page.no);

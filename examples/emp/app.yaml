@@ -130,6 +130,16 @@ pages:
       - { name: tutup, type: close_dialog }
     branches:
       - { page: 1 }
+    # dijalankan di browser: karyawan magang tidak diisi keahliannya (saat halaman dibuka pun langsung disesuaikan)
+    dynamic_actions:
+      - name: magang_tanpa_keahlian
+        event: change
+        items: [P2_STATUS_KERJA]
+        when: { item_equals: { item: P2_STATUS_KERJA, value: MAGANG } }
+        actions:
+          - { action: hide, items: [P2_KEAHLIAN] }
+        else:
+          - { action: show, items: [P2_KEAHLIAN] }
 
   - page: 3
     alias: tentang
@@ -186,6 +196,7 @@ pages:
           - { name: P4_KEAHLIAN, type: checkbox_group, label: Keahlian, lov: KEAHLIAN, inline: true }
           - { name: P4_SETUJU, type: checkbox, label: Atasan langsung sudah menyetujui mutasi ini, required: true }
         buttons:
+          - { name: KOSONGKAN, label: Kosongkan isian, style: ghost, action: defined_by_da }
           - { name: PROSES, label: Proses mutasi, hot: true }
     validations:
       - name: jabatan_berubah
@@ -222,3 +233,12 @@ pages:
       - { name: bersihkan, type: clear_cache }
     branches:
       - { page: 1 }
+    dynamic_actions:
+      # tombol tanpa submit: tanya dulu, lalu kosongkan isian tujuan mutasi di browser
+      - name: kosongkan_isian
+        event: click
+        button: KOSONGKAN
+        actions:
+          - { action: confirm, message: Kosongkan semua isian tujuan mutasi? }
+          - { action: clear, items: [P4_DEPT_TUJUAN, P4_JABATAN_BARU, P4_BERLAKU, P4_KEAHLIAN, P4_SETUJU] }
+          - { action: set_value, items: [P4_STATUS], value: TETAP }

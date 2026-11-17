@@ -100,6 +100,20 @@ describe('page designer (B5)', () => {
       assert.deepEqual(await spec(), before);
    });
 
+   test('DA1: dynamic actions are edited as YAML on the page and checked like an import', async () => {
+      const page = await dev.get(`${P(2)}?node=page`);
+      assert.match(page.body, /<textarea[^>]*name="f\.dynamic_actions"[^>]*>[^<]*magang_tanpa_keahlian/);
+      const bad = await edit(2, 'page', { 'f.dynamic_actions': '- { name: x, event: click, button: SIMPAN, actions: [ { action: hide, items: [P2_GAJI] } ] }\n' });
+      assert.equal(bad.statusCode, 422);
+      assert.match(bad.body, /button SIMPAN must have action defined_by_da/);
+      const good = await edit(2, 'page', { 'f.dynamic_actions':
+         '- { name: aktif, event: change, items: [P2_AKTIF], when: { item_equals: { item: P2_AKTIF, value: "N" } }, actions: [ { action: disable, items: [P2_JABATAN] } ], else: [ { action: enable, items: [P2_JABATAN] } ] }\n' });
+      assert.equal(good.statusCode, 303, good.body.slice(0, 800));
+      const das = (await spec()).pages.find(x => x.page === 2)!.dynamic_actions!;
+      assert.deepEqual(das.map(d => d.name), ['aktif']);
+      assert.deepEqual(das[0].else, [{ action: 'enable', items: ['P2_JABATAN'] }]);
+   });
+
    test('F03: add, reorder and delete components', async () => {
       const add = await act(3, 'add_region');
       assert.equal(add.statusCode, 303, add.body.slice(0, 600));

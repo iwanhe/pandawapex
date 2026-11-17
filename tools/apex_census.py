@@ -44,7 +44,13 @@ SUPPORT = {
     'computation': {
         'staticValue': 'yes', 'item': 'yes', 'sqlQuery': 'yes', 'expression': 'yes', 'functionBody': 'yes',
     },
-    'dynamicAction': {}, 'action': {}, 'button': {}, 'appItem': {},
+    # dynamic actions are counted by event ("(default)" = change). The event works since DA1; "partial" because the
+    # actions behind it are not all there yet: execute server code comes in DA2, execute JavaScript is refused (CSP).
+    'dynamicAction': {
+        '(default)': 'partial', 'change': 'partial', 'click': 'partial', 'ready': 'partial', 'keyup': 'partial',
+        'apexafterclosedialog': 'partial',  # built in: the calling page refreshes after its dialog closes
+    },
+    'action': {}, 'button': {}, 'appItem': {},
 }
 DEFAULT = {'dynamicAction': 'no', 'button': 'yes', 'appItem': 'yes'}
 UNTYPED = ('button', 'appItem')

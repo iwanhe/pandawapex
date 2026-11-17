@@ -264,9 +264,9 @@ export async function fieldHtml(v: View, it: ItemDef, bar = false): Promise<Safe
       }
       case 'checkbox':
          return html`<div class="r-field${col}" data-item="${it.name}">
-            <label class="r-choice"><input type="checkbox"${common} value="${it.onValue}"${attrIf('checked', stored === it.onValue)}> <span>${nameOf(it)}${it.required ? html`<span class="r-label__req" aria-hidden="true">*</span>` : ''}</span></label>${extras}</div>`;
+            <label class="r-choice"><input type="checkbox"${common} data-off-value="${it.offValue}" value="${it.onValue}"${attrIf('checked', stored === it.onValue)}> <span>${nameOf(it)}${it.required ? html`<span class="r-label__req" aria-hidden="true">*</span>` : ''}</span></label>${extras}</div>`;
       case 'switch':
-         return field(label(it), html`<span class="r-switch"><input type="checkbox" role="switch"${common} value="${it.onValue}"${attrIf('checked', stored === it.onValue)}></span>`);
+         return field(label(it), html`<span class="r-switch"><input type="checkbox" role="switch"${common} data-off-value="${it.offValue}" value="${it.onValue}"${attrIf('checked', stored === it.onValue)}></span>`);
       case 'popup_lov': {
          const display = stored === null ? '' : await lovDisplay(ev.c, ctx, it, stored);
          // the visible box shows the display value; the hidden input carries the return value

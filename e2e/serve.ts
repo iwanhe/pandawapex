@@ -24,6 +24,8 @@ await createWorkspace(pool, E2E.ws, [E2E.schema]);
 await pool.query(readFileSync(join(ROOT, 'examples/emp/seed.sql'), 'utf8').replaceAll('demo_app', E2E.schema));
 const spec = readFileSync(join(ROOT, 'examples/emp/app.yaml'), 'utf8').replace(/parsing_schema: \w+/, `parsing_schema: ${E2E.schema}`);
 await importApp(pool, E2E.ws, spec, 'e2e');
+// dynamic actions playground (e2e/da.spec.ts)
+await importApp(pool, E2E.ws, readFileSync(join(ROOT, 'e2e/da-app.yaml'), 'utf8').replace(/parsing_schema: \w+/, `parsing_schema: ${E2E.schema}`), 'e2e');
 await addUser(pool, E2E.ws, E2E.user, E2E.password, ['SDM']);
 await addUser(pool, E2E.ws, E2E.user2, E2E.password);
 await addDeveloper(pool, E2E.ws, 'admin', E2E.password, { admin: true });   // builder: create-app wizard (B3)

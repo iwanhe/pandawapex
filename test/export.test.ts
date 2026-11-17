@@ -32,6 +32,9 @@ async function snapshot(pool: pg.Pool, appId: string) {
       processes: 'select * from rpx.processes where app_id = $1',
       branches: 'select b.* from rpx.branches b join rpx.pages p on p.id = b.page_id where p.app_id = $1',
       computations: 'select * from rpx.computations where app_id = $1',
+      dynamic_actions: 'select d.* from rpx.dynamic_actions d join rpx.pages p on p.id = d.page_id where p.app_id = $1',
+      da_actions: `select x.*, d.name as da_name from rpx.da_actions x join rpx.dynamic_actions d on d.id = x.da_id
+                   join rpx.pages p on p.id = d.page_id where p.app_id = $1`,
    };
    const rows: Record<string, any[]> = {};
    for (const [t, sql] of Object.entries(tables)) rows[t] = (await pool.query(sql, [appId])).rows;
@@ -44,6 +47,7 @@ async function snapshot(pool: pg.Pool, appId: string) {
    for (const l of rows.lovs) label.set(l.id, `lov:${l.name}`);
    for (const l of rows.nav_lists) label.set(l.id, `navlist:${l.name}`);
    for (const e of rows.nav_entries) label.set(e.id, `nav:${e.label}@${e.seq}`);
+   for (const d of rows.dynamic_actions) label.set(d.id, `da:${pageNo.get(d.page_id)}/${d.name}`);
    for (const a of rows.applications) label.set(a.id, 'app');
    for (const w of rows.applications) label.set(w.workspace_id, 'workspace');
    const norm = (v: unknown): unknown => {
@@ -178,6 +182,7 @@ pages:
           - { name: HAPUS, label: Hapus, style: danger, confirm: Yakin?, condition: { item_not_null: P2_ID } }
           - { name: SIMPAN, label: Simpan, hot: true }
           - { name: TUTUP, label: Tutup, action: close_dialog }
+          - { name: CEK, label: Cek, action: defined_by_da, style: ghost }
           - { name: KE1, label: Ke 1, action: redirect, position: header, target: { page: 1, items: { P1_Q: "&P2_ID." } } }
       - static_id: ir
         type: interactive_report
@@ -204,6 +209,40 @@ pages:
     branches:
       - { page: 1, when_button: HAPUS, items: { P1_Q: "&P2_ID." }, clear_cache: "1" }
       - { page: 2 }
+    dynamic_actions:
+      - name: pilih_s
+        event: change
+        items: [P2_S, P2_C]
+        when: { item_in: { item: P2_S, values: ["Y", ""] } }
+        actions:
+          - { action: show, items: [P2_R], regions: [ir], buttons: [HAPUS] }
+          - { action: disable, items: [P2_C], buttons: [SIMPAN], on_load: false }
+          - { action: set_value, items: [P2_S], from_item: P2_C, on_load: true }
+        else:
+          - { action: hide, regions: [ch] }
+          - { action: enable, buttons: [SIMPAN] }
+          - { action: clear, items: [P2_S] }
+      - name: cek
+        event: click
+        button: CEK
+        actions:
+          - { action: confirm, message: Lanjut? }
+          - { action: refresh, regions: [ir, ch] }
+          - { action: submit_page }
+      - name: ketik
+        event: key_release
+        items: [P2_S]
+        when: { item_not_null: P2_S }
+        actions:
+          - { action: set_value, items: [P2_S], value: "" }
+          - { action: submit_page, request: KETIK }
+      - name: muat
+        event: page_load
+        when: { item_equals: { item: P2_C, value: "1" } }
+        actions:
+          - { action: hide, items: [P2_N] }
+        else:
+          - { action: show, items: [P2_N], on_load: false }
 `;
       const env = await setup(spec);
       try {
@@ -212,6 +251,9 @@ pages:
          assert.match(yaml, /allow_builtin: true/);
          assert.match(yaml, /requires_auth: false/);
          assert.match(yaml, /substitutions: \{ .*PERUSAHAAN: KCSI/);    // jsonb keeps its own key order
+         assert.match(yaml, /\{ action: submit_page \} \]/, 'the request of a click action defaults to its button');
+         assert.match(yaml, /- \{ action: show, items: \[ P2_R \], regions: \[ ir \], buttons: \[ HAPUS \] \}/, 'on_load default left out');
+         assert.match(yaml, /on_load: false \}/);
       } finally {
          await env.close();
       }
