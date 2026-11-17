@@ -356,6 +356,106 @@ di tab lain atau oleh developer lain*. Isian Anda tetap di formulir. Pilih salah
 
 Hal yang sama berlaku untuk **Properti aplikasi** dan wizard **Tambah halaman**.
 
+### Dynamic actions (aksi di browser)
+
+Dynamic action menjalankan aksi **di browser, tanpa mengirim halaman**: menyembunyikan field saat pilihan tertentu
+dipilih, mengisi field dari field lain, mengosongkan isian, memuat ulang satu region, atau menanyakan konfirmasi sebelum
+mengirim. Ini padanan *Dynamic Actions* di APEX, versi pertama (lihat "Yang belum ada" di bawah).
+
+**Langkah 1. Buka tempat menulisnya.** Di Page Designer klik **Halaman** (node paling atas pohon). Di editor kanan ada
+kotak **Dynamic actions** (YAML). Kotak ini berisi daftar; satu dynamic action = satu entri `- name: ...`.
+Di file spec, tulis di bawah halaman dengan kunci `dynamic_actions:` (sejajar dengan `regions:` dan `processes:`).
+
+**Langkah 2. Tulis dynamic action-nya.** Contoh dari aplikasi contoh emp (halaman 2): karyawan magang tidak diisi keahliannya.
+
+```yaml
+- name: magang_tanpa_keahlian         # nama unik di halaman ini
+  event: change                       # kapan berjalan
+  items: [P2_STATUS_KERJA]            # item yang diawasi
+  when: { item_equals: { item: P2_STATUS_KERJA, value: MAGANG } }   # kondisi (boleh tidak ada)
+  actions:                            # dijalankan bila kondisi benar
+    - { action: hide, items: [P2_KEAHLIAN] }
+  else:                               # dijalankan bila kondisi salah
+    - { action: show, items: [P2_KEAHLIAN] }
+```
+
+**Langkah 3. Simpan, lalu jalankan halamannya.** Pilih *Magang*: grup Keahlian hilang. Pilih *Tetap*: muncul lagi. Saat
+halaman dibuka untuk karyawan yang sudah magang, grup itu langsung tersembunyi (lihat `on_load` di bawah).
+
+Bila ada yang salah (nama item salah ketik, aksi tanpa target), simpan ditolak dengan pesan yang menyebut dynamic action
+dan aksinya, sama seperti impor spec.
+
+**Event** (`event:`)
+
+| event | berjalan saat | wajib diisi |
+| --- | --- | --- |
+| `change` | nilai salah satu item berubah | `items: [...]` |
+| `key_release` | tombol keyboard dilepas di item teks (setiap ketikan) | `items: [...]` |
+| `click` | tombol diklik | `button: NAMA`; tombolnya harus ber-`action: defined_by_da` |
+| `page_load` | halaman selesai dibuka | — |
+
+**Kondisi** (`when:`, opsional, dicek di browser terhadap nilai item saat itu)
+
+| kondisi | contoh |
+| --- | --- |
+| `item_equals` / `item_not_equals` | `{ item_equals: { item: P2_STATUS, value: "Y" } }` |
+| `item_in` / `item_not_in` | `{ item_in: { item: P2_STATUS, values: [A, B] } }` |
+| `item_null` / `item_not_null` | `{ item_null: P2_CATATAN }` |
+
+Nilai dibandingkan sebagai teks, sama seperti yang dikirim ke server: switch/checkbox bernilai `on_value`/`off_value`
+(bawaan `Y`/`N`), checkbox group digabung dengan `:` (mis. `SQL:K3`), item kosong = `""`.
+
+**Aksi** (`actions:` dan `else:`, dijalankan berurutan)
+
+| aksi | target | isian lain | keterangan |
+| --- | --- | --- | --- |
+| `show` / `hide` | `items`, `regions`, `buttons` | | region ditulis dengan `static_id`-nya |
+| `enable` / `disable` | `items`, `buttons` | | field yang di-disable tetap ikut terkirim saat submit |
+| `set_value` | `items` | `value: teks` **atau** `from_item: P1_X` | memicu `change` pada item tujuan |
+| `clear` | `items` | | mengosongkan; checkbox jadi tidak dicentang |
+| `refresh` | `regions` | | memuat ulang region dari server tanpa mengganggu isian lain |
+| `confirm` | — | `message: teks` | **Batal** menghentikan aksi-aksi berikutnya |
+| `submit_page` | — | `request: NAMA` | mengirim halaman; proses dan branch melihat `NAMA` sebagai REQUEST |
+
+`on_load: true/false` pada aksi menentukan apakah aksi itu juga dijalankan saat halaman dibuka. Bawaannya `true` untuk
+`show`, `hide`, `enable`, `disable` (agar halaman langsung tampil dalam keadaan yang benar) dan `false` untuk `set_value`
+dan `clear`. `refresh`, `confirm`, dan `submit_page` tidak pernah berjalan saat halaman dibuka.
+
+**Tombol yang dikendalikan dynamic action.** Tombol biasa langsung mengirim halaman. Bila tombol harus bertanya dulu atau
+hanya mengubah isian di browser, beri `action: defined_by_da` lalu buat dynamic action `event: click` untuknya.
+Contoh dari halaman 4 (Mutasi):
+
+```yaml
+regions:
+  - static_id: mutasi
+    # ...
+    buttons:
+      - { name: KOSONGKAN, label: Kosongkan isian, style: ghost, action: defined_by_da }
+dynamic_actions:
+  - name: kosongkan_isian
+    event: click
+    button: KOSONGKAN
+    actions:
+      - { action: confirm, message: Kosongkan semua isian tujuan mutasi? }
+      - { action: clear, items: [P4_DEPT_TUJUAN, P4_JABATAN_BARU, P4_BERLAKU, P4_KEAHLIAN, P4_SETUJU] }
+      - { action: set_value, items: [P4_STATUS], value: TETAP }
+```
+
+Bila dynamic action klik berakhir dengan `submit_page` tanpa `request`, REQUEST-nya nama tombol itu, jadi proses cukup
+memakai `when_button: NAMA_TOMBOL` seperti tombol biasa. `request` lain boleh dipakai (mis. `CATAT`); di proses gunakan
+`condition: { request_equals: CATAT }`. Nama tombol lain di halaman tidak boleh dipakai sebagai `request`.
+
+**Penting soal keamanan.** Menyembunyikan atau men-disable field di browser hanya kenyamanan bagi pengguna; orang yang
+paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`, `condition`, `authorization`, dan
+validasi. Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya juga tidak dikirim ke browser,
+dan REQUEST-nya ditolak server.
+
+**Yang belum ada** (direncanakan di sesi berikut): `execute_server_code` (menjalankan PL/pgSQL dari dynamic action dengan
+*items to submit/return*), `refresh` region dengan nilai item terbaru (*items to submit*), editor dynamic action berbentuk
+formulir di Page Designer. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
+melarang skrip inline). Event *after close dialog* tidak perlu ditulis: halaman pemanggil otomatis di-refresh setelah
+dialognya ditutup.
+
 ## 8. Properti aplikasi
 
 Beranda aplikasi → **Properti aplikasi**. Berisi atribut tingkat aplikasi: nama, versi, skema parsing, halaman beranda,
@@ -477,5 +577,5 @@ builder lewat hostname yang terdaftar, atau, di laptop sendiri, jalankan server 
 `demo setup` dan `pilot setup` setiap kali image dibangun ulang. Ekspor aplikasi contoh sebelum memperbarui, atau buat
 aplikasi sendiri.
 
-**Interactive Grid, Dynamic Actions, drag-drop tata letak?** Belum ada. Lihat bagian "Belum ada" di
+**Interactive Grid, drag-drop tata letak?** Belum ada. Lihat bagian "Belum ada" di
 [checkpoint-fase2.md](checkpoint-fase2.md#yang-belum-ada).

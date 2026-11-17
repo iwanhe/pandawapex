@@ -244,7 +244,8 @@
           "enum": [
             "submit",
             "redirect",
-            "close_dialog"
+            "close_dialog",
+            "defined_by_da"
           ]
         },
         "target": {
@@ -790,6 +791,206 @@
       "type": "string",
       "pattern": "^[A-Z][A-Z0-9_]{0,59}$",
       "description": "name of a shared list of values (top-level lovs)"
+    },
+    "daCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "description": "checked in the browser against the current value of one item",
+      "properties": {
+        "item_equals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "value"
+          ],
+          "properties": {
+            "item": {
+              "$ref": "#/definitions/itemName"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        "item_not_equals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "value"
+          ],
+          "properties": {
+            "item": {
+              "$ref": "#/definitions/itemName"
+            },
+            "value": {
+              "type": "string"
+            }
+          }
+        },
+        "item_in": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "values"
+          ],
+          "properties": {
+            "item": {
+              "$ref": "#/definitions/itemName"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "item_not_in": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "values"
+          ],
+          "properties": {
+            "item": {
+              "$ref": "#/definitions/itemName"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "item_null": {
+          "$ref": "#/definitions/itemName"
+        },
+        "item_not_null": {
+          "$ref": "#/definitions/itemName"
+        }
+      }
+    },
+    "daAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action"
+      ],
+      "properties": {
+        "action": {
+          "enum": [
+            "show",
+            "hide",
+            "enable",
+            "disable",
+            "set_value",
+            "clear",
+            "refresh",
+            "submit_page",
+            "confirm"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/itemName"
+          }
+        },
+        "regions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "buttons": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,59}$"
+          }
+        },
+        "value": {
+          "type": "string",
+          "description": "set_value: a fixed value"
+        },
+        "from_item": {
+          "$ref": "#/definitions/itemName",
+          "description": "set_value: copy the value of this item"
+        },
+        "message": {
+          "type": "string",
+          "description": "confirm: the question; Batal stops the remaining actions"
+        },
+        "request": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,59}$",
+          "description": "submit_page: the REQUEST processes and branches see"
+        },
+        "on_load": {
+          "type": "boolean",
+          "description": "also run when the page loads (default true for show/hide/enable/disable)"
+        }
+      }
+    },
+    "dynamicAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "event"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "enum": [
+            "change",
+            "click",
+            "page_load",
+            "key_release"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/itemName"
+          }
+        },
+        "button": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,59}$"
+        },
+        "when": {
+          "$ref": "#/definitions/daCondition"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/daAction"
+          }
+        },
+        "else": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/daAction"
+          }
+        }
+      }
     }
   },
   "properties": {
@@ -939,6 +1140,12 @@
               "md",
               "lg"
             ]
+          },
+          "dynamic_actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/dynamicAction"
+            }
           }
         }
       }

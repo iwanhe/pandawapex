@@ -1,10 +1,10 @@
 import type pg from 'pg';
 import YAML from 'yaml';
 import type {
-   AppSpec, AuthzSpec, BranchSpec, ButtonSpec, ColumnSpec, ComputationSpec, Condition, ItemSpec, LovSpec, NavSpec,
-   PageSpec, ProcessSpec, RegionSpec, ValidationSpec,
+   AppSpec, AuthzSpec, BranchSpec, ButtonSpec, ColumnSpec, ComputationSpec, Condition, DaActionSpec, DaActionType,
+   DynamicActionSpec, ItemSpec, LovSpec, NavSpec, PageSpec, ProcessSpec, RegionSpec, ValidationSpec,
 } from './import.ts';
-import { ENGINE_VERSION, SpecError } from './import.ts';
+import { DA_ON_LOAD_DEFAULT, ENGINE_VERSION, SpecError } from './import.ts';
 
 // Export: rebuild the spec from the metadata tables (not from the last imported text), so that whatever changes
 // the metadata later (the builder) can be exported, versioned and imported again. Values equal to what import
@@ -53,6 +53,9 @@ export async function exportSpec(c: pg.PoolClient | pg.Pool, workspace: string, 
    const processes = await q('select * from rpx.processes where app_id = $1 order by seq');
    const branches = await q('select b.* from rpx.branches b join rpx.pages p on p.id = b.page_id where p.app_id = $1 order by b.seq');
    const computations = await q('select * from rpx.computations where app_id = $1 order by seq');
+   const das = await q('select d.* from rpx.dynamic_actions d join rpx.pages p on p.id = d.page_id where p.app_id = $1 order by d.seq');
+   const daActions = await q(`select x.* from rpx.da_actions x join rpx.dynamic_actions d on d.id = x.da_id
+                              join rpx.pages p on p.id = d.page_id where p.app_id = $1 order by x.seq`);
    const auth = (await q('select * from rpx.auth_schemes where app_id = $1 and is_current'))[0];
    const navList = (await q(`select id from rpx.nav_lists where app_id = $1 and name = 'navigation_menu'`))[0];
    const nav = navList ? (await c.query('select * from rpx.nav_entries where list_id = $1 order by seq', [navList.id])).rows as Row[] : [];
@@ -109,6 +112,26 @@ export async function exportSpec(c: pg.PoolClient | pg.Pool, workspace: string, 
       } as RegionSpec);
    };
 
+   const daAction = (x: Row, button: string | undefined): DaActionSpec => {
+      const at: Row = x.attributes ?? {};
+      const type = x.action_type as DaActionType;
+      return clean({
+         action: type, items: x.affected?.items, regions: x.affected?.regions, buttons: x.affected?.buttons,
+         value: at.value, from_item: at.from_item, message: at.message,
+         request: at.request === undefined ? undefined : unless(at.request, button),
+         on_load: at.on_load === undefined ? undefined : unless(at.on_load, DA_ON_LOAD_DEFAULT.includes(type)),
+      } as DaActionSpec);
+   };
+   const dynamicAction = (d: Row): DynamicActionSpec => {
+      const mine = daActions.filter(x => x.da_id === d.id);
+      const button: string | undefined = d.selection?.button;
+      return clean({
+         name: d.name, event: d.event, items: d.selection?.items, button, when: d.client_condition ?? undefined,
+         actions: mine.filter(x => x.fire_when).map(x => daAction(x, button)),
+         else: mine.filter(x => !x.fire_when).map(x => daAction(x, button)),
+      } as DynamicActionSpec);
+   };
+
    const authScheme: string = auth?.scheme_type ?? 'builtin_accounts';
    const page = (p: Row): PageSpec => {
       const at: Row = p.attributes ?? {};
@@ -135,6 +158,7 @@ export async function exportSpec(c: pg.PoolClient | pg.Pool, workspace: string, 
             page: b.target.page, items: b.target.items, clear_cache: b.target.clear_cache ?? undefined,
             when_button: b.when_button ?? undefined, condition: cond(b.condition),
          } as BranchSpec)),
+         dynamic_actions: das.filter(d => d.page_id === p.id).map(dynamicAction),
       } as PageSpec);
    };
 

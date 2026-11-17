@@ -160,6 +160,8 @@ export interface View {
    allowed: Map<number, boolean>;
    /** GET forms of interactive reports; rendered after the page's POST form (forms cannot nest) */
    extraForms: SafeHtml[];
+   /** defined_by_da buttons that were rendered (their click dynamic actions are sent to the browser) */
+   daButtons?: Set<string>;
    /** session state to persist after rendering */
    changes: Record<string, string | null>;
 }
@@ -178,6 +180,7 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
    let nav: NavDef[] = [];
    let headerButtons: SafeHtml[] = [];
    let parentAllowed = false;
+   let daJson = '';
    const rendered: Rendered = { items: new Set(), buttons: new Set() };
    const ev = new Evaluator(c, ctx);
    const v: View = { ctx, page, ev, rs, rendered, allowed: new Map(), extraForms: [], changes: stateChanges };
@@ -232,6 +235,7 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
          if (h) headerButtons.push(h);
       }
       nav = await filterNav(v, ctx.app.nav);
+      daJson = dynamicActionsFor(v);
       parentAllowed = page.breadcrumbParent !== null && (await canOpen(v, page.breadcrumbParent));
       await c.query('commit');
    } catch (e) {
@@ -258,7 +262,7 @@ export async function renderPage(ctx: Ctx, page: PageDef, rs: RenderState): Prom
          <input type="hidden" name="__csrf" value="${ctx.session.csrf}">
          <input type="hidden" name="__sid" value="${await issueSubmitToken(ctx.pool, ctx.session, page.no)}">
          <input type="hidden" name="__ps" value="${formState(ctx, page, rendered)}">
-         ${layout(regionsHtml)}
+         ${layout(regionsHtml)}${daJson ? raw(`<script type="application/json" id="rpx-da">${daJson}</script>`) : ''}
       </form>${v.extraForms}`;
    if (rs.dialog) {
       return dialogDocument(`${title} · ${ctx.app.name}`, html`<div class="r-messages">${msgs}</div>`, formBody).value;
@@ -456,8 +460,28 @@ async function buttonHtml(v: View, b: ButtonDef): Promise<SafeHtml | null> {
          ? html`<button type="button" class="${cls}" data-dialog-cancel>${ic}${b.label}</button>`
          : html`<a class="${cls}" href="${pageUrl(v.ctx, dialogReturnPage(v.ctx, v.page))}">${ic}${b.label}</a>`;
    }
+   if (b.action === 'defined_by_da') {
+      // does nothing by itself: its click dynamic action decides (and may submit with its own REQUEST)
+      (v.daButtons ??= new Set()).add(b.name);
+      return html`<button type="button" class="${cls}" data-button="${b.name}">${ic}${b.label}</button>`;
+   }
    v.rendered.buttons.add(b.name);
-   return html`<button type="submit" class="${cls}" name="REQUEST" value="${b.name}"${b.confirm ? html` data-confirm="${b.confirm}"` : ''}>${ic}${b.label}</button>`;
+   return html`<button type="submit" class="${cls}" name="REQUEST" value="${b.name}" data-button="${b.name}"${b.confirm ? html` data-confirm="${b.confirm}"` : ''}>${ic}${b.label}</button>`;
+}
+
+/**
+ * The page's dynamic actions as JSON for the browser (rpx.js), and the REQUEST values their submit_page actions may
+ * post. A click action is sent only when its button was rendered, so a button hidden by its condition or authorization
+ * cannot be pressed through its dynamic action either. Hiding or disabling in the browser is convenience, not
+ * security: read_only, conditions and authorization on the server are what protect data.
+ */
+function dynamicActionsFor(v: View): string {
+   const list = v.page.dynamicActions.filter(d => d.event !== 'click' || v.daButtons?.has(d.button!));
+   for (const d of list) {
+      for (const a of [...d.actions, ...d.else]) if (a.action === 'submit_page' && a.request) v.rendered.buttons.add(a.request);
+   }
+   // inside <script>: no "<" may end the element early
+   return list.length ? JSON.stringify(list).replace(/</g, '\\u003c') : '';
 }
 
 // ---------------------------------------------------------------------------

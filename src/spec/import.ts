@@ -18,7 +18,7 @@ export interface ItemSpec {
    format?: 'number' | 'integer' | 'date' | 'datetime'; read_only?: Condition;
 }
 export interface ButtonSpec {
-   name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect' | 'close_dialog'; target?: Target;
+   name: string; label: string; hot?: boolean; action?: 'submit' | 'redirect' | 'close_dialog' | 'defined_by_da'; target?: Target;
    style?: string; confirm?: string; position?: string; condition?: Condition; authorization?: string;
 }
 export interface Condition {
@@ -46,6 +46,30 @@ export interface ProcessSpec {
    when_button?: string; success_msg?: string; error_msg?: string; condition?: Condition;
 }
 export interface BranchSpec { page: number; items?: Record<string, string>; clear_cache?: string; when_button?: string; condition?: Condition }
+/** Dynamic actions: run in the browser when an item changes, a button is clicked or the page loads. */
+export interface DaCondition {
+   item_equals?: { item: string; value: string }; item_not_equals?: { item: string; value: string };
+   item_in?: { item: string; values: string[] }; item_not_in?: { item: string; values: string[] };
+   item_null?: string; item_not_null?: string;
+}
+export type DaActionType = 'show' | 'hide' | 'enable' | 'disable' | 'set_value' | 'clear' | 'refresh' | 'submit_page' | 'confirm';
+export interface DaActionSpec {
+   action: DaActionType; items?: string[]; regions?: string[]; buttons?: string[];
+   value?: string; from_item?: string; message?: string; request?: string; on_load?: boolean;
+}
+export interface DynamicActionSpec {
+   name: string; event: 'change' | 'click' | 'page_load' | 'key_release'; items?: string[]; button?: string;
+   when?: DaCondition; actions?: DaActionSpec[]; else?: DaActionSpec[];
+}
+/** actions that by default also run when the page loads, so the page starts in the right state */
+export const DA_ON_LOAD_DEFAULT: DaActionType[] = ['show', 'hide', 'enable', 'disable'];
+/** actions that may run on page load at all (refresh, submit and confirm on load would loop or nag) */
+export const DA_ON_LOAD_ALLOWED: DaActionType[] = ['show', 'hide', 'enable', 'disable', 'set_value', 'clear'];
+/** the item a DA condition reads */
+export function daConditionItem(w: DaCondition): string {
+   return w.item_equals?.item ?? w.item_not_equals?.item ?? w.item_in?.item ?? w.item_not_in?.item ?? w.item_null ?? w.item_not_null!;
+}
+
 export interface NavSpec {
    label: string; icon?: string; page?: number; url?: string; children?: NavSpec[]; authorization?: string; condition?: Condition;
 }
@@ -53,6 +77,7 @@ export interface PageSpec {
    page: number; alias?: string; name: string; title?: string; requires_auth?: boolean; breadcrumb_parent?: number;
    regions?: RegionSpec[]; validations?: ValidationSpec[]; processes?: ProcessSpec[]; branches?: BranchSpec[];
    authorization?: string; computations?: ComputationSpec[]; mode?: 'normal' | 'modal'; dialog_size?: 'sm' | 'md' | 'lg';
+   dynamic_actions?: DynamicActionSpec[];
 }
 export interface AppSpec {
    app: string; name: string; version?: string; parsing_schema: string; home_page?: number; timezone?: string;
@@ -140,6 +165,7 @@ function checkSemantics(spec: AppSpec): void {
             btn.add(b.name);
             if (b.action === 'redirect' && !b.target) p.push(`button ${b.name}: redirect needs target`);
             if (b.action === 'close_dialog' && page.mode !== 'modal') p.push(`button ${b.name}: close_dialog only makes sense on a modal page`);
+            if (b.action === 'defined_by_da' && (b.target || b.confirm)) p.push(`button ${b.name}: a defined_by_da button has no target or confirm (use the dynamic action's confirm)`);
          }
       }
       for (const pr of page.processes ?? []) {
@@ -175,6 +201,7 @@ function checkSemantics(spec: AppSpec): void {
          state.set(n, 2);
       };
       for (const n of onPage.keys()) visit(n, []);
+      checkDynamicActions(page, onPage, p);
    }
    const checkTarget = (where: string, t: Target) => {
       const target = pages.get(t.page);
@@ -239,6 +266,78 @@ function checkSemantics(spec: AppSpec): void {
    if (auth.scheme === 'oidc' && !auth.oidc) p.push('authentication: scheme oidc needs an oidc block');
    if (auth.scheme !== 'oidc' && (auth.oidc || auth.allow_builtin !== undefined)) p.push('authentication: oidc / allow_builtin only apply to scheme oidc');
    if (p.length) throw new SpecError(p);
+}
+
+const DA_TARGETS: Record<DaActionType, { items?: 'any' | 'value' | 'control'; regions?: true; buttons?: true; need: string }> = {
+   show: { items: 'any', regions: true, buttons: true, need: 'items, regions or buttons' },
+   hide: { items: 'any', regions: true, buttons: true, need: 'items, regions or buttons' },
+   enable: { items: 'control', buttons: true, need: 'items or buttons' },
+   disable: { items: 'control', buttons: true, need: 'items or buttons' },
+   set_value: { items: 'value', need: 'items' },
+   clear: { items: 'value', need: 'items' },
+   refresh: { regions: true, need: 'regions' },
+   submit_page: { need: '' },
+   confirm: { need: '' },
+};
+
+function checkDynamicActions(page: PageSpec, onPage: Map<string, ItemSpec>, p: string[]): void {
+   const buttons = new Map<string, ButtonSpec>();
+   for (const r of page.regions ?? []) for (const b of r.buttons ?? []) buttons.set(b.name, b);
+   const regions = new Set((page.regions ?? []).map(r => r.static_id));
+   const names = new Set<string>();
+   for (const da of page.dynamic_actions ?? []) {
+      const at = `page ${page.page} dynamic action "${da.name}"`;
+      if (names.has(da.name)) p.push(`${at}: duplicate name`);
+      names.add(da.name);
+      const item = (where: string, n: string) => { if (!onPage.has(n)) p.push(`${at}: ${where} ${n} is not an item on page ${page.page}`); };
+      if (da.event === 'change' || da.event === 'key_release') {
+         if (!da.items) p.push(`${at}: event ${da.event} needs items`);
+         for (const n of da.items ?? []) item('item', n);
+      } else if (da.items) p.push(`${at}: items only apply to events change and key_release`);
+      if (da.event === 'click') {
+         const b = da.button === undefined ? undefined : buttons.get(da.button);
+         if (da.button === undefined) p.push(`${at}: event click needs button`);
+         else if (!b) p.push(`${at}: button ${da.button} is not a button on page ${page.page}`);
+         else if (b.action !== 'defined_by_da') p.push(`${at}: button ${da.button} must have action defined_by_da`);
+      } else if (da.button !== undefined) p.push(`${at}: button only applies to event click`);
+      if (da.when) item('condition item', daConditionItem(da.when));
+      if (!da.actions?.length && !da.else?.length) p.push(`${at}: needs actions`);
+      if (da.else?.length && !da.when) p.push(`${at}: else only applies with a when condition`);
+      if (da.event === 'page_load' && [...da.actions ?? [], ...da.else ?? []].some(x => x.action === 'submit_page' || x.action === 'confirm')) {
+         p.push(`${at}: a page_load action cannot submit_page or confirm (it would run on every load)`);
+      }
+      for (const a of [...da.actions ?? [], ...da.else ?? []]) {
+         const t = DA_TARGETS[a.action];
+         const where = `${at} action ${a.action}`;
+         if (a.items && !t.items) p.push(`${where}: does not take items`);
+         if (a.regions && !t.regions) p.push(`${where}: does not take regions`);
+         if (a.buttons && !t.buttons) p.push(`${where}: does not take buttons`);
+         if (t.need && !(a.items || a.regions || a.buttons)) p.push(`${where}: needs ${t.need}`);
+         for (const n of a.items ?? []) {
+            const it = onPage.get(n);
+            if (!it) { item('item', n); continue; }
+            if (t.items === 'value' && (['display_only', 'popup_lov'].includes(it.type) || (it.type === 'hidden' && it.protection !== 'unrestricted'))) {
+               p.push(`${where}: item ${n} (${it.type}) cannot be changed in the browser`);
+            }
+            if (t.items === 'control' && ['display_only', 'hidden'].includes(it.type)) p.push(`${where}: item ${n} (${it.type}) has no field to ${a.action}`);
+         }
+         for (const r of a.regions ?? []) if (!regions.has(r)) p.push(`${where}: region ${r} is not a region on page ${page.page}`);
+         for (const b of a.buttons ?? []) if (!buttons.has(b)) p.push(`${where}: button ${b} is not a button on page ${page.page}`);
+         if ((a.value !== undefined || a.from_item !== undefined) && a.action !== 'set_value') p.push(`${where}: value / from_item only apply to set_value`);
+         if (a.action === 'set_value' && (a.value === undefined) === (a.from_item === undefined)) p.push(`${where}: needs exactly one of value or from_item`);
+         if (a.from_item !== undefined) item('from_item', a.from_item);
+         if (a.message !== undefined && a.action !== 'confirm') p.push(`${where}: message only applies to confirm`);
+         if (a.action === 'confirm' && !a.message) p.push(`${where}: needs message`);
+         if (a.request !== undefined && a.action !== 'submit_page') p.push(`${where}: request only applies to submit_page`);
+         if (a.action === 'submit_page') {
+            const req = a.request ?? (da.event === 'click' ? da.button : undefined);
+            if (!req) p.push(`${where}: needs request`);
+            // a button's name as REQUEST would bypass that button's condition/authorization; only the DA's own button may be used
+            else if (buttons.has(req) && !(da.event === 'click' && da.button === req)) p.push(`${where}: request ${req} is the name of another button`);
+         }
+         if (a.on_load !== undefined && !DA_ON_LOAD_ALLOWED.includes(a.action)) p.push(`${where}: on_load only applies to ${DA_ON_LOAD_ALLOWED.join('/')}`);
+      }
+   }
 }
 
 export interface ImportResult { appId: string; pages: number; regions: number; items: number; replaced: boolean }
@@ -433,6 +532,27 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
             `insert into rpx.branches (page_id, point, target, when_button, seq, condition) values ($1, 'after_submit', $2, $3, $4, $5)`,
             [pageId, { page: b.page, items: b.items ?? {}, clear_cache: b.clear_cache ?? null }, b.when_button ?? null, brseq, b.condition ?? null]);
          brseq += 10;
+      }
+      let dseq = 10;
+      for (const da of page.dynamic_actions ?? []) {
+         const d = await c.query(
+            `insert into rpx.dynamic_actions (page_id, name, event, selection, client_condition, seq) values ($1, $2, $3, $4, $5, $6) returning id`,
+            [pageId, da.name, da.event, da.items ? { items: da.items } : da.button ? { button: da.button } : {}, da.when ?? null, dseq]);
+         dseq += 10;
+         let aseq = 10;
+         for (const [fire, list] of [[true, da.actions ?? []], [false, da.else ?? []]] as const) {
+            for (const a of list) {
+               const affected = a.items || a.regions || a.buttons ? { items: a.items, regions: a.regions, buttons: a.buttons } : null;
+               await c.query(
+                  `insert into rpx.da_actions (da_id, fire_when, action_type, affected, attributes, seq) values ($1, $2, $3, $4, $5, $6)`,
+                  [d.rows[0].id, fire, a.action, affected, {
+                     value: a.value, from_item: a.from_item, message: a.message,
+                     request: a.action === 'submit_page' ? a.request ?? da.button : undefined,
+                     on_load: DA_ON_LOAD_ALLOWED.includes(a.action) ? a.on_load ?? DA_ON_LOAD_DEFAULT.includes(a.action) : undefined,
+                  }, aseq]);
+               aseq += 10;
+            }
+         }
       }
    }
 

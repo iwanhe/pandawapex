@@ -51,10 +51,11 @@ const LABELS: Record<string, string> = {
    region: 'Region', code: 'Kode PL/pgSQL', success_msg: 'Pesan sukses', items: 'Isi item tujuan', clear_cache: 'Kosongkan cache halaman',
    version: 'Versi', parsing_schema: 'Skema parsing', home_page: 'Halaman beranda', timezone: 'Zona waktu', substitutions: 'Substitution strings',
    authentication: 'Autentikasi', navigation: 'Menu navigasi', authorization_scheme: 'Otorisasi aplikasi', application_items: 'Application items',
-   computations: 'Computations aplikasi', lovs: 'Daftar pilihan bersama (LOV)',
+   computations: 'Computations aplikasi', lovs: 'Daftar pilihan bersama (LOV)', dynamic_actions: 'Dynamic actions',
 };
 // help in the builder's language; the schema's own descriptions are written for spec authors
 const HELP: Record<string, string> = {
+   dynamic_actions: 'Aksi yang berjalan di browser saat item berubah, tombol diklik atau halaman dibuka (show/hide, enable/disable, set_value, clear, refresh, confirm, submit_page). Contoh dan daftar lengkapnya ada di Panduan Pengguna, bagian Dynamic actions.',
    cascade: 'Daftar item induk, mis. [P4_DEPTNO]. Bila induk berubah, pilihan item ini dimuat ulang dan nilainya dikosongkan.',
    null_display: 'Teks pilihan kosong pada select atau popup LOV.',
    on_value: 'Checkbox/switch: nilai saat aktif (bawaan Y).', off_value: 'Checkbox/switch: nilai saat nonaktif (bawaan N).',

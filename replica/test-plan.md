@@ -284,3 +284,24 @@ Tes: `test/ops.test.ts` (int) dan `e2e/ops-keepalive.spec.ts` (desktop + mobile)
 | OPS-H7 | backup | happy: Docker | `docker compose run --rm rpx backup` → rusak data → restore ke `rpx_restore` → tukar nama → data kembali; server baru (volume kosong): role dibuat, `up` berhasil | manual (dijalankan), CI (backup + restore) | ✅ |
 | OPS-M1 | backup | manual: Windows | `backup-lokal.cmd` di laptop Windows (Cmder, PostgreSQL portable) | manual | ✅ 2026-11-15: dua file terbentuk. Temuan: `start-pg.bat` berhenti di `pause`; diperbaiki dengan `< nul` |
 | OPS-M2 | backup | manual: Windows | jadwal Task Scheduler (`schtasks`) | manual | ⏳ belum dijalankan |
+
+## Dynamic Actions tahap 1 (2026-11-17)
+
+Aplikasi contoh emp (halaman 2 dan 4) dan aplikasi uji `e2e/da-app.yaml` (semua jenis aksi di satu halaman).
+
+| ID | Area | Jenis | Kasus | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| DA-S1 | spec | negatif | 17 kesalahan ditolak dengan pesan yang menyebut halaman, dynamic action, dan aksinya: nama ganda, event tanpa item/tombol, item/region/tombol tak dikenal, klik pada tombol submit, aksi tanpa target, `set_value` ke display only, `else` tanpa `when`, `submit_page` tanpa request atau memakai nama tombol lain, submit/confirm saat page load, `on_load` pada refresh, atribut yang tidak berlaku | int | ✅ |
+| DA-S2 | spec | negatif | `execute_js` dan aksi tak dikenal ditolak skema; tombol `defined_by_da` dengan `target`/`confirm` ditolak | int | ✅ |
+| DA-S3 | spec | happy | ekspor → impor menulis baris `dynamic_actions`/`da_actions` yang sama; nilai bawaan (`on_load`, request = nama tombol) tidak ditulis di hasil ekspor | int | ✅ |
+| DA-R1 | render | happy | JSON dynamic action ada di halaman; `</script>` di pesan di-escape; tombol `defined_by_da` = `type="button"`; semua tombol punya `data-button` | int | ✅ |
+| DA-R2 | render | keamanan | tombol yang tidak tampil (kondisi/otorisasi): dynamic action kliknya tidak dikirim dan REQUEST-nya ditolak 400 | int | ✅ |
+| DA-R3 | submit | happy | `submit_page` dengan nama tombol (proses `when_button`) dan dengan request sendiri (`request_equals`) | int | ✅ |
+| DA-B1 | builder | happy/negatif | Page Designer: dynamic action tampil sebagai kotak YAML di node Halaman; isian salah ditolak 422 dengan alasannya; isian benar tersimpan | int | ✅ |
+| DA-H1 | browser | happy | change radio → hide/show (`else`), keyboard (panah), setelah gagal validasi keadaan diterapkan lagi saat halaman dimuat; axe bersih | e2e | ✅ |
+| DA-H2 | browser | happy | tombol `defined_by_da`: confirm Batal tidak mengubah apa pun dan tidak submit; OK (lewat Enter) mengosongkan isian, radio kembali ke Tetap | e2e | ✅ |
+| DA-H3 | browser | happy | data yang sudah Magang dibuka di dialog: grup Keahlian langsung tersembunyi (`on_load`) | e2e | ✅ |
+| DA-H4 | browser | happy | enable/disable saat load dan saat switch berubah; key release menyalin nilai; confirm + submit_page; field yang di-disable tetap terkirim | e2e | ✅ |
+| DA-H5 | browser | happy | refresh region memuat ulang satu region dari server tanpa menghapus isian lain | e2e | ✅ |
+
+Run: `npm test` 195/195, e2e 112/112 (2 skip). Bug baru: tidak ada.

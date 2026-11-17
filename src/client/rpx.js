@@ -1,5 +1,5 @@
 // pandawapex client runtime: confirm buttons, double-submit guard, mobile nav toggle, modal pages,
-// interactive reports, cascading lists, popup LOV and session keep-alive.
+// interactive reports, cascading lists, popup LOV, dynamic actions and session keep-alive.
 // No inline handlers anywhere (CSP script-src 'self').
 (() => {
   'use strict';
@@ -115,6 +115,7 @@
         const main = document.querySelector('#main');
         if (!res.ok || !fresh || !main) throw new Error('refresh');
         main.innerHTML = fresh.innerHTML;
+        document.dispatchEvent(new Event('rpx:refreshed'));
         const status = main.querySelector('[role="status"]');
         (status || main.querySelector('h1')).setAttribute('tabindex', '-1');
         (status || main.querySelector('h1')).focus();
@@ -219,6 +220,7 @@
       const fresh = new DOMParser().parseFromString(await res.text(), 'text/html').body.firstElementChild;
       if (!fresh || !document.contains(field)) throw new Error('cascade');
       field.replaceWith(fresh);
+      document.dispatchEvent(new CustomEvent('rpx:field-replaced', { detail: fresh.getAttribute('data-item') }));
       announce('Pilihan ' + labelText(fresh) + ' diperbarui.');
       cascadeFrom(fresh.getAttribute('data-item'), fresh);   // its value is now empty: its own children follow
     } catch {
@@ -434,6 +436,155 @@
         .catch(() => {});                                               // offline: try again next time
     }, 5 * 60 * 1000);
   }
+
+  // ---------------------------------------------------------------------------
+  // Dynamic actions. The server renders the page's definitions as JSON (<script type="application/json" id="rpx-da">);
+  // here they react to change / key release / click and run their actions in order. Showing, hiding, enabling and
+  // disabling are convenience only: the server's conditions, read_only and authorization still decide what is saved.
+  // ---------------------------------------------------------------------------
+  let das = [];
+  const readDas = () => {
+    const el = document.getElementById('rpx-da');
+    try { das = el ? JSON.parse(el.textContent) : []; } catch { das = []; }
+  };
+  const esc = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, '\\$&'));
+  const controls = (name) => [...document.getElementsByName(name)].filter((e) => /^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName));
+  // the value as the server would get it: radio = the chosen one, checkbox group = chosen values joined with ":"
+  const daGet = (name) => {
+    const els = controls(name);
+    if (!els.length) {
+      const shown = document.getElementById(name);
+      return shown ? shown.textContent.trim() : '';
+    }
+    const first = els[0];
+    if (first.type === 'radio') return (els.find((e) => e.checked) || { value: '' }).value;
+    if (first.type === 'checkbox') {
+      if (first.hasAttribute('data-off-value')) return first.checked ? first.value : first.getAttribute('data-off-value');
+      return els.filter((e) => e.checked).map((e) => e.value).join(':');
+    }
+    return first.value;
+  };
+  let depth = 0;
+  const changed = (el) => {
+    if (depth > 8) return;                     // a chain of set_value actions that feeds itself stops here
+    depth++;
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); } finally { depth--; }
+  };
+  const daSet = (name, val) => {
+    const els = controls(name);
+    if (!els.length) return;
+    const first = els[0];
+    if (first.type === 'radio') els.forEach((e) => { e.checked = e.value === val; });
+    else if (first.type === 'checkbox' && first.hasAttribute('data-off-value')) first.checked = val === first.value;
+    else if (first.type === 'checkbox') {
+      const chosen = new Set(val ? val.split(':') : []);
+      els.forEach((e) => { e.checked = chosen.has(e.value); });
+    } else first.value = val;
+    changed(first);
+  };
+  const holds = (w) => {
+    if (!w) return true;
+    const [kind, arg] = Object.entries(w)[0];
+    const v = daGet(typeof arg === 'string' ? arg : arg.item);
+    switch (kind) {
+      case 'item_equals': return v === arg.value;
+      case 'item_not_equals': return v !== arg.value;
+      case 'item_in': return arg.values.includes(v);
+      case 'item_not_in': return !arg.values.includes(v);
+      case 'item_null': return v === '';
+      case 'item_not_null': return v !== '';
+      default: return false;
+    }
+  };
+  const targets = (a) => [
+    ...(a.items || []).map((n) => document.querySelector('[data-item="' + esc(n) + '"]')),
+    ...(a.regions || []).map((id) => document.getElementById(id)),
+    ...(a.buttons || []).flatMap((n) => [...document.querySelectorAll('[data-button="' + esc(n) + '"]')]),
+  ].filter(Boolean);
+  const setDisabled = (el, off) => {
+    const ctls = el.matches('[data-button]') ? [el] : [...el.querySelectorAll('input, select, textarea, button')];
+    for (const c of ctls) {
+      if (c.tagName === 'A') {
+        if (off) c.setAttribute('aria-disabled', 'true'); else c.removeAttribute('aria-disabled');
+      } else c.disabled = off;
+      if (off) c.setAttribute('data-da-disabled', ''); else c.removeAttribute('data-da-disabled');
+    }
+  };
+  const refreshRegion = async (id) => {
+    const region = document.getElementById(id);
+    if (!region) return;
+    region.setAttribute('aria-busy', 'true');
+    try {
+      const res = await fetch(window.location.href, { credentials: 'same-origin' });
+      if (sessionEnded(res)) return;
+      const fresh = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(id);
+      if (!res.ok || !fresh || !document.contains(region)) throw new Error('refresh');
+      region.replaceWith(fresh);
+    } catch {
+      region.removeAttribute('aria-busy');
+      announce('Region gagal dimuat ulang.');
+    }
+  };
+  const submitPage = (request, from) => {
+    const form = (from && from.closest('form[method="post"]')) || document.querySelector('form[method="post"]');
+    if (!form) return;
+    let req = form.querySelector('input[type="hidden"][name="REQUEST"]');
+    if (!req) {
+      req = document.createElement('input');
+      req.type = 'hidden';
+      req.name = 'REQUEST';
+      form.appendChild(req);
+    }
+    req.value = request;
+    form.requestSubmit();
+  };
+  /** Run the actions of the branch that applies; `only` limits which ones (page load). Stops at a declined confirm. */
+  const runDa = async (da, from, only) => {
+    for (const a of holds(da.when) ? da.actions : da.else) {
+      if (only && !only(a)) continue;
+      switch (a.action) {
+        case 'show': case 'hide': targets(a).forEach((el) => { el.hidden = a.action === 'hide'; }); break;
+        case 'enable': case 'disable': targets(a).forEach((el) => setDisabled(el, a.action === 'disable')); break;
+        case 'set_value': (a.items || []).forEach((n) => daSet(n, a.from_item !== undefined ? daGet(a.from_item) : a.value)); break;
+        case 'clear': (a.items || []).forEach((n) => daSet(n, '')); break;
+        case 'refresh': await Promise.all((a.regions || []).map(refreshRegion)); break;
+        case 'confirm': if (!window.confirm(a.message)) return; break;
+        case 'submit_page': submitPage(a.request, from); return;
+        default: break;
+      }
+    }
+  };
+  const STATE = ['show', 'hide', 'enable', 'disable'];
+  // page load: page_load actions, plus the "on_load" actions of the others so the page starts in the right state
+  const runLoad = (stateOnly) => {
+    for (const da of das) {
+      if (da.event === 'page_load' && !stateOnly) runDa(da, null, null);
+      else runDa(da, null, (a) => a.on_load && (!stateOnly || STATE.includes(a.action)));
+    }
+  };
+  const onItem = (event, e) => {
+    const name = e.target && e.target.name;
+    if (!name) return;
+    for (const da of das) if (da.event === event && (da.items || []).includes(name)) runDa(da, e.target, null);
+  };
+  document.addEventListener('change', (e) => onItem('change', e));
+  document.addEventListener('keyup', (e) => onItem('key_release', e));
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-da-disabled]');
+    if (link) { e.preventDefault(); return; }
+    const btn = e.target.closest('button[type="button"][data-button]');
+    if (!btn) return;
+    for (const da of das) if (da.event === 'click' && da.button === btn.getAttribute('data-button')) runDa(da, btn, null);
+  });
+  // disabled fields are not posted by the browser; post them anyway so a disabled field keeps its value
+  document.addEventListener('submit', (e) => {
+    if (e.defaultPrevented || (e.target.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
+    e.target.querySelectorAll('input[data-da-disabled], select[data-da-disabled], textarea[data-da-disabled]').forEach((c) => { c.disabled = false; });
+  });
+  document.addEventListener('rpx:refreshed', () => { readDas(); runLoad(false); });
+  document.addEventListener('rpx:field-replaced', () => runLoad(true));
+  readDas();
+  runLoad(false);
 
   // move focus to the error summary after a failed submit
   const summary = document.querySelector('[data-error-summary]');
