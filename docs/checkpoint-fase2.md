@@ -133,7 +133,7 @@ Centang setelah dicoba di laptop. Urutannya membentuk satu skenario sekitar 20 m
 | Belum | Sementara |
 | --- | --- |
 | Interactive Grid (edit banyak baris di tabel) | form dialog per baris |
-| Dynamic action yang menjalankan PL/pgSQL (*execute server code*), editor dynamic action berbentuk formulir | proses saat submit; dynamic action ditulis sebagai YAML di Page Designer |
+| Editor dynamic action berbentuk formulir | dynamic action ditulis sebagai YAML di Page Designer (node Halaman) |
 | Drag-drop tata letak di Page Designer | **Lebar kolom** dan **Mulai baris baru** di editor properti, urutan lewat Naik/Turun |
 | Form untuk tabel dengan primary key diisi manual | report saja; atau tambahkan identity/serial |
 | Kunci halaman eksplisit antar developer | deteksi konflik saat simpan |
@@ -165,14 +165,15 @@ git push origin <nama-tag>
 | #20 | Pengerasan operasional ([operasional.md](operasional.md)): `rpx backup` / `rpx restore` dan `backup-lokal.cmd`, pembersihan session kedaluwarsa otomatis, nilai argumen URL tidak lagi masuk log, sesi tidak habis selama pengguna masih bekerja di halaman |
 | #21 | `backup-lokal.cmd` tidak lagi berhenti di `pause` saat dijadwalkan |
 | #22 | **Dynamic Actions tahap 1**: aksi di browser (tampil/sembunyi, enable/disable, isi dan kosongkan nilai, refresh region, konfirmasi, submit) saat item berubah, tombol diklik, atau halaman dibuka. Lihat [panduan-pengguna.md](panduan-pengguna.md#dynamic-actions-aksi-di-browser) |
+| #23 | **Dynamic Actions tahap 2**: `execute_server_code` (PL/pgSQL di server tanpa submit, dengan *items to submit/return*) dan refresh region dengan nilai item terbaru. Contoh: pilih karyawan di halaman Mutasi, posisinya langsung tampil |
 
-Kondisi terbaru: `npm test` 195 lulus, tes browser 112 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
+Kondisi terbaru: `npm test` 211 lulus, tes browser 118 lulus (2 sengaja dilewati). Tidak ada perubahan database sejak
 `0006_builder.sql`, jadi memperbarui cukup dengan `git pull` (lihat langkah di atas).
 
 ## Langkah berikutnya
 
 1. Catatan dari uji lokal Tim PANDAWA diperbaiki lebih dulu.
-2. Dynamic Actions tahap 2: *execute server code* dengan *items to submit/return*, refresh dengan nilai item terbaru, editor di Page Designer.
+2. Dynamic Actions tahap 3: editor formulir di Page Designer, aksi `focus` dan `alert`, uji menyeluruh.
 3. Region tambahan: list, tab, dynamic content, cards.
 4. Interactive Grid: menutup must-have terakhir dan flow F06.
 5. Format angka/tanggal saat input, upload file.

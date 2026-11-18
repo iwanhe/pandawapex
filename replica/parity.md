@@ -1,5 +1,9 @@
-# Parity: pandawapex vs Oracle APEX (2026-11-17)
+# Parity: pandawapex vs Oracle APEX (2026-11-18)
 
+> **Update setelah Dynamic Actions tahap 2 (DA2):** feature parity **70.3** (dari 68.8), must-have **29/30**. *Execute server code*
+> dengan items to submit/return dan refresh dengan items to submit selesai. Sensus komponen tetap 82.1% karena dihitung per event;
+> sisa celah dynamic action: event after refresh, custom, keypress, dan editor formulir.
+>
 > **Update setelah Dynamic Actions tahap 1 (DA1):** feature parity **68.8** (dari 68.1), must-have **29/30**. Cakupan komponen
 > APEX nyata (sensus 35 aplikasi contoh Oracle) naik dari 78.2% ke **82.1%**: dynamic action dari 0% ke **46.1%**. Event
 > change/click/page load/key release dihitung *parsial* karena aksi di baliknya belum lengkap (execute server code menyusul di DA2,

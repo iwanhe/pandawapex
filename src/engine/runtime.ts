@@ -6,9 +6,9 @@ import { enterUserCode, leaveUserCode, quoteIdent, quoteQualified, readUserCodeI
 import { Evaluator, runComputations } from './guard.ts';
 import { formatValue, renderInteractiveReport } from './ir.ts';
 import { renderChart } from './chart.ts';
-import { absentMeansEmpty, checkValue, itemsHtml, postedValue, typeChecks } from './items.ts';
+import { absentMeansEmpty, checkValue, itemsHtml, postedValue, shownText, typeChecks } from './items.ts';
 import { attrIf, html, raw, type SafeHtml } from './html.ts';
-import type { ButtonDef, ItemDef, NavDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
+import type { ButtonDef, DaActionDef, ItemDef, NavDef, PageDef, ProcessDef, RegionDef, Target } from './model.ts';
 import {
    AFTER_AUTH_KEY, bindValues, clearPages, consumeSubmitToken, FLASH_KEY, issueSubmitToken, NEW_SESSION_KEY, saveState, takeFlash,
 } from './session.ts';
@@ -80,15 +80,16 @@ function dialogReturnPage(ctx: Ctx, page: PageDef): number {
 // Signed into the form, so a POST can only set items the user was shown and only press buttons
 // they were offered (conditions / authorization decided at render time), and cannot change hidden values.
 // ---------------------------------------------------------------------------
-interface Rendered { items: Set<string>; buttons: Set<string> }
+/** what the browser got: items, buttons (allowed REQUEST values) and dynamic actions (may call the DA endpoint) */
+interface Rendered { items: Set<string>; buttons: Set<string>; das?: Set<string> }
 
-function formStateMessage(page: PageDef, names: { i: string[]; b: string[] }, protectedVals: Record<string, string | null>): string {
+function formStateMessage(page: PageDef, names: { i: string[]; b: string[]; d?: string[] }, protectedVals: Record<string, string | null>): string {
    return `fs|${page.no}|${JSON.stringify(names)}|${itemsMessage(page.no, protectedVals)}`;
 }
 const isProtectedHidden = (it: ItemDef) => it.type === 'hidden' && it.protection !== 'unrestricted';
 
 function formState(ctx: Ctx, page: PageDef, rendered: Rendered): string {
-   const names = { i: [...rendered.items].sort(), b: [...rendered.buttons].sort() };
+   const names = { i: [...rendered.items].sort(), b: [...rendered.buttons].sort(), d: [...rendered.das ?? []].sort() };
    const prot: Record<string, string | null> = {};
    for (const it of page.items) if (rendered.items.has(it.name) && isProtectedHidden(it)) prot[it.name] = ctx.session.state.get(it.name) ?? null;
    const payload = Buffer.from(JSON.stringify(names)).toString('base64url');
@@ -98,10 +99,10 @@ function formState(ctx: Ctx, page: PageDef, rendered: Rendered): string {
 function readFormState(ctx: Ctx, page: PageDef, body: Record<string, string>): Rendered {
    const bad = () => new HttpError(403, 'Checksum tidak cocok', 'Nilai tersembunyi di formulir ini diubah. Muat ulang halaman lalu coba lagi.');
    const [payload, sig] = String(body.__ps ?? '').split('.');
-   let names: { i: string[]; b: string[] };
+   let names: { i: string[]; b: string[]; d?: string[] };
    try {
       names = JSON.parse(Buffer.from(payload ?? '', 'base64url').toString());
-      if (!Array.isArray(names.i) || !Array.isArray(names.b)) throw new Error();
+      if (!Array.isArray(names.i) || !Array.isArray(names.b) || (names.d !== undefined && !Array.isArray(names.d))) throw new Error();
    } catch {
       throw bad();
    }
@@ -110,7 +111,7 @@ function readFormState(ctx: Ctx, page: PageDef, body: Record<string, string>): R
       if (names.i.includes(it.name) && isProtectedHidden(it)) prot[it.name] = body[it.name] === '' || body[it.name] === undefined ? null : body[it.name];
    }
    if (!verify(ctx.secret, ctx.session.salt, formStateMessage(page, names, prot), sig)) throw bad();
-   return { items: new Set(names.i), buttons: new Set(names.b) };
+   return { items: new Set(names.i), buttons: new Set(names.b), das: new Set(names.d ?? []) };
 }
 
 // ---------------------------------------------------------------------------
@@ -477,11 +478,110 @@ async function buttonHtml(v: View, b: ButtonDef): Promise<SafeHtml | null> {
  */
 function dynamicActionsFor(v: View): string {
    const list = v.page.dynamicActions.filter(d => d.event !== 'click' || v.daButtons?.has(d.button!));
+   v.rendered.das = new Set(list.map(d => d.name));
    for (const d of list) {
       for (const a of [...d.actions, ...d.else]) if (a.action === 'submit_page' && a.request) v.rendered.buttons.add(a.request);
    }
+   // server code stays on the server: the browser only learns that there is something to call
+   const strip = (a: DaActionDef): DaActionDef => { const { code: _code, ...rest } = a; return rest; };
+   const out = list.map(d => ({ ...d, actions: d.actions.map(strip), else: d.else.map(strip) }));
    // inside <script>: no "<" may end the element early
-   return list.length ? JSON.stringify(list).replace(/</g, '\\u003c') : '';
+   return out.length ? JSON.stringify(out).replace(/</g, '\\u003c') : '';
+}
+
+// ---------------------------------------------------------------------------
+// DYNAMIC ACTION CALL (POST …/:page/da): items to submit, then execute_server_code
+// ---------------------------------------------------------------------------
+export type DaCallResult =
+   | { status: 200; body: { items: Record<string, string | null>; shown: Record<string, string> } }
+   | { status: 400 | 422; body: { error: string; item?: string | null } };
+
+/**
+ * One call from rpx.js for an execute_server_code action, or for a refresh with items to submit.
+ * The browser names the dynamic action and the position of the action in it; the code itself comes from the
+ * page definition, never from the request. Only dynamic actions this form was rendered with (signed in __ps)
+ * can be called, and only rendered, browser-editable items are taken from the request.
+ */
+export async function callDynamicAction(ctx: Ctx, page: PageDef, body: Record<string, unknown>): Promise<DaCallResult> {
+   const str = (k: string) => (typeof body[k] === 'string' ? body[k] as string : '');
+   const rendered = readFormState(ctx, page, body as Record<string, string>);
+   const da = page.dynamicActions.find(d => d.name === str('da'));
+   const action: DaActionDef | undefined = da ? [...da.actions, ...da.else][Number(str('a'))] : undefined;
+   if (!da || !rendered.das?.has(da.name) || !action
+       || !(action.action === 'execute_server_code' || (action.action === 'refresh' && action.items_to_submit?.length))) {
+      return { status: 400, body: { error: 'Aksi ini tidak tersedia di halaman. Muat ulang halaman lalu coba lagi.' } };
+   }
+
+   // 1. items to submit -> session state, checked like a page submit
+   const posted: Record<string, string | null> = {};
+   for (const name of action.items_to_submit ?? []) {
+      const it = page.items.find(i => i.name === name);
+      if (!it || !rendered.items.has(name) || it.type === 'display_only' || it.protection === 'restricted' || isProtectedHidden(it)) continue;
+      posted[name] = postedValue(it, body[name]);
+   }
+   const stateBefore = new Map(ctx.session.state);
+   // the submitted values are in place for the checks (cascading lists) and the code; restored if anything fails
+   for (const [k, v] of Object.entries(posted)) ctx.session.state.set(k, v);
+   const c = await ctx.pool.connect();
+   const ev = new Evaluator(c, ctx, da.button ?? '');
+   let result: DaCallResult | null = null;
+   let changes: Record<string, string | null> = {};
+   const shown: Record<string, string> = {};
+   try {
+      await c.query('begin');
+      await enterUserCode(c, userCtx(ctx));
+      const denial = await ev.pageDenial(page);
+      if (denial) throw new HttpError(403, 'Akses ditolak', denial.errorMsg);
+      const btn = da.button ? page.buttons.find(b => b.name === da.button) : undefined;
+      if (btn && !(await ev.authorized(btn.authzId))) throw new HttpError(403, 'Akses ditolak', 'Anda tidak berhak menjalankan aksi ini.');
+      for (const [name, v] of Object.entries(posted)) {
+         const problem = await checkValue(c, ctx, page.items.find(i => i.name === name)!, v);
+         if (problem) { result = { status: 422, body: { error: problem.message, item: problem.item } }; break; }
+      }
+      if (!result) {
+         if (action.action === 'execute_server_code') {
+            // 2. the block, as the workspace role, with the submitted values bound; its changes are committed
+            const before = await readUserCodeItems(c);
+            const run = await inSavepoint(c, () => c.query(wrapDoBlock(translateBinds(action.code!, 'plpgsql').text)));
+            if (run.ok) {
+               const after = await readUserCodeItems(c);
+               for (const [k, x] of Object.entries(after)) if (before[k] !== x && ctx.app.itemsByName.has(k)) changes[k] = x;
+            } else {
+               result = { status: 422, body: { error: pgMessage(run.error) } };
+            }
+         }
+      }
+      if (result) {
+         await c.query('rollback');
+      } else {
+         for (const [k, v] of Object.entries(changes)) ctx.session.state.set(k, v);
+         for (const name of action.items_to_return ?? []) {
+            const it = page.items.find(i => i.name === name);
+            if (it && (it.type === 'display_only' || rendered.items.has(name))) {
+               shown[name] = await shownText(c, ctx, it, ctx.session.state.get(name) ?? null);
+            }
+         }
+         await c.query('commit');
+      }
+   } catch (e) {
+      await c.query('rollback').catch(() => {});
+      ctx.session.state.clear();
+      for (const [k, v] of stateBefore) ctx.session.state.set(k, v);
+      throw e;
+   } finally {
+      c.release();
+   }
+   await ev.flush();
+   if (result) {
+      // nothing was saved: the session keeps its values from before the call
+      ctx.session.state.clear();
+      for (const [k, v] of stateBefore) ctx.session.state.set(k, v);
+      return result;
+   }
+   await saveState(ctx.pool, ctx.session, { ...posted, ...changes });
+   const items: Record<string, string | null> = {};
+   for (const name of action.items_to_return ?? []) items[name] = ctx.session.state.get(name) ?? null;
+   return { status: 200, body: { items, shown } };
 }
 
 // ---------------------------------------------------------------------------

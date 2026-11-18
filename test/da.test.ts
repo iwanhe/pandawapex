@@ -123,7 +123,7 @@ describe('dynamic actions: render and submit', () => {
          const p = await b.open(`${other.base}/1`);
          assert.doesNotMatch(p.body, /id="rpx-da"/);
          const p4 = await b.open(`${other.base}/4`);
-         assert.deepEqual(daJson(p4.body).map(d => d.name), ['kosongkan_isian'], 'the example app uses them on page 4');
+         assert.deepEqual(daJson(p4.body).map(d => d.name), ['posisi_karyawan', 'kosongkan_isian'], 'the example app uses them on page 4');
       } finally {
          await other.close();
       }

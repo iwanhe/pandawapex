@@ -181,6 +181,8 @@ pages:
                 from karyawan
                 where aktif and (:P4_DEPT_ASAL is null or deptno = :P4_DEPT_ASAL::int)
                 order by nama
+          # diisi dynamic action "posisi_karyawan" (kode di server) setiap kali karyawan dipilih
+          - { name: P4_POSISI, type: display_only, label: Posisi saat ini }
           - { name: P4_DEPT_TUJUAN, type: radio, label: Departemen tujuan, required: true, col_span: 6, lov: DEPARTEMEN }
           - name: P4_JABATAN_BARU
             type: select
@@ -234,6 +236,23 @@ pages:
     branches:
       - { page: 1 }
     dynamic_actions:
+      # kode PL/pgSQL di server: ambil jabatan dan departemen karyawan yang dipilih, tanpa submit halaman
+      - name: posisi_karyawan
+        event: change
+        items: [P4_EMPNO]
+        actions:
+          - action: execute_server_code
+            items_to_submit: [P4_DEPT_ASAL, P4_EMPNO]
+            items_to_return: [P4_POSISI]
+            code: |
+              declare
+                 l_posisi text;
+              begin
+                 select coalesce(k.jabatan, '-') || ' di ' || coalesce(d.nama, '-') into l_posisi
+                 from karyawan k left join departemen d on d.deptno = k.deptno
+                 where k.empno = :P4_EMPNO::int;
+                 perform rpx_rt.set_item('P4_POSISI', l_posisi);
+              end;
       # tombol tanpa submit: tanya dulu, lalu kosongkan isian tujuan mutasi di browser
       - name: kosongkan_isian
         event: click

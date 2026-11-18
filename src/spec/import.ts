@@ -52,10 +52,12 @@ export interface DaCondition {
    item_in?: { item: string; values: string[] }; item_not_in?: { item: string; values: string[] };
    item_null?: string; item_not_null?: string;
 }
-export type DaActionType = 'show' | 'hide' | 'enable' | 'disable' | 'set_value' | 'clear' | 'refresh' | 'submit_page' | 'confirm';
+export type DaActionType = 'show' | 'hide' | 'enable' | 'disable' | 'set_value' | 'clear' | 'refresh' | 'submit_page' | 'confirm'
+   | 'execute_server_code';
 export interface DaActionSpec {
    action: DaActionType; items?: string[]; regions?: string[]; buttons?: string[];
    value?: string; from_item?: string; message?: string; request?: string; on_load?: boolean;
+   code?: string; items_to_submit?: string[]; items_to_return?: string[];
 }
 export interface DynamicActionSpec {
    name: string; event: 'change' | 'click' | 'page_load' | 'key_release'; items?: string[]; button?: string;
@@ -278,6 +280,7 @@ const DA_TARGETS: Record<DaActionType, { items?: 'any' | 'value' | 'control'; re
    refresh: { regions: true, need: 'regions' },
    submit_page: { need: '' },
    confirm: { need: '' },
+   execute_server_code: { need: '' },
 };
 
 function checkDynamicActions(page: PageSpec, onPage: Map<string, ItemSpec>, p: string[]): void {
@@ -329,6 +332,26 @@ function checkDynamicActions(page: PageSpec, onPage: Map<string, ItemSpec>, p: s
          if (a.message !== undefined && a.action !== 'confirm') p.push(`${where}: message only applies to confirm`);
          if (a.action === 'confirm' && !a.message) p.push(`${where}: needs message`);
          if (a.request !== undefined && a.action !== 'submit_page') p.push(`${where}: request only applies to submit_page`);
+         if (a.code !== undefined && a.action !== 'execute_server_code') p.push(`${where}: code only applies to execute_server_code`);
+         if (a.action === 'execute_server_code' && !a.code?.trim()) p.push(`${where}: needs code`);
+         if (a.items_to_submit && a.action !== 'execute_server_code' && a.action !== 'refresh') {
+            p.push(`${where}: items_to_submit only applies to execute_server_code and refresh`);
+         }
+         if (a.items_to_return && a.action !== 'execute_server_code') p.push(`${where}: items_to_return only applies to execute_server_code`);
+         for (const n of a.items_to_submit ?? []) {
+            const it = onPage.get(n);
+            if (!it) item('items_to_submit', n);
+            else if (it.type === 'display_only' || (it.type === 'hidden' && it.protection !== 'unrestricted')) {
+               p.push(`${where}: item ${n} (${it.type}) cannot be submitted from the browser`);
+            }
+         }
+         for (const n of a.items_to_return ?? []) {
+            const it = onPage.get(n);
+            if (!it) item('items_to_return', n);
+            else if (it.type === 'popup_lov' || (it.type === 'hidden' && it.protection !== 'unrestricted')) {
+               p.push(`${where}: item ${n} (${it.type}) cannot be returned to the browser`);
+            }
+         }
          if (a.action === 'submit_page') {
             const req = a.request ?? (da.event === 'click' ? da.button : undefined);
             if (!req) p.push(`${where}: needs request`);
@@ -544,12 +567,13 @@ export async function importSpec(c: pg.PoolClient, workspace: string, specText: 
             for (const a of list) {
                const affected = a.items || a.regions || a.buttons ? { items: a.items, regions: a.regions, buttons: a.buttons } : null;
                await c.query(
-                  `insert into rpx.da_actions (da_id, fire_when, action_type, affected, attributes, seq) values ($1, $2, $3, $4, $5, $6)`,
+                  `insert into rpx.da_actions (da_id, fire_when, action_type, affected, attributes, items_to_submit, items_to_return, seq)
+                   values ($1, $2, $3, $4, $5, $6, $7, $8)`,
                   [d.rows[0].id, fire, a.action, affected, {
-                     value: a.value, from_item: a.from_item, message: a.message,
+                     value: a.value, from_item: a.from_item, message: a.message, code: a.code,
                      request: a.action === 'submit_page' ? a.request ?? da.button : undefined,
                      on_load: DA_ON_LOAD_ALLOWED.includes(a.action) ? a.on_load ?? DA_ON_LOAD_DEFAULT.includes(a.action) : undefined,
-                  }, aseq]);
+                  }, a.items_to_submit ?? [], a.items_to_return ?? [], aseq]);
                aseq += 10;
             }
          }

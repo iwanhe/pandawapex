@@ -896,7 +896,8 @@
             "clear",
             "refresh",
             "submit_page",
-            "confirm"
+            "confirm",
+            "execute_server_code"
           ]
         },
         "items": {
@@ -941,6 +942,27 @@
         "on_load": {
           "type": "boolean",
           "description": "also run when the page loads (default true for show/hide/enable/disable)"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "description": "execute_server_code: a PL/pgSQL block; read items with :P1_X, change them with rpx_rt.set_item"
+        },
+        "items_to_submit": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/itemName"
+          },
+          "description": "execute_server_code / refresh: browser values saved to session state first"
+        },
+        "items_to_return": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/itemName"
+          },
+          "description": "execute_server_code: items whose new value is sent back to the browser"
         }
       }
     },

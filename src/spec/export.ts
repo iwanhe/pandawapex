@@ -117,7 +117,8 @@ export async function exportSpec(c: pg.PoolClient | pg.Pool, workspace: string, 
       const type = x.action_type as DaActionType;
       return clean({
          action: type, items: x.affected?.items, regions: x.affected?.regions, buttons: x.affected?.buttons,
-         value: at.value, from_item: at.from_item, message: at.message,
+         value: at.value, from_item: at.from_item, message: at.message, code: at.code,
+         items_to_submit: x.items_to_submit, items_to_return: x.items_to_return,
          request: at.request === undefined ? undefined : unless(at.request, button),
          on_load: at.on_load === undefined ? undefined : unless(at.on_load, DA_ON_LOAD_DEFAULT.includes(type)),
       } as DaActionSpec);

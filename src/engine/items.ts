@@ -301,6 +301,12 @@ async function readOnlyText(c: pg.PoolClient, ctx: Ctx, it: ItemDef, v: string |
    }
 }
 
+/** The text a display-only item (or a read-only field) shows for a value: used when a dynamic action returns it. */
+export async function shownText(c: pg.PoolClient, ctx: Ctx, it: ItemDef, v: string | null): Promise<string> {
+   if (it.type === 'display_only') return formatValue(v, it.format ?? null);
+   return readOnlyText(c, ctx, it, v);
+}
+
 export async function itemsHtml(v: View, items: ItemDef[], bar = false): Promise<SafeHtml> {
    const out: SafeHtml[] = [];
    for (const it of items) {

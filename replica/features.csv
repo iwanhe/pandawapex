@@ -30,8 +30,8 @@ Validasi deklaratif + inline error,runtime,must,yes,yes,"M1: required, not_null,
 Modal dialog page + close dialog + refresh parent,runtime,must,yes,yes,"M4: page mode modal (dialog + iframe), close_dialog, region utama di-refresh di tempat; tanpa JS tetap jalan sebagai halaman biasa"
 Success/error notification,runtime,must,yes,yes,"M1: pesan sukses sekali tampil, ringkasan error difokuskan"
 Interactive Grid editable (add/update/delete),regions,should,yes,no,hard part #4
-Dynamic Actions: show/hide/set value/refresh/submit,runtime,should,yes,partial,"DA1: event change/key_release/click/page_load, kondisi di browser, show/hide/enable/disable/set_value/clear/refresh/confirm/submit_page, tombol defined_by_da, on_load; ditulis sebagai YAML (belum ada editor formulir), refresh tanpa items to submit"
-Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return,runtime,should,yes,no,
+Dynamic Actions: show/hide/set value/refresh/submit,runtime,should,yes,partial,"DA1: event change/key_release/click/page_load, kondisi di browser, show/hide/enable/disable/set_value/clear/refresh/confirm/submit_page, tombol defined_by_da, on_load; ditulis sebagai YAML (belum ada editor formulir); DA2: refresh dengan items to submit"
+Dynamic Action: execute server code (PL/pgSQL) dengan items to submit/return,runtime,should,yes,yes,"DA2: execute_server_code (kode tetap di server, dipanggil lewat POST …/:page/da dengan CSRF + form state bertanda tangan), items_to_submit dicek seperti submit, items_to_return termasuk display only, error menghentikan aksi berikutnya; refresh dengan items_to_submit"
 Page Designer: layout grid drag-drop,builder,should,yes,no,
 IR saved reports (private/public/default),regions,should,yes,no,F05
 IR control break + aggregate + highlight,regions,should,yes,no,

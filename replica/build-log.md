@@ -351,3 +351,25 @@ Yang lebih sulit dari perkiraan:
   LOV mengganti field, aksi `on_load` dijalankan lagi supaya field yang tersembunyi tidak muncul kembali.
 
 Belum (DA2): `execute_server_code` dengan items to submit/return, refresh dengan nilai item terbaru, editor formulir.
+
+## Dynamic Actions tahap 2 (2026-11-18), done (tanpa editor formulir)
+
+`execute_server_code` dengan `code`, `items_to_submit`, `items_to_return`; `refresh` dengan `items_to_submit`. Disimpan di
+kolom `items_to_submit`/`items_to_return` dan `attributes.code` tabel `rpx.da_actions` (sudah ada sejak 0001, tanpa migrasi).
+Endpoint baru `POST /r/:ws/:app/:page/da` (JSON). Contoh: emp halaman 4 (posisi karyawan saat dipilih), aplikasi uji
+`e2e/da-app.yaml` (total gaji, filter report).
+
+Verifikasi: `npm test` 211/211 (+16 di `test/da-server.test.ts`), e2e 118/118 (+3 × 2 viewport, axe bersih).
+Parity 68.8 → 70.3.
+
+Yang lebih sulit dari perkiraan:
+
+- **Siapa boleh memanggil apa.** Browser hanya menyebut nama dynamic action dan urutan aksinya; kode diambil dari definisi
+  halaman. Daftar dynamic action yang dikirim ke browser ikut ditandatangani di form state (`__ps`), sehingga dynamic action
+  yang tombolnya tersembunyi (kondisi/otorisasi) tidak bisa dipanggil walau namanya ditebak.
+- **Hidden item terlindungi ikut tanda tangan form state.** Panggilan pertama ditolak 403 karena nilainya tidak ikut
+  terkirim; `rpx.js` kini selalu menyertakan hidden item halaman.
+- **Cascading LOV saat nilai dicek.** Nilai yang dikirim harus sudah ada di session state sebelum dicek, kalau tidak popup LOV
+  yang difilter item lain menolak pilihan yang sah. Bila ada yang gagal, session state dikembalikan ke keadaan sebelumnya.
+
+Belum (DA3): editor formulir di Page Designer, aksi `focus` dan `alert`.

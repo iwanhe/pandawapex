@@ -416,6 +416,10 @@ Nilai dibandingkan sebagai teks, sama seperti yang dikirim ke server: switch/che
 | `refresh` | `regions` | | memuat ulang region dari server tanpa mengganggu isian lain |
 | `confirm` | — | `message: teks` | **Batal** menghentikan aksi-aksi berikutnya |
 | `submit_page` | — | `request: NAMA` | mengirim halaman; proses dan branch melihat `NAMA` sebagai REQUEST |
+| `execute_server_code` | — | `code`, `items_to_submit`, `items_to_return` | menjalankan PL/pgSQL di server tanpa mengirim halaman; lihat di bawah |
+
+`refresh` juga boleh diberi `items_to_submit: [...]`: nilai item itu di browser disimpan dulu ke session state, baru region
+dimuat ulang. Dengan begitu report yang query-nya memakai `:P1_DEPT` langsung tersaring begitu pilihan berubah.
 
 `on_load: true/false` pada aksi menentukan apakah aksi itu juga dijalankan saat halaman dibuka. Bawaannya `true` untuk
 `show`, `hide`, `enable`, `disable` (agar halaman langsung tampil dalam keadaan yang benar) dan `false` untuk `set_value`
@@ -445,14 +449,60 @@ Bila dynamic action klik berakhir dengan `submit_page` tanpa `request`, REQUEST-
 memakai `when_button: NAMA_TOMBOL` seperti tombol biasa. `request` lain boleh dipakai (mis. `CATAT`); di proses gunakan
 `condition: { request_equals: CATAT }`. Nama tombol lain di halaman tidak boleh dipakai sebagai `request`.
 
+**Menjalankan kode di server (`execute_server_code`).** Dipakai bila nilai perlu diambil atau dihitung dari database
+tanpa mengirim halaman, mis. menampilkan jabatan saat karyawan dipilih. Contoh dari halaman 4 (Mutasi):
+
+```yaml
+- name: posisi_karyawan
+  event: change
+  items: [P4_EMPNO]
+  actions:
+    - action: execute_server_code
+      items_to_submit: [P4_DEPT_ASAL, P4_EMPNO]   # nilai di browser yang dikirim lebih dulu
+      items_to_return: [P4_POSISI]                 # item yang nilainya dikirim balik ke browser
+      code: |
+        declare
+           l_posisi text;
+        begin
+           select coalesce(k.jabatan, '-') || ' di ' || coalesce(d.nama, '-') into l_posisi
+           from karyawan k left join departemen d on d.deptno = k.deptno
+           where k.empno = :P4_EMPNO::int;
+           perform rpx_rt.set_item('P4_POSISI', l_posisi);
+        end;
+```
+
+Cara kerjanya, langkah demi langkah:
+
+1. Browser mengirim nilai item di `items_to_submit` ke server. Nilainya dicek seperti saat submit (angka harus angka,
+   pilihan harus ada di daftar), lalu disimpan ke session state.
+2. Kode dijalankan sebagai role workspace, sama seperti proses PL/pgSQL. Baca item dengan `:P4_EMPNO`, ubah item dengan
+   `perform rpx_rt.set_item('P4_POSISI', nilai)`. Perubahan data (insert/update) disimpan (commit).
+3. Nilai item di `items_to_return` dikirim balik dan langsung tampil di halaman. Item *display only* juga bisa, dan
+   tampil dengan formatnya (mis. angka `1.100`).
+4. Aksi berikutnya di dynamic action yang sama baru berjalan setelah server selesai.
+
+Bila kode gagal (`raise exception 'Pesan.'`) atau nilai yang dikirim tidak valid, semua perubahan dibatalkan, session state
+tetap seperti sebelumnya, pesan **Aksi tidak berhasil.** beserta alasannya tampil di atas formulir, dan aksi-aksi berikutnya
+tidak dijalankan.
+
+Hal yang perlu diingat:
+
+- Kode hanya tersimpan di server. Browser tidak pernah menerima isi kode; browser hanya menyebut nama dynamic action dan
+  urutan aksinya, dan server menolak dynamic action yang tidak dikirim bersama halaman itu.
+- Item yang lupa dicantumkan di `items_to_submit` dibaca dari session state, yaitu nilai terakhir yang tersimpan, bukan
+  yang sedang terlihat di layar. Untuk popup LOV yang mengikuti item lain (cascade), sertakan juga item induknya, seperti
+  `P4_DEPT_ASAL` di contoh.
+- Tidak bisa dikirim: item *display only* dan *hidden* yang terlindungi. Tidak bisa dikembalikan: popup LOV dan *hidden*
+  yang terlindungi.
+- `key_release` dengan `execute_server_code` memanggil server di setiap ketikan; pakai `change` bila cukup.
+
 **Penting soal keamanan.** Menyembunyikan atau men-disable field di browser hanya kenyamanan bagi pengguna; orang yang
 paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`, `condition`, `authorization`, dan
 validasi. Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya juga tidak dikirim ke browser,
 dan REQUEST-nya ditolak server.
 
-**Yang belum ada** (direncanakan di sesi berikut): `execute_server_code` (menjalankan PL/pgSQL dari dynamic action dengan
-*items to submit/return*), `refresh` region dengan nilai item terbaru (*items to submit*), editor dynamic action berbentuk
-formulir di Page Designer. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
+**Yang belum ada** (direncanakan di sesi berikut): editor dynamic action berbentuk formulir di Page Designer, serta aksi
+`focus` dan `alert`. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
 melarang skrip inline). Event *after close dialog* tidak perlu ditulis: halaman pemanggil otomatis di-refresh setelah
 dialognya ditutup.
 

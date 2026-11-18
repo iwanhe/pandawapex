@@ -114,5 +114,71 @@ test.describe('DA dynamic actions', () => {
             await db.query(`delete from ${E2E.schema}.karyawan where nama = 'Penambah Jumlah DA'`);
          }
       });
+
+      test('DA-H7 execute_server_code: the total comes back without a page submit; an error stops the next actions', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         const total = page.locator('#P1_TOTAL');
+         await page.getByLabel('Gaji pokok').fill('1000');
+         await Promise.all([
+            page.waitForResponse(r => r.url().endsWith(`${DA_APP}/1/da`) && r.status() === 200),
+            page.getByRole('button', { name: 'Hitung total' }).click(),
+         ]);
+         await expect(total).toHaveText('1.100');
+         await expect(page.getByLabel('Sapaan')).toHaveValue('dihitung');     // the action after it ran
+         await expect(page).toHaveURL(new RegExp(`${DA_APP}/1$`));
+         expect(await axe(page)).toEqual([]);
+
+         // the code raises: a message in the form, the next action does not run, keyboard only
+         await page.getByLabel('Sapaan').fill('');
+         await page.getByLabel('Gaji pokok').fill('-5');
+         await page.getByRole('button', { name: 'Hitung total' }).focus();
+         await Promise.all([
+            page.waitForResponse(r => r.url().endsWith(`${DA_APP}/1/da`) && r.status() === 422),
+            page.keyboard.press('Enter'),
+         ]);
+         const alert = page.getByRole('alert');
+         await expect(alert).toContainText('Aksi tidak berhasil.');
+         await expect(alert).toContainText('Gaji pokok tidak boleh negatif.');
+         await expect(total).toHaveText('1.100');
+         await expect(page.getByLabel('Sapaan')).toHaveValue('');
+         expect(await axe(page)).toEqual([]);
+
+         // a good call again removes the message
+         await page.getByLabel('Gaji pokok').fill('10');
+         await page.getByRole('button', { name: 'Hitung total' }).click();
+         await expect(total).toHaveText('11');
+         await expect(page.getByRole('alert')).toHaveCount(0);
+      });
+
+      test('DA-H8 refresh with items to submit: the report follows the chosen department without a reload', async ({ page, db }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         const region = page.getByRole('region', { name: 'Jumlah karyawan' });
+         await page.getByLabel('Nama').fill('tetap di sini');
+         const n = async (dept: string) => String((await db.query(`select count(*)::int as n from ${E2E.schema}.karyawan k
+            join ${E2E.schema}.departemen d using (deptno) where d.nama = $1`, [dept])).rows[0].n);
+         await page.getByLabel('Departemen').selectOption({ label: 'Keuangan' });
+         await expect(region.getByRole('cell')).toHaveText(await n('Keuangan'));
+         await page.getByLabel('Departemen').selectOption({ label: 'Produksi' });
+         await expect(region.getByRole('cell')).toHaveText(await n('Produksi'));
+         await expect(page.getByLabel('Nama')).toHaveValue('tetap di sini');
+         // the choice is in session state: a reload shows the same filter
+         await page.reload();
+         await expect(page.getByLabel('Departemen')).toHaveValue(/\d+/);
+         await expect(region.getByRole('cell')).toHaveText(await n('Produksi'));
+      });
+   });
+
+   test('DA-H6 emp page 4: choosing an employee shows the current position (server code, popup LOV)', async ({ page, db }) => {
+      await db.query(`update ${E2E.schema}.karyawan k set deptno = d.deptno, jabatan = 'Akuntan'
+                      from ${E2E.schema}.departemen d where d.nama = 'Keuangan' and k.nama = 'Rina Kartikasari'`);
+      await login(page, E2E.user, E2E.password, `${APP}/4`);
+      await page.getByRole('button', { name: 'Pilih Karyawan dari daftar' }).click();
+      const dlg = page.getByRole('dialog', { name: 'Karyawan' });
+      await dlg.getByLabel('Cari').fill('rina');
+      await expect(dlg.getByRole('option')).toHaveCount(1);
+      await dlg.getByLabel('Cari').press('ArrowDown');
+      await dlg.getByLabel('Cari').press('Enter');
+      await expect(page.locator('#P4_POSISI')).toHaveText('Akuntan di Keuangan');
+      expect(await axe(page)).toEqual([]);
    });
 });

@@ -6,8 +6,8 @@ Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode
 > **Status: Fase 2, checkpoint 2** (builder B1–B5), ditambah uji menyeluruh builder dan panduan demo publik lewat
 > Cloudflare Tunnel. Yang sudah bisa: menjalankan aplikasi (report, form, dialog, daftar pilihan, otorisasi, SSO) dan
 > membuatnya dari builder visual (wizard dari tabel, Page Designer, akun, ekspor/impor).
-> Baru: **Dynamic Actions tahap 1** (aksi di browser: tampil/sembunyi, isi nilai, refresh region, konfirmasi).
-> Belum ada: Interactive Grid, dynamic action yang menjalankan kode server, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
+> Baru: **Dynamic Actions** (tampil/sembunyi, isi nilai, refresh region, konfirmasi, dan menjalankan PL/pgSQL di server tanpa submit).
+> Belum ada: Interactive Grid, editor dynamic action berbentuk formulir, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
 
 ## Mulai dari sini
 
@@ -128,7 +128,7 @@ SSO (Microsoft Entra ID / Google Workspace / IdP OIDC lain): lihat [replica/back
 - **Chart**: `type: chart`, `chart: { type: bar | pie }`, `source.sql` mengembalikan `label, value`.
 - **Item read-only**: `read_only: <kondisi>` menampilkan item sebagai teks dan mengabaikan nilai kirimannya. Kondisi `request_in: [SAVE, CREATE]` untuk tombol yang ditekan.
 - **Item & daftar pilihan (M3)**: `select`, `popup_lov` (dialog pencarian), `radio`, `checkbox_group` (nilai digabung `:`), `checkbox`/`switch` (`on_value`/`off_value`, default `Y`/`N`), `date`, `datetime`, `display_only` (`format`). Daftar pilihan ditulis langsung di item (`lov: { sql: ... }` / `static`) atau sekali di `lovs:` lalu dipakai dengan namanya (`lov: DEPARTEMEN`). `cascade: [P4_DEPT]` memuat ulang daftar anak saat parent berubah. Server selalu menolak nilai yang tidak ada di daftar, angka yang bukan angka, dan tanggal yang tidak valid.
-- **Dynamic actions** (aksi di browser): `dynamic_actions:` per halaman, dengan `event` (`change`, `key_release`, `click`, `page_load`), kondisi `when` opsional, `actions` dan `else`. Aksi: `show`/`hide`, `enable`/`disable`, `set_value`, `clear`, `refresh`, `confirm`, `submit_page`. Tombol yang dikendalikan dynamic action diberi `action: defined_by_da`. Langkah demi langkah: [panduan-pengguna.md](docs/panduan-pengguna.md#dynamic-actions-aksi-di-browser).
+- **Dynamic actions** (aksi di browser): `dynamic_actions:` per halaman, dengan `event` (`change`, `key_release`, `click`, `page_load`), kondisi `when` opsional, `actions` dan `else`. Aksi: `show`/`hide`, `enable`/`disable`, `set_value`, `clear`, `refresh`, `confirm`, `submit_page`, dan `execute_server_code` (PL/pgSQL di server dengan `items_to_submit`/`items_to_return`, tanpa submit halaman). Tombol yang dikendalikan dynamic action diberi `action: defined_by_da`. Langkah demi langkah: [panduan-pengguna.md](docs/panduan-pengguna.md#dynamic-actions-aksi-di-browser).
 - **Validasi**: selain `not_null`, `regex`, `sql_*`, ada `fn_boolean` (isi fungsi PL/pgSQL, `return true` = valid), `fn_returns_error` (mengembalikan teks error atau `null`), `is_numeric`, `is_date`, `is_timestamp`.
 
 ## Tes

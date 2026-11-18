@@ -8,7 +8,7 @@ import { hash, verify as verifyPassword } from '@node-rs/argon2';
 import type pg from 'pg';
 import { safeEqual } from './checksum.ts';
 import { loadApp, type AppDef, type PageDef } from './model.ts';
-import { acceptPage, appBase, applyUrlArgs, HttpError, renderPage, type Ctx, type RenderState } from './runtime.ts';
+import { acceptPage, appBase, callDynamicAction, applyUrlArgs, HttpError, renderPage, type Ctx, type RenderState } from './runtime.ts';
 import { cookieName, cookiePath, createSession, deleteSession, loadSession, saveState, type Session } from './session.ts';
 import { Evaluator } from './guard.ts';
 import { downloadRows } from './ir.ts';
@@ -413,6 +413,28 @@ export function buildServer(opts: ServerOptions): FastifyInstance {
          return html(reply, out);
       });
    }
+
+   // dynamic actions: items to submit and execute_server_code (JSON for rpx.js)
+   app.post('/r/:ws/:app/:page/da', async (req, reply) => {
+      reply.header('Cache-Control', 'no-store');
+      const appDef = await resolveApp(req);
+      const page = resolvePage(appDef, (req.params as { page: string }).page);
+      const session = await loadSession(opts.pool, appDef, req.cookies[cookieName(appDef)]);
+      if (!session || (page.requiresAuth && !session.appUserId)) {
+         return reply.code(401).send({ error: 'Sesi Anda sudah berakhir. Muat ulang halaman lalu masuk lagi.' });
+      }
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      if (!safeEqual(session.csrf, typeof body.__csrf === 'string' ? body.__csrf : undefined)) {
+         return reply.code(403).send({ error: 'Halaman ini sudah kedaluwarsa. Muat ulang halaman lalu coba lagi.' });
+      }
+      try {
+         const r = await callDynamicAction({ pool: opts.pool, secret: opts.secret, app: appDef, session }, page, body);
+         return reply.code(r.status).send(r.body);
+      } catch (e) {
+         if (e instanceof HttpError) return reply.code(e.status).send({ error: e.message });
+         throw e;
+      }
+   });
 
    app.post('/r/:ws/:app/:page', async (req, reply) => {
       const appDef = await resolveApp(req);
