@@ -4,8 +4,9 @@ import { attrIf, html, raw, type SafeHtml } from '../engine/html.ts';
 import { HttpError } from '../engine/runtime.ts';
 import { alert, icon } from '../engine/templates.ts';
 import { exportSpec, specToYaml } from '../spec/export.ts';
-import { SpecError, type AppSpec, type PageSpec } from '../spec/import.ts';
+import { SpecError, type AppSpec, type DynamicActionSpec, type PageSpec } from '../spec/import.ts';
 import schema from '../spec/spec.schema.json' with { type: 'json' };
+import { applyRowOp, daFormHtml, daYaml, DA_EVENTS, draftFromBody, draftFromDa, draftToDa, focusAfter, type DaDraft } from './da-editor.ts';
 import type { BuilderContext } from './routes.ts';
 import { setFlash, StaleVersion, takeFlash, type DevSession, type Flash } from './session.ts';
 import { appUrl, runUrl, shell } from './views.ts';
@@ -174,20 +175,21 @@ function fieldHtml(f: Field, value: string, error: string | undefined): SafeHtml
 
 // ---------------------------------------------------------------- components of a page
 
-type Kind = 'page' | 'region' | 'item' | 'button' | 'column' | 'validation' | 'process' | 'branch' | 'computation';
+type Kind = 'page' | 'region' | 'item' | 'button' | 'column' | 'validation' | 'process' | 'branch' | 'computation' | 'da';
 interface NodeAt { kind: Kind; list: Json[] | null; index: number; obj: Json; def: Schema; exclude: string[]; title: string }
 
 const KIND_LABEL: Record<Kind, string> = {
    page: 'Halaman', region: 'Region', item: 'Item', button: 'Tombol', column: 'Kolom', validation: 'Validasi', process: 'Proses', branch: 'Branch', computation: 'Computation',
+   da: 'Dynamic action',
 };
-const PAGE_LISTS = { validation: 'validations', process: 'processes', branch: 'branches', computation: 'computations' } as const;
+const PAGE_LISTS = { validation: 'validations', process: 'processes', branch: 'branches', computation: 'computations', da: 'dynamic_actions' } as const;
 const REGION_LISTS = { item: 'items', button: 'buttons', column: 'columns' } as const;
 
 function nodeTitle(kind: Kind, o: Json): string {
    switch (kind) {
       case 'page': return `${o.page}. ${o.name}`;
       case 'region': return `${o.title ?? o.static_id}`;
-      case 'item': case 'button': case 'validation': case 'process': return String(o.name);
+      case 'item': case 'button': case 'validation': case 'process': case 'da': return String(o.name);
       case 'column': return String(o.name);
       case 'branch': return `ke halaman ${o.page}${o.when_button ? ` (${o.when_button})` : ''}`;
       case 'computation': return String(o.item);
@@ -204,12 +206,13 @@ function locate(page: PageSpec, ref: string): NodeAt | null {
       if (!arr || i < 0 || i >= arr.length) return null;
       return { kind: k, list: arr, index: i, obj: arr[i], def, exclude, title: nodeTitle(k, arr[i]) };
    };
-   if (kind === 'page') return { kind, list: null, index: 0, obj: p, def: PAGE_DEF, exclude: ['regions', 'validations', 'processes', 'branches', 'computations'], title: nodeTitle('page', p) };
+   if (kind === 'page') return { kind, list: null, index: 0, obj: p, def: PAGE_DEF, exclude: ['regions', 'validations', 'processes', 'branches', 'computations', 'dynamic_actions'], title: nodeTitle('page', p) };
    if (kind === 'region') return pick(p.regions, n(a), kind, DEFS.region, ['items', 'buttons', 'columns']);
    if (kind in REGION_LISTS) {
       const region = (p.regions as Json[] | undefined)?.[n(a)];
       return region ? pick(region[REGION_LISTS[kind as keyof typeof REGION_LISTS]], n(b), kind, DEFS[kind]) : null;
    }
+   if (kind === 'da') return pick(p.dynamic_actions, n(a), kind, DEFS.dynamicAction);
    if (kind in PAGE_LISTS) return pick(p[PAGE_LISTS[kind as keyof typeof PAGE_LISTS]], n(a), kind, DEFS[kind]);
    return null;
 }
@@ -221,7 +224,8 @@ function treeHtml(page: PageSpec, base: string, selected: string, add: (action: 
    const group = (kind: keyof typeof PAGE_LISTS, heading: string, action: string) => {
       const list = ((page as unknown as Json)[PAGE_LISTS[kind]] ?? []) as Json[];
       return html`<li><span class="r-tree__group">${heading}</span>${add(action, `Tambah ${KIND_LABEL[kind].toLowerCase()}`)}
-         ${list.length ? html`<ul>${list.map((x, i) => html`<li>${link(`${kind}:${i}`, kind, nodeTitle(kind, x), kind === 'validation' || kind === 'process' ? String(x.type) : undefined)}</li>`)}</ul>` : ''}</li>`;
+         ${list.length ? html`<ul>${list.map((x, i) => html`<li>${link(`${kind}:${i}`, kind, nodeTitle(kind, x), kind === 'validation' || kind === 'process' ? String(x.type)
+            : kind === 'da' ? (DA_EVENTS.find(([e]) => e === x.event)?.[1] ?? String(x.event)).toLowerCase() : undefined)}</li>`)}</ul>` : ''}</li>`;
    };
    return html`<ul class="r-tree" role="list">
   <li>${link('page', 'page', nodeTitle('page', page as unknown as Json))}
@@ -239,6 +243,7 @@ function treeHtml(page: PageSpec, base: string, selected: string, add: (action: 
       ${group('process', 'Proses', 'add_process')}
       ${group('branch', 'Branch', 'add_branch')}
       ${group('computation', 'Computation', 'add_computation')}
+      ${group('da', 'Dynamic action', 'add_da')}
     </ul></li>
 </ul>`;
 }
@@ -290,6 +295,14 @@ function addComponent(page: PageSpec, action: string, regionIndex: number): stri
          list.push({ page: page.page });
          return `branch:${list.length - 1}`;
       }
+      case 'add_da': {
+         // a valid start: show the first region when the page loads; the developer changes it from there
+         const first = regions[0];
+         if (!first) return null;
+         const list = (p.dynamic_actions ??= []) as Json[];
+         list.push({ name: uniqueName(list.map(v => String(v.name)), 'da_'), event: 'page_load', actions: [{ action: 'show', regions: [first.static_id] }] });
+         return `da:${list.length - 1}`;
+      }
       case 'add_computation': {
          if (!allItems.length) return null;
          const list = (p.computations ??= []) as Json[];
@@ -302,7 +315,12 @@ function addComponent(page: PageSpec, action: string, regionIndex: number): stri
 
 // ---------------------------------------------------------------- views
 
-interface EditorState { values: Record<string, string>; errors: Record<string, string>; problems: string[]; conflict?: boolean }
+interface EditorState {
+   values: Record<string, string>; errors: Record<string, string>; problems: string[]; conflict?: boolean;
+   /** dynamic action node: the form as typed, and the YAML box */
+   da?: { draft: DaDraft; yaml: string; focus?: string };
+}
+const daState = (da: Json): EditorState => ({ values: {}, errors: {}, problems: [], da: { draft: draftFromDa(da as unknown as DynamicActionSpec), yaml: daYaml(da as unknown as DynamicActionSpec) } });
 
 function summaryHtml(st: EditorState): SafeHtml {
    if (st.conflict) return alert('warning', 'Aplikasi sudah diubah di tab lain atau oleh developer lain', html`<p>Perubahan Anda belum disimpan; isian Anda masih ada di formulir. Simpan lagi untuk menimpa versi terbaru dengan isian ini, atau muat ulang halaman untuk melihat versi terbaru dulu.</p>`, raw(' tabindex="-1" data-error-summary'));
@@ -329,11 +347,12 @@ export function designerView(dev: DevSession, flash: Flash | null, d: DesignerDa
       <input type="hidden" name="action" value="${action}"><input type="hidden" name="node" value="${d.ref}">
       <button type="submit" class="r-btn r-btn--sm"${attrIf('disabled', disabled)}>${label}</button></form>`;
    const editor = html`<form class="r-region" method="post" action="${base}" novalidate aria-labelledby="editor-title">
-  ${hidden}<input type="hidden" name="node" value="${d.ref}"><input type="hidden" name="action" value="save">
+  ${hidden}<input type="hidden" name="node" value="${d.ref}"><input type="hidden" name="action" value="${n.kind === 'da' ? 'da' : 'save'}">
   <div class="r-region__header"><h2 class="r-region__title" id="editor-title"><span class="r-badge">${KIND_LABEL[n.kind]}</span> ${n.title}</h2></div>
   <div class="r-region__body">${summaryHtml(st)}
-    <div class="r-form">${fields.map(f => fieldHtml(f, st.values[f.key] ?? '', st.errors[f.key]))}</div></div>
-  <div class="r-region__footer"><button type="submit" class="r-btn r-btn--primary">${icon('save')} Simpan</button></div>
+    ${n.kind === 'da' && st.da ? daFormHtml(d.page, st.da.draft, st.errors, st.da.yaml, st.da.focus)
+      : html`<div class="r-form">${fields.map(f => fieldHtml(f, st.values[f.key] ?? '', st.errors[f.key]))}</div>`}</div>
+  <div class="r-region__footer"><button type="submit" class="r-btn r-btn--primary"${n.kind === 'da' ? raw(' name="do" value="save"') : ''}>${icon('save')} Simpan</button></div>
 </form>`;
    const nodeActions = canMove ? html`<div class="r-node-actions" role="group" aria-label="Urutan dan hapus">
       ${moveForm('up', 'Naik', n.index === 0)}${moveForm('down', 'Turun', n.index === n.list!.length - 1)}
@@ -438,7 +457,7 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
       const fields = fieldsFor(node.def, node.exclude);
       return send(reply, designerView(s, await takeFlash(pool, s),
          { app: a, page, pages: pagesList(spec), version, node, ref, homePage: spec.home_page ?? 1 },
-         { values: valuesOf(node.obj, fields), errors: {}, problems: [] }));
+         node.kind === 'da' ? daState(node.obj) : { values: valuesOf(node.obj, fields), errors: {}, problems: [] }));
    });
 
    app.post('/builder/apps/:alias/pages/:page', async (req, reply) => {
@@ -459,15 +478,19 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
          const node = locate(p2, ref) ?? locate(p2, 'page')!;
          const fields = fieldsFor(node.def, node.exclude);
          const values = b.action === 'save' ? Object.fromEntries(fields.map(f => [f.key, String(b[`f.${f.key}`] ?? '')])) : valuesOf(node.obj, fields);
+         const st: EditorState = node.kind === 'da'
+            ? { ...daState(node.obj), ...(b.action === 'da' ? { da: { draft: draftFromBody(b), yaml: String(b.yaml ?? '') } } : {}) }
+            : { values, errors: {}, problems: [] };
          return send(reply, designerView(s, null, { app: a, page: p2, pages: pagesList(fresh.spec), version: fresh.version, node, ref, homePage: fresh.spec.home_page ?? 1 },
-            { values, errors: {}, problems: [], conflict: true }), 409);
+            { ...st, conflict: true }), 409);
       };
       if (b.version !== version) return conflict();
       const apply = async () => {
          const action = String(b.action ?? '');
          if (action.startsWith('add_')) {
             const created = addComponent(page, action, Number(b.region ?? -1));
-            if (!created) throw new HttpError(400, 'Tidak bisa ditambahkan', action === 'add_computation' ? 'Computation membutuhkan item; tambahkan item dulu.' : 'Region tujuan tidak ada.');
+            if (!created) throw new HttpError(400, 'Tidak bisa ditambahkan', action === 'add_computation' ? 'Computation membutuhkan item; tambahkan item dulu.'
+               : action === 'add_da' ? 'Dynamic action membutuhkan region di halaman; tambahkan region dulu.' : 'Region tujuan tidak ada.');
             const problems = await save(s, spec, a.alias, version);
             if (problems) {
                const node = locate(page, 'page')!;
@@ -487,7 +510,7 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
             if (!node.list || to < 0 || to >= node.list.length) return reply.redirect(`${base}?node=${ref}`, 303);
             [node.list[node.index], node.list[to]] = [node.list[to], node.list[node.index]];
             const problems = await save(s, spec, a.alias, version);
-            if (problems) return render(node, { values: valuesOf(node.obj, fields), errors: {}, problems }, 422);
+            if (problems) return render(node, { ...(node.kind === 'da' ? daState(node.obj) : { values: valuesOf(node.obj, fields), errors: {} }), problems }, 422);
             const moved = ref.replace(/(\d+)$/, String(to));
             return reply.redirect(`${base}?node=${moved}`, 303);
          }
@@ -500,10 +523,39 @@ export function registerDesigner(app: FastifyInstance, ctx: DesignerContext): vo
                const p2 = pageOf(fresh.spec, String(page.page));
                const back = locate(p2, ref)!;
                return send(reply, designerView(s, null, { app: a, page: p2, pages: pagesList(fresh.spec), version: fresh.version, node: back, ref, homePage: fresh.spec.home_page ?? 1 },
-                  { values: valuesOf(back.obj, fields), errors: {}, problems: [`${KIND_LABEL[node.kind]} ${node.title} tidak dihapus:`, ...problems] }), 422);
+                  { ...(back.kind === 'da' ? daState(back.obj) : { values: valuesOf(back.obj, fields), errors: {} }), problems: [`${KIND_LABEL[node.kind]} ${node.title} tidak dihapus:`, ...problems] }), 422);
             }
             await setFlash(pool, s, { kind: 'success', text: `${KIND_LABEL[node.kind]} ${node.title} dihapus.` });
             return reply.redirect(base, 303);
+         }
+         if (action === 'da' && node.kind === 'da') {
+            // the dynamic action form: row operations re-render, "save" and "save_yaml" store it
+            const op = String(b.do ?? 'save');
+            const draft = draftFromBody(b);
+            const yamlText = String(b.yaml ?? '').replace(/\r\n/g, '\n');
+            const again = (errors: Record<string, string>, problems: string[], status: number, focus?: string) =>
+               render(node, { values: {}, errors, problems, da: { draft, yaml: yamlText, focus } }, status);
+            let da: DynamicActionSpec;
+            if (op === 'save_yaml') {
+               let parsed: unknown;
+               try { parsed = YAML.parse(yamlText); } catch (e) { return again({ yaml: `YAML tidak valid: ${(e as Error).message.split('\n')[0]}` }, [], 422); }
+               if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return again({ yaml: 'Isi YAML harus satu dynamic action (name, event, actions, ...).' }, [], 422);
+               da = parsed as DynamicActionSpec;
+            } else if (op === 'save') {
+               const r = draftToDa(draft);
+               if (Object.keys(r.errors).length) return again(r.errors, [], 422);
+               da = r.da;
+            } else {
+               if (!applyRowOp(draft, op)) throw new HttpError(400, 'Aksi tidak dikenal', 'Muat ulang Page Designer lalu coba lagi.');
+               return again({}, [], 200, focusAfter(draft, op));
+            }
+            node.list![node.index] = da as unknown as Json;
+            const problems = await save(s, spec, a.alias, version);
+            if (problems) {
+               return op === 'save_yaml' ? again({ yaml: 'Lihat daftar masalah di atas.' }, problems, 422) : again({}, problems, 422);
+            }
+            await setFlash(pool, s, { kind: 'success', text: `Dynamic action ${da.name} disimpan.` });
+            return reply.redirect(`${base}?node=${ref}`, 303);
          }
          if (action !== 'save') throw new HttpError(400, 'Aksi tidak dikenal', 'Muat ulang Page Designer lalu coba lagi.');
 

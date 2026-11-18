@@ -100,18 +100,94 @@ describe('page designer (B5)', () => {
       assert.deepEqual(await spec(), before);
    });
 
-   test('DA1: dynamic actions are edited as YAML on the page and checked like an import', async () => {
-      const page = await dev.get(`${P(2)}?node=page`);
-      assert.match(page.body, /<textarea[^>]*name="f\.dynamic_actions"[^>]*>[^<]*magang_tanpa_keahlian/);
-      const bad = await edit(2, 'page', { 'f.dynamic_actions': '- { name: x, event: click, button: SIMPAN, actions: [ { action: hide, items: [P2_GAJI] } ] }\n' });
-      assert.equal(bad.statusCode, 422);
-      assert.match(bad.body, /button SIMPAN must have action defined_by_da/);
-      const good = await edit(2, 'page', { 'f.dynamic_actions':
-         '- { name: aktif, event: change, items: [P2_AKTIF], when: { item_equals: { item: P2_AKTIF, value: "N" } }, actions: [ { action: disable, items: [P2_JABATAN] } ], else: [ { action: enable, items: [P2_JABATAN] } ] }\n' });
-      assert.equal(good.statusCode, 303, good.body.slice(0, 800));
-      const das = (await spec()).pages.find(x => x.page === 2)!.dynamic_actions!;
-      assert.deepEqual(das.map(d => d.name), ['aktif']);
-      assert.deepEqual(das[0].else, [{ action: 'enable', items: ['P2_JABATAN'] }]);
+   /** the dynamic action form as the browser would post it (several chosen options in a multiple select = several values) */
+   function daForm(body: string): Record<string, string | string[]> {
+      const from = body.slice(body.indexOf('id="editor-title"') - 400);
+      const out: Record<string, string | string[]> = { ...formFields(from) };
+      for (const m of from.matchAll(/<select\b[^>]*name="([^"]*)"[^>]*\smultiple\b[^>]*>([\s\S]*?)<\/select>/g)) {
+         out[m[1]] = [...m[2].matchAll(/<option value="([^"]*)" selected>/g)].map(x => x[1]);
+      }
+      delete out.yaml;
+      return out;
+   }
+   const daPage = async () => (await spec()).pages.find(x => x.page === 2)!.dynamic_actions!;
+
+   test('DA3: dynamic actions in the tree, edited with a form', async () => {
+      const r = await dev.get(P(2));
+      assert.match(r.body, /<span class="r-tree__group">Dynamic action<\/span>/);
+      assert.match(r.body, /\?node=da:0"><span class="r-tree__kind">Dynamic action<\/span> magang_tanpa_keahlian <span class="r-muted">item berubah<\/span>/);
+      assert.doesNotMatch(r.body, /name="f\.dynamic_actions"/, 'no longer a YAML box on the page node');
+      const f = await dev.get(`${P(2)}?node=da:0`);
+      assert.equal(f.statusCode, 200);
+      assert.match(f.body, /<input class="r-input r-mono" id="da-name" name="da\.name" value="magang_tanpa_keahlian" required>/);
+      assert.match(f.body, /<option value="change" selected>Item berubah<\/option>/);
+      assert.match(f.body, /name="da\.items" multiple[^>]*>[\s\S]*?<option value="P2_STATUS_KERJA" selected>/);
+      assert.match(f.body, /<option value="item_equals" selected>Item sama dengan<\/option>/);
+      assert.match(f.body, /id="da-cond-value" name="da\.cond_value" value="MAGANG"/);
+      assert.match(f.body, /<input type="hidden" name="a\.count" value="2">/);
+      assert.match(f.body, /name="a\.1\.branch">[\s\S]*?<option value="else" selected>/);
+      assert.match(f.body, /<textarea[^>]*name="yaml"[^>]*>name: magang_tanpa_keahlian/);
+   });
+
+   test('DA3: rows are added, moved and removed without saving; Simpan saves', async () => {
+      const f = await dev.get(`${P(2)}?node=da:0`);
+      const form = daForm(f.body);
+      const added = await dev.post(P(2), { ...form, do: 'add' });
+      assert.equal(added.statusCode, 200);
+      assert.match(added.body, /name="a\.count" value="3"/);
+      assert.match(added.body, /id="a-2-action" name="a\.2\.action" data-da-type autofocus>/, 'focus on the new row');
+      assert.equal((await daPage())[0].actions!.length, 1, 'nothing saved yet');
+      const three = daForm(added.body);
+      const moved = await dev.post(P(2), { ...three, 'a.2.action': 'disable', 'a.2.items': ['P2_JABATAN'], 'a.2.branch': 'else', do: 'up:2' });
+      assert.equal(moved.statusCode, 200);
+      assert.match(moved.body, /id="a-1-action" name="a\.1\.action" data-da-type autofocus><option value="show">Tampilkan<\/option><option value="hide">Sembunyikan<\/option><option value="enable">Aktifkan<\/option><option value="disable" selected>/);
+      const saved = await dev.post(P(2), { ...daForm(moved.body), 'da.cond_value': 'KONTRAK', 'a.1.value': 'diabaikan', do: 'save' });
+      assert.equal(saved.statusCode, 303, saved.body.slice(0, 1500));
+      const da = (await daPage())[0];
+      assert.deepEqual(da.when, { item_equals: { item: 'P2_STATUS_KERJA', value: 'KONTRAK' } });
+      assert.deepEqual(da.actions, [{ action: 'hide', items: ['P2_KEAHLIAN'] }]);
+      assert.deepEqual(da.else, [{ action: 'disable', items: ['P2_JABATAN'] }, { action: 'show', items: ['P2_KEAHLIAN'] }], 'value does not apply to disable: dropped');
+      const removed = await dev.post(P(2), { ...daForm((await dev.get(`${P(2)}?node=da:0`)).body), do: 'del:1' });
+      assert.match(removed.body, /name="a\.count" value="2"/);
+      assert.match(removed.body, /id="da-add" name="do" value="add" autofocus>/);
+   });
+
+   test('DA3: the form checks what it can and the import checks the rest; nothing is saved', async () => {
+      const before = await daPage();
+      const form = daForm((await dev.get(`${P(2)}?node=da:0`)).body);
+      const empty = await dev.post(P(2), { ...form, 'da.name': ' ', 'da.event': 'click', 'da.button': '', do: 'save' });
+      assert.equal(empty.statusCode, 422);
+      assert.match(empty.body, /Nama wajib diisi\./);
+      assert.match(empty.body, /Pilih tombolnya\./);
+      assert.match(empty.body, /id="da-name" name="da\.name" value="" required aria-invalid="true"/);
+      const submitButton = await dev.post(P(2), { ...form, 'da.event': 'click', 'da.button': 'SIMPAN', do: 'save' });
+      assert.equal(submitButton.statusCode, 422);
+      assert.match(submitButton.body, /button SIMPAN must have action defined_by_da/);
+      assert.match(submitButton.body, /<option value="click" selected>/, 'what was typed stays');
+      const noRows = await dev.post(P(2), { ...form, 'a.count': '0', do: 'save' });
+      assert.match(noRows.body, /Tambahkan minimal satu aksi\./);
+      assert.deepEqual(await daPage(), before);
+   });
+
+   test('DA3: edit as YAML; add and delete a dynamic action from the tree', async () => {
+      const form = daForm((await dev.get(`${P(2)}?node=da:0`)).body);
+      const broken = await dev.post(P(2), { ...form, yaml: 'name: [', do: 'save_yaml' });
+      assert.equal(broken.statusCode, 422);
+      assert.match(broken.body, /YAML tidak valid/);
+      const good = await dev.post(P(2), { ...form, do: 'save_yaml',
+         yaml: 'name: lewat_yaml\nevent: page_load\nactions:\n  - { action: hide, items: [P2_KEAHLIAN], on_load: true }\n' });
+      assert.equal(good.statusCode, 303, good.body.slice(0, 1500));
+      assert.deepEqual((await daPage())[0], { name: 'lewat_yaml', event: 'page_load', actions: [{ action: 'hide', items: ['P2_KEAHLIAN'] }] });
+
+      const add = await act(2, 'add_da');
+      assert.equal(add.statusCode, 303, add.body.slice(0, 600));
+      assert.match(String(add.headers.location), /\?node=da:1$/);
+      const das = await daPage();
+      assert.deepEqual(das[1], { name: 'da_1', event: 'page_load', actions: [{ action: 'show', regions: [(await spec()).pages.find(x => x.page === 2)!.regions![0].static_id] }] });
+      const node = await dev.get(`${P(2)}?node=da:1`);
+      const del = await dev.post(P(2), { __csrf: field(node.body, '__csrf')!, version: field(node.body, 'version')!, action: 'delete', node: 'da:1' });
+      assert.equal(del.statusCode, 303);
+      assert.equal((await daPage()).length, 1);
    });
 
    test('F03: add, reorder and delete components', async () => {

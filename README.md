@@ -7,7 +7,7 @@ Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode
 > Cloudflare Tunnel. Yang sudah bisa: menjalankan aplikasi (report, form, dialog, daftar pilihan, otorisasi, SSO) dan
 > membuatnya dari builder visual (wizard dari tabel, Page Designer, akun, ekspor/impor).
 > Baru: **Dynamic Actions** (tampil/sembunyi, isi nilai, refresh region, konfirmasi, dan menjalankan PL/pgSQL di server tanpa submit).
-> Belum ada: Interactive Grid, editor dynamic action berbentuk formulir, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
+> Belum ada: Interactive Grid, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
 
 ## Mulai dari sini
 

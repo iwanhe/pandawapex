@@ -373,3 +373,21 @@ Yang lebih sulit dari perkiraan:
   yang difilter item lain menolak pilihan yang sah. Bila ada yang gagal, session state dikembalikan ke keadaan sebelumnya.
 
 Belum (DA3): editor formulir di Page Designer, aksi `focus` dan `alert`.
+
+## Dynamic Actions tahap 3: editor formulir di Page Designer (2026-11-18), done
+
+Dynamic action menjadi node di pohon Page Designer (kelompok **Dynamic action**, tambah/naik/turun/hapus seperti komponen
+lain). Editornya formulir khusus (`src/builder/da-editor.ts`): nama, event, item pemicu atau tombol `defined_by_da`, kondisi
+(jenis, item, nilai), lalu daftar aksi; item, region, dan tombol dipilih dari halaman. Kotak **Ubah sebagai YAML** tetap ada.
+
+Verifikasi: `npm test` 214/214, e2e 120/120 (2 skip), axe bersih di formulir. Parity 70.3 → 71.0.
+
+Yang lebih sulit dari perkiraan:
+
+- **Daftar aksi tanpa JavaScript.** Tambah, naik, turun, dan hapus aksi adalah tombol submit yang hanya merender ulang
+  formulir dari isian yang dikirim (tidak menyimpan), lalu fokus dipindah ke baris yang bersangkutan. Enter di isian
+  teks menjalankan tombol Simpan tersembunyi yang diletakkan paling depan, bukan "Hapus aksi 1".
+- **Isian yang tidak berlaku.** Tanpa JavaScript semua isian tampil; server membuang isian yang tidak berlaku untuk jenis
+  aksi (mis. nilai tetap pada aksi Nonaktifkan) supaya tidak ditolak pemeriksaan spec. `rpx.js` hanya menyembunyikannya.
+
+Belum: aksi `focus` dan `alert`.

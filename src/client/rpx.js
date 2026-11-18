@@ -414,6 +414,25 @@
     sync();
   }
 
+  // page designer, dynamic action form: show only the fields that apply to the chosen event, condition and action types
+  // (without script everything is shown; the server drops what does not apply)
+  for (const box of document.querySelectorAll('[data-da-form]')) {
+    const has = (el, attr, v) => el.getAttribute(attr).split(' ').includes(v);
+    const sync = () => {
+      const ev = (box.querySelector('[data-da-event]') || {}).value;
+      const cond = (box.querySelector('[data-da-cond]') || {}).value || '';
+      box.querySelectorAll('[data-da-event-for]').forEach((el) => { el.hidden = !has(el, 'data-da-event-for', ev); });
+      box.querySelectorAll('[data-da-cond-for]').forEach((el) => { el.hidden = !has(el, 'data-da-cond-for', cond); });
+      box.querySelectorAll('[data-da-when-cond]').forEach((el) => { el.hidden = !cond; });
+      box.querySelectorAll('[data-da-row]').forEach((row) => {
+        const type = (row.querySelector('[data-da-type]') || {}).value;
+        row.querySelectorAll('[data-da-for]').forEach((el) => { el.hidden = !has(el, 'data-da-for', type); });
+      });
+    };
+    box.addEventListener('change', (e) => { if (e.target.matches('[data-da-event], [data-da-cond], [data-da-type]')) sync(); });
+    sync();
+  }
+
   // page designer: choosing another page in the picker opens it; the button is only for browsers without script
   for (const sel of document.querySelectorAll('select[data-autosubmit]')) {
     const fallback = sel.form && sel.form.querySelector('[data-autosubmit-fallback]');
