@@ -360,13 +360,30 @@ Hal yang sama berlaku untuk **Properti aplikasi** dan wizard **Tambah halaman**.
 
 Dynamic action menjalankan aksi **di browser, tanpa mengirim halaman**: menyembunyikan field saat pilihan tertentu
 dipilih, mengisi field dari field lain, mengosongkan isian, memuat ulang satu region, atau menanyakan konfirmasi sebelum
-mengirim. Ini padanan *Dynamic Actions* di APEX, versi pertama (lihat "Yang belum ada" di bawah).
+mengirim, atau menjalankan kode PL/pgSQL di server. Ini padanan *Dynamic Actions* di APEX.
 
-**Langkah 1. Buka tempat menulisnya.** Di Page Designer klik **Halaman** (node paling atas pohon). Di editor kanan ada
-kotak **Dynamic actions** (YAML). Kotak ini berisi daftar; satu dynamic action = satu entri `- name: ...`.
-Di file spec, tulis di bawah halaman dengan kunci `dynamic_actions:` (sejajar dengan `regions:` dan `processes:`).
+**Langkah 1. Tambah dynamic action.** Di Page Designer, pohon kiri punya kelompok **Dynamic action**. Klik
+**Tambah dynamic action**. Yang dibuat adalah contoh awal (saat halaman dibuka, tampilkan region pertama) dan langsung
+terbuka di editor kanan.
 
-**Langkah 2. Tulis dynamic action-nya.** Contoh dari aplikasi contoh emp (halaman 2): karyawan magang tidak diisi keahliannya.
+**Langkah 2. Isi formulirnya.** Contoh: karyawan magang tidak diisi keahliannya (aplikasi contoh emp, halaman 2).
+
+1. **Nama**: `magang_tanpa_keahlian` (unik di halaman ini).
+2. **Kapan berjalan**: *Item berubah*. Lalu di **Item yang diawasi** pilih `P2_STATUS_KERJA`
+   (Ctrl/Cmd + klik untuk memilih lebih dari satu).
+3. **Kondisi**: *Item sama dengan*, **Item kondisi** `P2_STATUS_KERJA`, **Nilai kondisi** `MAGANG`.
+4. **Aksi 1**: **Jenis aksi** *Sembunyikan*, **Dijalankan bila** *kondisi benar*, **Item** `P2_KEAHLIAN`.
+5. Klik **Tambah aksi**. **Aksi 2**: *Tampilkan*, **Dijalankan bila** *kondisi salah (else)*, **Item** `P2_KEAHLIAN`.
+6. Klik **Simpan**.
+
+Formulir hanya menampilkan isian yang berlaku untuk pilihan Anda; misalnya **Kode PL/pgSQL** baru muncul setelah jenis aksi
+*Jalankan kode di server* dipilih. Tombol **Naik**, **Turun**, dan **Hapus** di setiap aksi mengubah daftar aksi tanpa
+menyimpan; perubahan baru tersimpan setelah **Simpan**. Urutan dan hapus dynamic action sendiri ada di tombol di atas
+editor, sama seperti komponen lain.
+
+Lebih suka menulis langsung? Buka **Ubah sebagai YAML** di bawah formulir, ubah, lalu **Simpan YAML**. Di file spec,
+dynamic action ditulis di bawah halaman dengan kunci `dynamic_actions:` (sejajar dengan `regions:` dan `processes:`).
+Hasil langkah 2 dalam YAML:
 
 ```yaml
 - name: magang_tanpa_keahlian         # nama unik di halaman ini
@@ -501,8 +518,7 @@ paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`
 validasi. Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya juga tidak dikirim ke browser,
 dan REQUEST-nya ditolak server.
 
-**Yang belum ada** (direncanakan di sesi berikut): editor dynamic action berbentuk formulir di Page Designer, serta aksi
-`focus` dan `alert`. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
+**Yang belum ada** (direncanakan di sesi berikut): aksi `focus` dan `alert`. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
 melarang skrip inline). Event *after close dialog* tidak perlu ditulis: halaman pemanggil otomatis di-refresh setelah
 dialognya ditutup.
 

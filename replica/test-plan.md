@@ -327,3 +327,17 @@ Tes: `test/da-server.test.ts` (int), tambahan di `test/export.test.ts`, `e2e/da.
 | DA-H8 | browser | happy | filter departemen memuat ulang report di tempat, isian lain tetap; setelah reload filter yang sama tetap berlaku | e2e | ✅ |
 
 Run: `npm test` 211/211, e2e 118/118 (2 skip). Bug baru: tidak ada.
+
+## Dynamic Actions tahap 3: editor formulir (2026-11-18)
+
+Tes: `test/b5.test.ts` (4 kasus DA3), `e2e/b5-designer.spec.ts` (DA3-H1, desktop + mobile).
+
+| ID | Area | Jenis | Kasus | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| DA3-B1 | builder | happy | dynamic action di pohon (nama + event); formulir terisi dari spec (event, item pemicu, kondisi, cabang else, YAML); node Halaman tidak lagi punya kotak YAML dynamic action | int | ✅ |
+| DA3-B2 | builder | happy | tambah / naik / hapus aksi tanpa menyimpan, fokus ke baris yang baru atau dipindah; Simpan menyimpan; isian yang tidak berlaku untuk jenis aksi dibuang | int | ✅ |
+| DA3-B3 | builder | negatif | nama kosong, klik tanpa tombol, tanpa aksi (dicek formulir); tombol bukan `defined_by_da` (dicek impor): 422, isian tetap, tidak ada yang tersimpan | int | ✅ |
+| DA3-B4 | builder | happy/negatif | YAML rusak 422; YAML benar tersimpan; tambah dynamic action dari pohon; hapus | int | ✅ |
+| DA3-H1 | builder + runtime | happy | aplikasi baru dari wizard → tambah dynamic action → isian mengikuti pilihan (event, kondisi, jenis aksi) → tambah aksi (fokus) → simpan → halaman yang dijalankan menyembunyikan dan menampilkan field; axe bersih | e2e | ✅ |
+
+Run: `npm test` 214/214, e2e 120/120 (2 skip). Bug baru: tidak ada.
