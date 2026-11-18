@@ -60,6 +60,8 @@ export interface ProcessDef {
 export interface DaActionDef {
    action: string; items?: string[]; regions?: string[]; buttons?: string[];
    value?: string; from_item?: string; message?: string; request?: string; on_load?: boolean;
+   /** execute_server_code only; never sent to the browser */
+   code?: string; items_to_submit?: string[]; items_to_return?: string[];
 }
 export interface DaDef {
    name: string; event: string; items?: string[]; button?: string; when: Record<string, unknown> | null;
@@ -142,7 +144,11 @@ async function readApp(pool: pg.Pool, appId: string): Promise<AppDef> {
    const daActQ = (await pool.query(
       `select x.* from rpx.da_actions x join rpx.dynamic_actions d on d.id = x.da_id join rpx.pages p on p.id = d.page_id
        where p.app_id = $1 order by x.seq`, [appId])).rows;
-   const daAction = (x: any): DaActionDef => JSON.parse(JSON.stringify({ action: x.action_type, ...x.affected, ...x.attributes }));
+   const daAction = (x: any): DaActionDef => JSON.parse(JSON.stringify({
+      action: x.action_type, ...x.affected, ...x.attributes,
+      items_to_submit: x.items_to_submit?.length ? x.items_to_submit : undefined,
+      items_to_return: x.items_to_return?.length ? x.items_to_return : undefined,
+   }));
    const navQ = (await pool.query(
       `select e.* from rpx.nav_entries e join rpx.nav_lists l on l.id = e.list_id
        where l.app_id = $1 and l.name = 'navigation_menu' order by e.seq`, [appId])).rows;

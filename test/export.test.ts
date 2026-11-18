@@ -227,7 +227,14 @@ pages:
         button: CEK
         actions:
           - { action: confirm, message: Lanjut? }
-          - { action: refresh, regions: [ir, ch] }
+          - { action: refresh, regions: [ir, ch], items_to_submit: [P2_S] }
+          - action: execute_server_code
+            items_to_submit: [P2_S, P2_C]
+            items_to_return: [P2_C]
+            code: |
+              begin
+                 perform rpx_rt.set_item('P2_C', :P2_S);
+              end;
           - { action: submit_page }
       - name: ketik
         event: key_release
@@ -251,7 +258,7 @@ pages:
          assert.match(yaml, /allow_builtin: true/);
          assert.match(yaml, /requires_auth: false/);
          assert.match(yaml, /substitutions: \{ .*PERUSAHAAN: KCSI/);    // jsonb keeps its own key order
-         assert.match(yaml, /\{ action: submit_page \} \]/, 'the request of a click action defaults to its button');
+         assert.match(yaml, /- \{ action: submit_page \}\n/, 'the request of a click action defaults to its button');
          assert.match(yaml, /- \{ action: show, items: \[ P2_R \], regions: \[ ir \], buttons: \[ HAPUS \] \}/, 'on_load default left out');
          assert.match(yaml, /on_load: false \}/);
       } finally {

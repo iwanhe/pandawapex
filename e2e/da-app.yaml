@@ -15,13 +15,18 @@ pages:
           - { name: P1_NAMA, type: text, label: Nama, col_span: 6 }
           - { name: P1_SAPAAN, type: text, label: Sapaan, col_span: 6 }
           - { name: P1_HASIL, type: display_only, label: Hasil }
+          - { name: P1_DEPT, type: select, label: Departemen, col_span: 6, null_display: "- Semua departemen -",
+              lov: { sql: "select nama as d, deptno as r from departemen order by nama" } }
+          - { name: P1_GAJI, type: number, label: Gaji pokok, col_span: 6 }
+          - { name: P1_TOTAL, type: display_only, label: Total dengan tunjangan, format: number }
         buttons:
           - { name: MUAT, label: Muat ulang jumlah, action: defined_by_da, style: ghost }
+          - { name: HITUNG, label: Hitung total, action: defined_by_da, style: ghost }
           - { name: KIRIM, label: Kirim, hot: true, action: defined_by_da }
       - static_id: jumlah
         title: Jumlah karyawan
         type: classic_report
-        source: { sql: "select count(*) as jumlah from karyawan" }
+        source: { sql: "select count(*) as jumlah from karyawan where :P1_DEPT is null or deptno = :P1_DEPT::int" }
     dynamic_actions:
       - name: email_jika_kirim
         event: change
@@ -41,6 +46,26 @@ pages:
         button: MUAT
         actions:
           - { action: refresh, regions: [jumlah] }
+      - name: saring_departemen
+        event: change
+        items: [P1_DEPT]
+        actions:
+          - { action: refresh, regions: [jumlah], items_to_submit: [P1_DEPT] }
+      - name: hitung_total
+        event: click
+        button: HITUNG
+        actions:
+          - action: execute_server_code
+            items_to_submit: [P1_GAJI]
+            items_to_return: [P1_TOTAL]
+            code: |
+              begin
+                 if :P1_GAJI::numeric < 0 then
+                    raise exception 'Gaji pokok tidak boleh negatif.';
+                 end if;
+                 perform rpx_rt.set_item('P1_TOTAL', (coalesce(:P1_GAJI::numeric, 0) * 1.1)::text);
+              end;
+          - { action: set_value, items: [P1_SAPAAN], value: dihitung }
       - name: kirim
         event: click
         button: KIRIM

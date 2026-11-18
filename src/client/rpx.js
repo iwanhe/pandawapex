@@ -525,6 +525,74 @@
       announce('Region gagal dimuat ulang.');
     }
   };
+  // a message for a failed server call, shown at the top of the form (replaced by the next call)
+  const daError = (form, text) => {
+    const old = document.getElementById('rpx-da-error');
+    if (old) old.remove();
+    if (!text || !form) return;
+    const box = document.createElement('div');
+    box.id = 'rpx-da-error';
+    box.className = 'r-alert r-alert--danger';
+    box.setAttribute('role', 'alert');
+    const body = document.createElement('div');
+    body.className = 'r-alert__body';
+    const title = document.createElement('p');
+    title.className = 'r-alert__title';
+    title.textContent = 'Aksi tidak berhasil.';
+    const detail = document.createElement('p');
+    detail.textContent = text;
+    body.append(title, detail);
+    box.append(body);
+    form.prepend(box);
+  };
+  /**
+   * Send items to submit to the server and, for execute_server_code, run the action's code there (the code
+   * never leaves the server: the request only names the dynamic action and the action's position).
+   * Returns false when the remaining actions must not run.
+   */
+  const callServer = async (da, index, a, from) => {
+    const form = (from && from.closest('form[method="post"]')) || document.querySelector('form[method="post"]');
+    if (!form) return false;
+    const fields = new URLSearchParams();
+    for (const k of ['__csrf', '__ps']) {
+      const el = form.querySelector('input[type="hidden"][name="' + k + '"]');
+      if (el) fields.set(k, el.value);
+    }
+    // protected hidden items are part of the signed form state, so they travel with every call
+    form.querySelectorAll('input[type="hidden"]').forEach((el) => { if (/^P\d+_/.test(el.name)) fields.set(el.name, el.value); });
+    fields.set('da', da.name);
+    fields.set('a', String(index));
+    for (const n of a.items_to_submit || []) fields.set(n, daGet(n));
+    const url = new URL(form.getAttribute('action'), window.location.href);
+    url.pathname += '/da';
+    url.search = '';
+    let res;
+    let data = {};
+    form.setAttribute('aria-busy', 'true');
+    try {
+      res = await fetch(url, { method: 'POST', credentials: 'same-origin', body: fields,
+        headers: { Accept: 'application/json' } });
+      if (sessionEnded(res)) return false;
+      data = await res.json().catch(() => ({}));
+    } catch {
+      res = null;
+    } finally {
+      form.removeAttribute('aria-busy');
+    }
+    if (!res || !res.ok) {
+      daError(form, data.error || 'Server tidak dapat dihubungi. Coba lagi.');
+      return false;
+    }
+    daError(form, null);
+    for (const [n, v] of Object.entries(data.items || {})) {
+      if (controls(n).length) daSet(n, v === null ? '' : v);
+      else {
+        const shown = document.getElementById(n);
+        if (shown && shown.classList.contains('r-display')) shown.textContent = (data.shown || {})[n] ?? (v || '');
+      }
+    }
+    return true;
+  };
   const submitPage = (request, from) => {
     const form = (from && from.closest('form[method="post"]')) || document.querySelector('form[method="post"]');
     if (!form) return;
@@ -540,14 +608,22 @@
   };
   /** Run the actions of the branch that applies; `only` limits which ones (page load). Stops at a declined confirm. */
   const runDa = async (da, from, only) => {
-    for (const a of holds(da.when) ? da.actions : da.else) {
+    const yes = holds(da.when);
+    const list = yes ? da.actions : da.else;
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const index = yes ? i : da.actions.length + i;     // position in actions + else, as the server counts
       if (only && !only(a)) continue;
       switch (a.action) {
         case 'show': case 'hide': targets(a).forEach((el) => { el.hidden = a.action === 'hide'; }); break;
         case 'enable': case 'disable': targets(a).forEach((el) => setDisabled(el, a.action === 'disable')); break;
         case 'set_value': (a.items || []).forEach((n) => daSet(n, a.from_item !== undefined ? daGet(a.from_item) : a.value)); break;
         case 'clear': (a.items || []).forEach((n) => daSet(n, '')); break;
-        case 'refresh': await Promise.all((a.regions || []).map(refreshRegion)); break;
+        case 'refresh':
+          if (a.items_to_submit && !(await callServer(da, index, a, from))) return;
+          await Promise.all((a.regions || []).map(refreshRegion));
+          break;
+        case 'execute_server_code': if (!(await callServer(da, index, a, from))) return; break;
         case 'confirm': if (!window.confirm(a.message)) return; break;
         case 'submit_page': submitPage(a.request, from); return;
         default: break;

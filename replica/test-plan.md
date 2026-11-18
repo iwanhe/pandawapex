@@ -305,3 +305,25 @@ Aplikasi contoh emp (halaman 2 dan 4) dan aplikasi uji `e2e/da-app.yaml` (semua 
 | DA-H5 | browser | happy | refresh region memuat ulang satu region dari server tanpa menghapus isian lain | e2e | ✅ |
 
 Run: `npm test` 195/195, e2e 112/112 (2 skip). Bug baru: tidak ada.
+
+## Dynamic Actions tahap 2 (2026-11-18)
+
+Tes: `test/da-server.test.ts` (int), tambahan di `test/export.test.ts`, `e2e/da.spec.ts` (DA-H6..H8). Aplikasi uji
+`e2e/da-app.yaml` ditambah filter departemen dan tombol *Hitung total*; aplikasi emp halaman 4 menampilkan posisi karyawan.
+
+| ID | Area | Jenis | Kasus | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| DA2-S1 | spec | negatif | `execute_server_code` tanpa `code`; `code` di aksi lain; `items_to_submit` di selain execute/refresh; `items_to_return` di refresh; kirim display only; kembalikan hidden terlindungi; item tak dikenal; `on_load` | int | ✅ |
+| DA2-S2 | spec | happy | ekspor → impor dengan `code`, `items_to_submit`, `items_to_return` identik | int | ✅ |
+| DA2-R1 | keamanan | negatif | isi kode tidak pernah ada di JSON halaman | int | ✅ |
+| DA2-C1 | panggil | happy | item dikirim lalu di-bind, item dikembalikan (nilai + teks tampil terformat), insert di kode di-commit, nilai tersimpan di session state | int | ✅ |
+| DA2-C2 | panggil | negatif | `raise exception`: 422 dengan pesannya, insert dibatalkan, session state tidak berubah | int | ✅ |
+| DA2-C3 | panggil | negatif | nilai tidak valid (bukan angka, di luar daftar): 422 dengan pesan field, kode tidak jalan | int | ✅ |
+| DA2-C4 | panggil | happy | refresh dengan `items_to_submit`: nilai tersimpan, region menampilkan nilai baru | int | ✅ |
+| DA2-C5 | panggil | keamanan | dynamic action yang tombolnya tidak tampil, nama tak dikenal, aksi bukan server, indeks salah: 400 | int | ✅ |
+| DA2-C6 | panggil | keamanan | tanpa token CSRF 403; form state dipalsukan untuk menambah dynamic action 403; tanpa sesi 401; tidak ada data berubah | int | ✅ |
+| DA-H6 | browser | happy | Mutasi: pilih karyawan lewat popup LOV (keyboard), posisi saat ini tampil; axe bersih | e2e | ✅ |
+| DA-H7 | browser | happy/negatif | Hitung total tanpa submit, aksi berikutnya jalan; kode gagal → pesan di formulir, aksi berikutnya tidak jalan (keyboard); panggilan berikutnya yang berhasil menghapus pesan; axe bersih | e2e | ✅ |
+| DA-H8 | browser | happy | filter departemen memuat ulang report di tempat, isian lain tetap; setelah reload filter yang sama tetap berlaku | e2e | ✅ |
+
+Run: `npm test` 211/211, e2e 118/118 (2 skip). Bug baru: tidak ada.

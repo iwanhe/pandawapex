@@ -55,7 +55,7 @@ const LABELS: Record<string, string> = {
 };
 // help in the builder's language; the schema's own descriptions are written for spec authors
 const HELP: Record<string, string> = {
-   dynamic_actions: 'Aksi yang berjalan di browser saat item berubah, tombol diklik atau halaman dibuka (show/hide, enable/disable, set_value, clear, refresh, confirm, submit_page). Contoh dan daftar lengkapnya ada di Panduan Pengguna, bagian Dynamic actions.',
+   dynamic_actions: 'Aksi yang berjalan di browser saat item berubah, tombol diklik atau halaman dibuka (show/hide, enable/disable, set_value, clear, refresh, confirm, submit_page, execute_server_code). Contoh dan daftar lengkapnya ada di Panduan Pengguna, bagian Dynamic actions.',
    cascade: 'Daftar item induk, mis. [P4_DEPTNO]. Bila induk berubah, pilihan item ini dimuat ulang dan nilainya dikosongkan.',
    null_display: 'Teks pilihan kosong pada select atau popup LOV.',
    on_value: 'Checkbox/switch: nilai saat aktif (bawaan Y).', off_value: 'Checkbox/switch: nilai saat nonaktif (bawaan N).',
