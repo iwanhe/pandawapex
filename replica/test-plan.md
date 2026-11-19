@@ -341,3 +341,14 @@ Tes: `test/b5.test.ts` (4 kasus DA3), `e2e/b5-designer.spec.ts` (DA3-H1, desktop
 | DA3-H1 | builder + runtime | happy | aplikasi baru dari wizard → tambah dynamic action → isian mengikuti pilihan (event, kondisi, jenis aksi) → tambah aksi (fokus) → simpan → halaman yang dijalankan menyembunyikan dan menampilkan field; axe bersih | e2e | ✅ |
 
 Run: `npm test` 214/214, e2e 120/120 (2 skip). Bug baru: tidak ada.
+
+## Dynamic Actions tahap 4: alert dan focus (2026-11-19)
+
+| ID | Area | Jenis | Kasus | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| DA4-S1 | spec | negatif | focus tanpa item, dua item, ke display only; alert tanpa pesan | int | ✅ |
+| DA4-S2 | spec | happy | ekspor → impor dengan alert (pesan berisi `<b>`) dan focus identik | int | ✅ |
+| DA-H2' | browser | happy | Kosongkan isian: setelah dikosongkan kursor pindah ke radio pertama Departemen tujuan | e2e | ✅ |
+| DA-H9 | browser | happy | gaji dikosongkan → pesan tampil → setelah OK kursor kembali ke Gaji pokok | e2e | ✅ |
+
+Migrasi `0007_da_focus_alert.sql` dipasang oleh `db migrate` di tes dan e2e.

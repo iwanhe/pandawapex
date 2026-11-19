@@ -248,6 +248,8 @@ pages:
         when: { item_equals: { item: P2_C, value: "1" } }
         actions:
           - { action: hide, items: [P2_N] }
+          - { action: alert, message: "Halo <b>" }
+          - { action: focus, items: [P2_S] }
         else:
           - { action: show, items: [P2_N], on_load: false }
 `;

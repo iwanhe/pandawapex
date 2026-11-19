@@ -51,6 +51,13 @@ pages:
         items: [P1_DEPT]
         actions:
           - { action: refresh, regions: [jumlah], items_to_submit: [P1_DEPT] }
+      - name: gaji_kosong
+        event: change
+        items: [P1_GAJI]
+        when: { item_null: P1_GAJI }
+        actions:
+          - { action: alert, message: Gaji pokok belum diisi. }
+          - { action: focus, items: [P1_GAJI] }
       - name: hitung_total
         event: click
         button: HITUNG

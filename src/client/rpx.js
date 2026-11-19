@@ -644,6 +644,14 @@
           break;
         case 'execute_server_code': if (!(await callServer(da, index, a, from))) return; break;
         case 'confirm': if (!window.confirm(a.message)) return; break;
+        case 'alert': window.alert(a.message); break;
+        case 'focus': {
+          // the chosen radio (or the first one), otherwise the field itself; nothing when it is hidden or disabled
+          const els = controls((a.items || [])[0] || '').filter((e) => !e.disabled && e.type !== 'hidden' && e.offsetParent !== null);
+          const target = els.find((e) => e.checked) || els[0];
+          if (target) target.focus();
+          break;
+        }
         case 'submit_page': submitPage(a.request, from); return;
         default: break;
       }

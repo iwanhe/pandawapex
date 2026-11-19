@@ -54,6 +54,8 @@ test.describe('DA dynamic actions', () => {
       await expect(setuju).not.toBeChecked();
       await expect(page.getByRole('checkbox', { name: 'K3' })).not.toBeChecked();
       await expect(page.getByRole('radio', { name: 'Tetap' })).toBeChecked();
+      // the last action moves the cursor to the first destination department (none is chosen after clearing)
+      await expect(page.getByRole('group', { name: /Departemen tujuan/ }).getByRole('radio').first()).toBeFocused();
       await expect(page.getByRole('status')).toHaveCount(0);   // nothing was submitted
       expect(await axe(page)).toEqual([]);
    });
@@ -148,6 +150,19 @@ test.describe('DA dynamic actions', () => {
          await page.getByRole('button', { name: 'Hitung total' }).click();
          await expect(total).toHaveText('11');
          await expect(page.getByRole('alert')).toHaveCount(0);
+      });
+
+      test('DA-H9 alert and focus: an empty salary shows a message and puts the cursor back', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         const gaji = page.getByLabel('Gaji pokok');
+         await gaji.fill('500');
+         await gaji.press('Tab');
+         let message = '';
+         page.once('dialog', d => { message = d.message(); return d.accept(); });
+         await gaji.fill('');
+         await gaji.press('Tab');                     // change fires when leaving the field
+         await expect.poll(() => message).toBe('Gaji pokok belum diisi.');
+         await expect(gaji).toBeFocused();
       });
 
       test('DA-H8 refresh with items to submit: the report follows the chosen department without a reload', async ({ page, db }) => {

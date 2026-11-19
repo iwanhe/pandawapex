@@ -432,6 +432,8 @@ Nilai dibandingkan sebagai teks, sama seperti yang dikirim ke server: switch/che
 | `clear` | `items` | | mengosongkan; checkbox jadi tidak dicentang |
 | `refresh` | `regions` | | memuat ulang region dari server tanpa mengganggu isian lain |
 | `confirm` | — | `message: teks` | **Batal** menghentikan aksi-aksi berikutnya |
+| `alert` | — | `message: teks` | menampilkan pesan; aksi berikutnya berjalan setelah **OK** |
+| `focus` | `items` (satu item) | | memindahkan kursor ke item itu; radio: pilihan yang tercentang atau yang pertama |
 | `submit_page` | — | `request: NAMA` | mengirim halaman; proses dan branch melihat `NAMA` sebagai REQUEST |
 | `execute_server_code` | — | `code`, `items_to_submit`, `items_to_return` | menjalankan PL/pgSQL di server tanpa mengirim halaman; lihat di bawah |
 
@@ -460,6 +462,7 @@ dynamic_actions:
       - { action: confirm, message: Kosongkan semua isian tujuan mutasi? }
       - { action: clear, items: [P4_DEPT_TUJUAN, P4_JABATAN_BARU, P4_BERLAKU, P4_KEAHLIAN, P4_SETUJU] }
       - { action: set_value, items: [P4_STATUS], value: TETAP }
+      - { action: focus, items: [P4_DEPT_TUJUAN] }
 ```
 
 Bila dynamic action klik berakhir dengan `submit_page` tanpa `request`, REQUEST-nya nama tombol itu, jadi proses cukup
@@ -518,7 +521,7 @@ paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`
 validasi. Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya juga tidak dikirim ke browser,
 dan REQUEST-nya ditolak server.
 
-**Yang belum ada** (direncanakan di sesi berikut): aksi `focus` dan `alert`. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
+Di formulir Page Designer, `alert` bernama *Tampilkan pesan* dan `focus` bernama *Pindahkan kursor ke item*. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
 melarang skrip inline). Event *after close dialog* tidak perlu ditulis: halaman pemanggil otomatis di-refresh setelah
 dialognya ditutup.
 

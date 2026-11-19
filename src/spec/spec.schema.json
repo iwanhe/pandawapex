@@ -897,7 +897,9 @@
             "refresh",
             "submit_page",
             "confirm",
-            "execute_server_code"
+            "execute_server_code",
+            "focus",
+            "alert"
           ]
         },
         "items": {
@@ -932,7 +934,7 @@
         },
         "message": {
           "type": "string",
-          "description": "confirm: the question; Batal stops the remaining actions"
+          "description": "confirm / alert: the text shown; for confirm, Batal stops the remaining actions"
         },
         "request": {
           "type": "string",

@@ -53,7 +53,7 @@ export interface DaCondition {
    item_null?: string; item_not_null?: string;
 }
 export type DaActionType = 'show' | 'hide' | 'enable' | 'disable' | 'set_value' | 'clear' | 'refresh' | 'submit_page' | 'confirm'
-   | 'execute_server_code';
+   | 'execute_server_code' | 'focus' | 'alert';
 export interface DaActionSpec {
    action: DaActionType; items?: string[]; regions?: string[]; buttons?: string[];
    value?: string; from_item?: string; message?: string; request?: string; on_load?: boolean;
@@ -281,6 +281,8 @@ const DA_TARGETS: Record<DaActionType, { items?: 'any' | 'value' | 'control'; re
    submit_page: { need: '' },
    confirm: { need: '' },
    execute_server_code: { need: '' },
+   focus: { items: 'control', need: 'items' },
+   alert: { need: '' },
 };
 
 function checkDynamicActions(page: PageSpec, onPage: Map<string, ItemSpec>, p: string[]): void {
@@ -329,8 +331,9 @@ function checkDynamicActions(page: PageSpec, onPage: Map<string, ItemSpec>, p: s
          if ((a.value !== undefined || a.from_item !== undefined) && a.action !== 'set_value') p.push(`${where}: value / from_item only apply to set_value`);
          if (a.action === 'set_value' && (a.value === undefined) === (a.from_item === undefined)) p.push(`${where}: needs exactly one of value or from_item`);
          if (a.from_item !== undefined) item('from_item', a.from_item);
-         if (a.message !== undefined && a.action !== 'confirm') p.push(`${where}: message only applies to confirm`);
-         if (a.action === 'confirm' && !a.message) p.push(`${where}: needs message`);
+         if (a.message !== undefined && a.action !== 'confirm' && a.action !== 'alert') p.push(`${where}: message only applies to confirm and alert`);
+         if ((a.action === 'confirm' || a.action === 'alert') && !a.message) p.push(`${where}: needs message`);
+         if (a.action === 'focus' && (a.items?.length ?? 0) > 1) p.push(`${where}: focus takes exactly one item`);
          if (a.request !== undefined && a.action !== 'submit_page') p.push(`${where}: request only applies to submit_page`);
          if (a.code !== undefined && a.action !== 'execute_server_code') p.push(`${where}: code only applies to execute_server_code`);
          if (a.action === 'execute_server_code' && !a.code?.trim()) p.push(`${where}: needs code`);

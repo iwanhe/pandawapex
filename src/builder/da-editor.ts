@@ -22,15 +22,16 @@ export const DA_CONDITIONS: [string, string][] = [
 export const DA_ACTIONS: [DaActionType, string][] = [
    ['show', 'Tampilkan'], ['hide', 'Sembunyikan'], ['enable', 'Aktifkan'], ['disable', 'Nonaktifkan'],
    ['set_value', 'Isi nilai'], ['clear', 'Kosongkan'], ['refresh', 'Muat ulang region'], ['confirm', 'Minta konfirmasi'],
-   ['submit_page', 'Kirim halaman'], ['execute_server_code', 'Jalankan kode di server'],
+   ['submit_page', 'Kirim halaman'], ['execute_server_code', 'Jalankan kode di server'], ['focus', 'Pindahkan kursor ke item'],
+   ['alert', 'Tampilkan pesan'],
 ];
 /** which action field applies to which action types (the rest is dropped on save and hidden by rpx.js) */
 const FOR: Record<string, DaActionType[]> = {
-   items: ['show', 'hide', 'enable', 'disable', 'set_value', 'clear'],
+   items: ['show', 'hide', 'enable', 'disable', 'set_value', 'clear', 'focus'],
    regions: ['show', 'hide', 'refresh'],
    buttons: ['show', 'hide', 'enable', 'disable'],
    value: ['set_value'], from_item: ['set_value'],
-   message: ['confirm'], request: ['submit_page'],
+   message: ['confirm', 'alert'], request: ['submit_page'],
    code: ['execute_server_code'], items_to_return: ['execute_server_code'],
    items_to_submit: ['execute_server_code', 'refresh'],
    on_load: ['show', 'hide', 'enable', 'disable', 'set_value', 'clear'],
@@ -223,7 +224,7 @@ export function daFormHtml(page: PageSpec, d: DaDraft, errors: Record<string, st
         <p class="r-help" id="${id('value')}-help">Dipakai bila "Ambil dari item" kosong.</p>`)}
       ${field('from_item', html`<label class="r-label" for="${id('from_item')}">Ambil dari item</label>
         <select class="r-input" id="${id('from_item')}" name="${p}.from_item"><option value="">(tidak, pakai nilai tetap)</option>${options(itemPairs, a.from_item)}</select>`)}
-      ${field('message', html`<label class="r-label" for="${id('message')}">Pertanyaan konfirmasi</label>
+      ${field('message', html`<label class="r-label" for="${id('message')}">Pesan</label>
         <input class="r-input" id="${id('message')}" name="${p}.message" value="${a.message}">`, true)}
       ${field('request', html`<label class="r-label" for="${id('request')}">REQUEST</label>
         <input class="r-input r-mono" id="${id('request')}" name="${p}.request" value="${a.request}" aria-describedby="${id('request')}-help">
