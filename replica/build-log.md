@@ -391,3 +391,10 @@ Yang lebih sulit dari perkiraan:
   aksi (mis. nilai tetap pada aksi Nonaktifkan) supaya tidak ditolak pemeriksaan spec. `rpx.js` hanya menyembunyikannya.
 
 Belum: aksi `focus` dan `alert`.
+
+## Dynamic Actions tahap 4: alert dan focus (2026-11-19), done
+
+Aksi `alert` (pesan biasa, aksi berikutnya menunggu OK) dan `focus` (satu item; radio = pilihan tercentang atau yang
+pertama; dilewati bila field tersembunyi/disabled). Migrasi `0007_da_focus_alert.sql` memperluas check constraint
+`da_actions_type_chk`. Formulir Page Designer: *Tampilkan pesan*, *Pindahkan kursor ke item*. Contoh: emp halaman 4
+(kursor ke Departemen tujuan setelah dikosongkan), aplikasi uji (gaji kosong).

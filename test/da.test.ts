@@ -75,6 +75,10 @@ describe('dynamic actions: spec checks', () => {
       ['submit as another button', `      - { name: a, event: change, items: [P1_JENIS], actions: [ { action: submit_page, request: SIMPAN } ] }`, /request SIMPAN is the name of another button/],
       ['submit on page load', `      - { name: a, event: page_load, actions: [ { action: submit_page, request: X } ] }`, /page_load action cannot submit_page or confirm/],
       ['on_load on refresh', `      - { name: a, event: change, items: [P1_JENIS], actions: [ { action: refresh, regions: [isian], on_load: true } ] }`, /on_load only applies to/],
+      ['focus on two items', `      - { name: a, event: page_load, actions: [ { action: focus, items: [P1_CATATAN, P1_JENIS] } ] }`, /focus takes exactly one item/],
+      ['focus on display only', `      - { name: a, event: page_load, actions: [ { action: focus, items: [P1_HASIL] } ] }`, /item P1_HASIL \(display_only\) has no field to focus/],
+      ['focus without item', `      - { name: a, event: page_load, actions: [ { action: focus } ] }`, /focus: needs items/],
+      ['alert without message', `      - { name: a, event: page_load, actions: [ { action: alert } ] }`, /alert: needs message/],
       ['message on hide', `      - { name: a, event: page_load, actions: [ { action: hide, items: [P1_CATATAN], message: x } ] }`, /message only applies to confirm/],
    ];
    for (const [name, das, expected] of cases) {

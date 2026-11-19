@@ -261,3 +261,4 @@ pages:
           - { action: confirm, message: Kosongkan semua isian tujuan mutasi? }
           - { action: clear, items: [P4_DEPT_TUJUAN, P4_JABATAN_BARU, P4_BERLAKU, P4_KEAHLIAN, P4_SETUJU] }
           - { action: set_value, items: [P4_STATUS], value: TETAP }
+          - { action: focus, items: [P4_DEPT_TUJUAN] }
