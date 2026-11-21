@@ -1,4 +1,4 @@
-# Aplikasi uji untuk e2e/da.spec.ts: semua jenis dynamic action DA1 di satu halaman.
+# Aplikasi uji untuk e2e/da.spec.ts: semua jenis dynamic action di halaman 1, dan satu halaman dialog (2).
 app: da
 name: Uji dynamic action
 parsing_schema: demo_app
@@ -19,10 +19,16 @@ pages:
               lov: { sql: "select nama as d, deptno as r from departemen order by nama" } }
           - { name: P1_GAJI, type: number, label: Gaji pokok, col_span: 6 }
           - { name: P1_TOTAL, type: display_only, label: Total dengan tunjangan, format: number }
+          - { name: P1_KARYAWAN, type: select, label: Karyawan, col_span: 6, cascade: [P1_DEPT],
+              lov: { sql: "select nama as d, empno as r from karyawan where deptno = :P1_DEPT::int order by nama" } }
+          - { name: P1_CERMIN_A, type: text, label: Cermin A, col_span: 3 }
+          - { name: P1_CERMIN_B, type: text, label: Cermin B, col_span: 3 }
         buttons:
           - { name: MUAT, label: Muat ulang jumlah, action: defined_by_da, style: ghost }
           - { name: HITUNG, label: Hitung total, action: defined_by_da, style: ghost }
           - { name: KIRIM, label: Kirim, hot: true, action: defined_by_da }
+          - { name: BUKA, label: Buka dialog, action: redirect, target: { page: 2 } }
+          - { name: ISI_HEADER, label: Isi dari header, action: defined_by_da, position: header }
       - static_id: jumlah
         title: Jumlah karyawan
         type: classic_report
@@ -33,9 +39,9 @@ pages:
         items: [P1_KIRIM]
         when: { item_equals: { item: P1_KIRIM, value: "Y" } }
         actions:
-          - { action: enable, items: [P1_EMAIL] }
+          - { action: enable, items: [P1_EMAIL, P1_KARYAWAN] }
         else:
-          - { action: disable, items: [P1_EMAIL] }
+          - { action: disable, items: [P1_EMAIL, P1_KARYAWAN] }
       - name: sapaan_dari_nama
         event: key_release
         items: [P1_NAMA]
@@ -51,6 +57,15 @@ pages:
         items: [P1_DEPT]
         actions:
           - { action: refresh, regions: [jumlah], items_to_submit: [P1_DEPT] }
+      # dua dynamic action yang saling mengisi: rantainya harus berhenti sendiri
+      - { name: cermin_a, event: change, items: [P1_CERMIN_A], actions: [ { action: set_value, items: [P1_CERMIN_B], from_item: P1_CERMIN_A } ] }
+      - { name: cermin_b, event: change, items: [P1_CERMIN_B], actions: [ { action: set_value, items: [P1_CERMIN_A], from_item: P1_CERMIN_B } ] }
+      - name: isi_dari_header
+        event: click
+        button: ISI_HEADER
+        actions:
+          - { action: set_value, items: [P1_SAPAAN], value: dari header }
+          - { action: focus, items: [P1_SAPAAN] }
       - name: gaji_kosong
         event: change
         items: [P1_GAJI]
@@ -87,3 +102,32 @@ pages:
         code: "perform rpx_rt.set_item('P1_HASIL', 'terkirim ke ' || coalesce(:P1_EMAIL, '-') || ' untuk ' || coalesce(:P1_SAPAAN, '-'));"
     branches:
       - { page: 1 }
+  - page: 2
+    name: Dialog uji
+    mode: modal
+    dialog_size: sm
+    regions:
+      - static_id: hitung
+        title: Hitung di dialog
+        type: static
+        items:
+          - { name: P2_ANGKA, type: number, label: Angka }
+          - { name: P2_HASIL, type: display_only, label: Hasil kali dua }
+        buttons:
+          - { name: TUTUP, label: Tutup, action: close_dialog }
+          - { name: KALI, label: Kali dua, hot: true, action: defined_by_da }
+    dynamic_actions:
+      - name: kali_dua
+        event: click
+        button: KALI
+        actions:
+          - action: execute_server_code
+            items_to_submit: [P2_ANGKA]
+            items_to_return: [P2_HASIL]
+            code: |
+              begin
+                 if :P2_ANGKA::numeric < 0 then
+                    raise exception 'Angka <img src=x onerror=alert(1)> % ditolak.', :P2_ANGKA;
+                 end if;
+                 perform rpx_rt.set_item('P2_HASIL', (:P2_ANGKA::numeric * 2)::text);
+              end;

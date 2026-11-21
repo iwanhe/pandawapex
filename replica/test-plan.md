@@ -352,3 +352,23 @@ Run: `npm test` 214/214, e2e 120/120 (2 skip). Bug baru: tidak ada.
 | DA-H9 | browser | happy | gaji dikosongkan → pesan tampil → setelah OK kursor kembali ke Gaji pokok | e2e | ✅ |
 
 Migrasi `0007_da_focus_alert.sql` dipasang oleh `db migrate` di tes dan e2e.
+
+## Uji menyeluruh Dynamic Actions (2026-11-21, build `49fa95a`)
+
+Kasus tepi di atas DA1–DA4. Aplikasi uji `e2e/da-app.yaml` ditambah item cascade, dua item cermin, tombol di header,
+dan halaman 2 berupa dialog modal.
+
+| ID | Area | Jenis | Kasus | Cara | Status |
+| --- | --- | --- | --- | --- | --- |
+| DA-E1 | browser | tepi | dialog modal: kode server mengisi hasil di dalam dialog; error berisi `<img onerror>` tampil sebagai teks, tidak dieksekusi | e2e | ✅ |
+| DA-E2 | browser | tepi | tombol `defined_by_da` di posisi header berjalan seperti di region | e2e | ✅ |
+| DA-E3 | browser | tepi | select cascade yang dimuat ulang tetap disabled sesuai dynamic action | e2e | ✅ |
+| DA-E4 | browser | tepi | dua dynamic action saling `set_value`: rantai berhenti sendiri, halaman tidak macet | e2e | ✅ |
+| DA-E5 | browser | tepi | sesi berakhir sebelum panggilan server: diarahkan ke login lalu kembali ke halaman | e2e | ✅ |
+| DA-E6 | server | tepi | aplikasi diimpor ulang saat halaman terbuka: kode yang diubah langsung berlaku; dynamic action yang diganti nama ditolak 400 "Muat ulang halaman" | int | ✅ |
+| DA-E7 | builder | tepi | dua developer mengubah dynamic action yang sama: yang kedua 409, draft tetap; simpan ulang menimpa dengan sengaja | int | ✅ |
+| DA-E8 | browser | tepi | keyboard (panah di radio, Enter di tombol, Tab memicu change) di DA-H1/H2/H8/H9, dan semua kasus DA-* juga dijalankan di proyek mobile 390 px | e2e | ✅ |
+
+Run: `npm test` 220/220, e2e 132/132 (2 skip). Bug baru: tidak ada. Kegagalan selama pengerjaan semuanya kesalahan tes
+(selector Playwright, aplikasi uji yang belum men-disable item cascade, harapan status pada tab basi), bukan bug
+produk, jadi `bugs.md` tidak berubah.

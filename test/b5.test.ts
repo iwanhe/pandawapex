@@ -169,6 +169,22 @@ describe('page designer (B5)', () => {
       assert.deepEqual(await daPage(), before);
    });
 
+   test('DA4: two developers change the same dynamic action: the second save is refused and keeps what was typed', async () => {
+      const first = daForm((await dev.get(`${P(2)}?node=da:0`)).body);
+      const second = daForm((await dev.get(`${P(2)}?node=da:0`)).body);
+      const ok = await dev.post(P(2), { ...first, 'da.cond_value': 'TETAP', do: 'save' });
+      assert.equal(ok.statusCode, 303, ok.body.slice(0, 800));
+      const late = await dev.post(P(2), { ...second, 'da.name': 'nama_dari_tab_lain', do: 'save' });
+      assert.equal(late.statusCode, 409);
+      assert.match(late.body, /Aplikasi sudah diubah di tab lain atau oleh developer lain/);
+      assert.match(late.body, /id="da-name" name="da\.name" value="nama_dari_tab_lain"/, 'the form keeps what was typed');
+      assert.deepEqual((await daPage())[0].when, { item_equals: { item: 'P2_STATUS_KERJA', value: 'TETAP' } }, 'the first save stays');
+      // after the warning the form carries the new version: saving again overwrites on purpose
+      const again = await dev.post(P(2), { ...daForm(late.body), do: 'save' });
+      assert.equal(again.statusCode, 303, again.body.slice(0, 800));
+      assert.equal((await daPage())[0].name, 'nama_dari_tab_lain');
+   });
+
    test('DA3: edit as YAML; add and delete a dynamic action from the tree', async () => {
       const form = daForm((await dev.get(`${P(2)}?node=da:0`)).body);
       const broken = await dev.post(P(2), { ...form, yaml: 'name: [', do: 'save_yaml' });

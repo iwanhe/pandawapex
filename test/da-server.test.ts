@@ -1,5 +1,6 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { importApp } from '../src/cli/commands.ts';
 import { parseSpec, SpecError } from '../src/spec/import.ts';
 import { Browser, formFields, setup, type Env } from './helpers.ts';
 
@@ -173,5 +174,21 @@ describe('DA2: calling the server', () => {
       const anon = await stranger.post(`${env.base}/1/da`, { __csrf: fields.__csrf, __ps: fields.__ps, da: 'hitung', a: '0' });
       assert.equal(anon.statusCode, 401);
       assert.equal(await departemen('DA 1'), 0);
+   });
+
+   test('the application is imported again while the page is open: the call uses the new definition or says to reload', async () => {
+      const spec = SPEC.replace(/parsing_schema: \w+/, `parsing_schema: ${env.schema}`);
+      const { b, fields } = await open();
+      // same name, new code: the page that is open runs the new code
+      await importApp(env.pool, env.ws, spec.replace("(:P1_A::int * 2000)::text", "(:P1_A::int * 3)::text"), 'test');
+      const r = await call(b, fields, { da: 'hitung', a: '0', P1_A: '5' });
+      assert.equal(r.statusCode, 200, r.body);
+      assert.equal(JSON.parse(r.body).items.P1_B, '15');
+      // renamed: the open page asks to be reloaded
+      await importApp(env.pool, env.ws, spec.replace('      - name: hitung\n', '      - name: hitung_baru\n'), 'test');
+      const gone = await call(b, fields, { da: 'hitung', a: '0', P1_A: '5' });
+      assert.equal(gone.statusCode, 400);
+      assert.match(JSON.parse(gone.body).error, /Muat ulang halaman/);
+      await importApp(env.pool, env.ws, spec, 'test');
    });
 });

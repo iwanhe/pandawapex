@@ -165,6 +165,72 @@ test.describe('DA dynamic actions', () => {
          await expect(gaji).toBeFocused();
       });
 
+      test('DA-E1 inside a modal dialog: server code returns into the dialog, its error is shown as text', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         await page.getByRole('link', { name: 'Buka dialog' }).or(page.getByRole('button', { name: 'Buka dialog' })).click();
+         await expect(page.getByRole('dialog', { name: 'Dialog uji' })).toBeVisible();
+         const frame = page.frameLocator('dialog iframe');
+         await frame.getByLabel('Angka').fill('21');
+         await frame.getByRole('button', { name: 'Kali dua' }).click();
+         await expect(frame.locator('#P2_HASIL')).toHaveText('42');
+         let dialogs = 0;
+         page.on('dialog', d => { dialogs++; return d.dismiss(); });
+         await frame.getByLabel('Angka').fill('-3');
+         await frame.getByRole('button', { name: 'Kali dua' }).click();
+         const alert = frame.getByRole('alert');
+         await expect(alert).toContainText('Angka <img src=x onerror=alert(1)> -3 ditolak.');
+         expect(await alert.locator('img').count(), 'markup in the message stays text').toBe(0);
+         expect(dialogs).toBe(0);
+         await expect(frame.locator('#P2_HASIL')).toHaveText('42');
+         expect(await axe(page)).toEqual([]);
+      });
+
+      test('DA-E2 a defined_by_da button in the page header works like one in a region', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         await page.getByRole('button', { name: 'Isi dari header' }).click();
+         await expect(page.getByLabel('Sapaan')).toHaveValue('dari header');
+         await expect(page.getByLabel('Sapaan')).toBeFocused();
+      });
+
+      test('DA-E3 a cascading list that is refreshed keeps the state a dynamic action gave it', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         const karyawan = page.getByLabel('Karyawan', { exact: true });
+         await expect(karyawan).toBeDisabled();                 // switch off: disabled on load
+         await Promise.all([
+            page.waitForResponse(r => r.url().includes('/field/P1_KARYAWAN')),
+            page.getByLabel('Departemen').selectOption({ label: 'Keuangan' }),
+         ]);
+         await expect(karyawan.locator('option')).not.toHaveCount(1);   // the list now has the department's people
+         await expect(karyawan).toBeDisabled();                 // ... and is still disabled after it was replaced
+         await page.getByRole('switch', { name: 'Kirim lewat email' }).check();
+         await expect(karyawan).toBeEnabled();
+      });
+
+      test('DA-E4 two dynamic actions that feed each other stop by themselves', async ({ page }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         await page.getByLabel('Cermin A').fill('halo');
+         await page.getByLabel('Cermin A').press('Tab');
+         await expect(page.getByLabel('Cermin B')).toHaveValue('halo');
+         await page.getByLabel('Cermin B').fill('dunia');
+         await page.getByLabel('Cermin B').press('Tab');
+         await expect(page.getByLabel('Cermin A')).toHaveValue('dunia');
+         // the page still answers
+         await page.getByRole('button', { name: 'Isi dari header' }).click();
+         await expect(page.getByLabel('Sapaan')).toHaveValue('dari header');
+      });
+
+      test('DA-E5 the session ends before a server call: the page goes to the login and back', async ({ page, db }) => {
+         await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
+         await page.getByLabel('Gaji pokok').fill('100');
+         await db.query(`delete from rpx.sessions where app_user_id = (select id from rpx.app_users where username = $1 limit 1)`, [E2E.user]);
+         await page.getByRole('button', { name: 'Hitung total' }).click();
+         await expect(page.getByLabel('Nama pengguna')).toBeVisible();
+         await page.getByLabel('Nama pengguna').fill(E2E.user);
+         await page.getByLabel('Kata sandi').fill(E2E.password);
+         await page.getByRole('button', { name: 'Masuk', exact: true }).click();
+         await expect(page.getByRole('button', { name: 'Hitung total' })).toBeVisible();
+      });
+
       test('DA-H8 refresh with items to submit: the report follows the chosen department without a reload', async ({ page, db }) => {
          await login(page, E2E.user, E2E.password, `${DA_APP}/1`);
          const region = page.getByRole('region', { name: 'Jumlah karyawan' });
