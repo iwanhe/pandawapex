@@ -851,4 +851,4 @@ builder lewat hostname yang terdaftar, atau, di laptop sendiri, jalankan server 
 aplikasi sendiri.
 
 **Interactive Grid, drag-drop tata letak?** Belum ada. Lihat bagian "Belum ada" di
-[checkpoint-fase2.md](checkpoint-fase2.md#yang-belum-ada).
+[checkpoint-fase3.md](checkpoint-fase3.md#yang-belum-ada).
