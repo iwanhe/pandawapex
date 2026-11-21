@@ -168,7 +168,6 @@ git push origin <nama-tag>
 | #23 | **Dynamic Actions tahap 2**: `execute_server_code` (PL/pgSQL di server tanpa submit, dengan *items to submit/return*) dan refresh region dengan nilai item terbaru. Contoh: pilih karyawan di halaman Mutasi, posisinya langsung tampil |
 | #24 | **Dynamic Actions tahap 3**: dynamic action tampil di pohon Page Designer dan diubah lewat formulir (event, kondisi, daftar aksi dengan pilihan item/region/tombol dari halaman); tetap bisa diubah sebagai YAML |
 | #25 | Dynamic action: aksi `alert` (tampilkan pesan) dan `focus` (pindahkan kursor ke item). **Butuh migrasi** `0007_da_focus_alert.sql`: jalankan `npm run rpx -- db migrate` setelah `git pull` |
-
 | #26 | Uji menyeluruh dynamic action dan referensi lengkap di panduan; **[checkpoint 3](checkpoint-fase3.md)** |
 
 Kondisi terbaru: `npm test` 220 lulus, tes browser 132 lulus (2 sengaja dilewati). Migrasi terakhir
