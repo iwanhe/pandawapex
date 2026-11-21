@@ -398,3 +398,11 @@ Aksi `alert` (pesan biasa, aksi berikutnya menunggu OK) dan `focus` (satu item; 
 pertama; dilewati bila field tersembunyi/disabled). Migrasi `0007_da_focus_alert.sql` memperluas check constraint
 `da_actions_type_chk`. Formulir Page Designer: *Tampilkan pesan*, *Pindahkan kursor ke item*. Contoh: emp halaman 4
 (kursor ke Departemen tujuan setelah dikosongkan), aplikasi uji (gaji kosong).
+
+## Dynamic Actions: uji menyeluruh dan dokumentasi (2026-11-21), done
+
+Tidak ada perubahan produk. Kasus tepi DA-E1..E8 (dialog modal, tombol header, cascade, rantai `set_value`, sesi
+berakhir, impor ulang saat halaman terbuka, dua developer, keyboard/mobile) semuanya lulus tanpa perbaikan. Bagian
+dynamic action di `docs/panduan-pengguna.md` disusun ulang jadi referensi lengkap: cara kerja, langkah formulir, tabel
+event/kondisi/aksi, contoh per kasus, padanan istilah APEX, keamanan, dan daftar uji untuk tim. Checkpoint 3:
+`docs/checkpoint-fase3.md`.

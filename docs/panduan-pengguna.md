@@ -358,9 +358,40 @@ Hal yang sama berlaku untuk **Properti aplikasi** dan wizard **Tambah halaman**.
 
 ### Dynamic actions (aksi di browser)
 
-Dynamic action menjalankan aksi **di browser, tanpa mengirim halaman**: menyembunyikan field saat pilihan tertentu
-dipilih, mengisi field dari field lain, mengosongkan isian, memuat ulang satu region, atau menanyakan konfirmasi sebelum
-mengirim, atau menjalankan kode PL/pgSQL di server. Ini padanan *Dynamic Actions* di APEX.
+Dynamic action menjalankan aksi **di browser, tanpa mengirim halaman**. Contohnya: menyembunyikan field saat pilihan
+tertentu dipilih, mengisi field dari field lain, mengosongkan isian, memuat ulang satu region, menanyakan konfirmasi
+sebelum mengirim, atau menjalankan kode PL/pgSQL di server lalu menampilkan hasilnya. Ini padanan *Dynamic Actions* di
+APEX.
+
+Bagian ini adalah referensi lengkap. Urutannya:
+
+1. [Cara kerja singkat](#cara-kerja-singkat)
+2. [Membuat dynamic action di Page Designer](#membuat-dynamic-action-di-page-designer)
+3. [Referensi: event, kondisi, aksi](#referensi-event-kondisi-aksi)
+4. [Contoh per kasus](#contoh-per-kasus)
+5. [Padanan istilah APEX](#padanan-istilah-apex)
+6. [Keamanan dan batasan](#keamanan-dan-batasan)
+7. [Daftar uji untuk tim](#daftar-uji-dynamic-action-untuk-tim)
+
+#### Cara kerja singkat
+
+Setiap dynamic action punya empat bagian:
+
+| bagian | pertanyaan yang dijawab | kunci di YAML |
+| --- | --- | --- |
+| **Event** | kapan berjalan? | `event:` (+ `items:` atau `button:`) |
+| **Kondisi** (opsional) | dalam keadaan apa? | `when:` |
+| **Aksi bila benar** | apa yang dilakukan? | `actions:` |
+| **Aksi bila salah** (opsional) | apa yang dilakukan bila kondisi salah? | `else:` |
+
+Aksi dijalankan berurutan dari atas ke bawah. Bila tidak ada kondisi, yang berjalan selalu `actions:`; `else:` tidak
+pernah berjalan.
+
+Saat halaman dibuka, browser menerima daftar dynamic action halaman itu (tanpa kode server). Semua yang terjadi di
+browser hanya kenyamanan bagi pengguna; aturan yang melindungi data tetap di server (lihat
+[Keamanan dan batasan](#keamanan-dan-batasan)).
+
+#### Membuat dynamic action di Page Designer
 
 **Langkah 1. Tambah dynamic action.** Di Page Designer, pohon kiri punya kelompok **Dynamic action**. Klik
 **Tambah dynamic action**. Yang dibuat adalah contoh awal (saat halaman dibuka, tampilkan region pertama) dan langsung
@@ -368,7 +399,7 @@ terbuka di editor kanan.
 
 **Langkah 2. Isi formulirnya.** Contoh: karyawan magang tidak diisi keahliannya (aplikasi contoh emp, halaman 2).
 
-1. **Nama**: `magang_tanpa_keahlian` (unik di halaman ini).
+1. **Nama**: `magang_tanpa_keahlian` (unik di halaman ini, huruf kecil dan garis bawah).
 2. **Kapan berjalan**: *Item berubah*. Lalu di **Item yang diawasi** pilih `P2_STATUS_KERJA`
    (Ctrl/Cmd + klik untuk memilih lebih dari satu).
 3. **Kondisi**: *Item sama dengan*, **Item kondisi** `P2_STATUS_KERJA`, **Nilai kondisi** `MAGANG`.
@@ -376,77 +407,143 @@ terbuka di editor kanan.
 5. Klik **Tambah aksi**. **Aksi 2**: *Tampilkan*, **Dijalankan bila** *kondisi salah (else)*, **Item** `P2_KEAHLIAN`.
 6. Klik **Simpan**.
 
-Formulir hanya menampilkan isian yang berlaku untuk pilihan Anda; misalnya **Kode PL/pgSQL** baru muncul setelah jenis aksi
-*Jalankan kode di server* dipilih. Tombol **Naik**, **Turun**, dan **Hapus** di setiap aksi mengubah daftar aksi tanpa
-menyimpan; perubahan baru tersimpan setelah **Simpan**. Urutan dan hapus dynamic action sendiri ada di tombol di atas
-editor, sama seperti komponen lain.
+**Langkah 3. Jalankan halamannya.** Pilih *Magang*: grup Keahlian hilang. Pilih *Tetap*: muncul lagi. Saat halaman
+dibuka untuk karyawan yang sudah magang, grup itu langsung tersembunyi (lihat `on_load` di bawah).
 
-Lebih suka menulis langsung? Buka **Ubah sebagai YAML** di bawah formulir, ubah, lalu **Simpan YAML**. Di file spec,
+Hal yang perlu diketahui tentang formulir:
+
+- Formulir hanya menampilkan isian yang berlaku untuk pilihan Anda. Misalnya **Kode PL/pgSQL** baru muncul setelah
+  jenis aksi *Jalankan kode di server* dipilih, dan **Pesan** hanya untuk *Minta konfirmasi* dan *Tampilkan pesan*.
+- Tombol **Naik**, **Turun**, dan **Hapus** di setiap aksi mengubah daftar aksi tanpa menyimpan. Perubahan baru
+  tersimpan setelah **Simpan**.
+- Urutan dan hapus dynamic action sendiri ada di tombol di atas editor, sama seperti komponen lain.
+- Bila ada yang salah (nama item salah ketik, aksi tanpa target), simpan ditolak. Pesannya menyebut dynamic action dan
+  aksinya, sama seperti saat impor spec. Isian Anda tidak hilang.
+- Bila developer lain menyimpan halaman yang sama lebih dulu, simpan Anda ditolak dengan pesan bentrok dan isian Anda
+  tetap di formulir. Klik **Simpan** sekali lagi bila memang ingin menimpa, atau buka ulang halaman untuk melihat
+  perubahan rekan Anda.
+
+**Lebih suka menulis YAML?** Buka **Ubah sebagai YAML** di bawah formulir, ubah, lalu **Simpan YAML**. Di file spec,
 dynamic action ditulis di bawah halaman dengan kunci `dynamic_actions:` (sejajar dengan `regions:` dan `processes:`).
 Hasil langkah 2 dalam YAML:
 
 ```yaml
-- name: magang_tanpa_keahlian         # nama unik di halaman ini
-  event: change                       # kapan berjalan
-  items: [P2_STATUS_KERJA]            # item yang diawasi
-  when: { item_equals: { item: P2_STATUS_KERJA, value: MAGANG } }   # kondisi (boleh tidak ada)
-  actions:                            # dijalankan bila kondisi benar
-    - { action: hide, items: [P2_KEAHLIAN] }
-  else:                               # dijalankan bila kondisi salah
-    - { action: show, items: [P2_KEAHLIAN] }
+dynamic_actions:
+  - name: magang_tanpa_keahlian         # nama unik di halaman ini
+    event: change                       # kapan berjalan
+    items: [P2_STATUS_KERJA]            # item yang diawasi
+    when: { item_equals: { item: P2_STATUS_KERJA, value: MAGANG } }   # kondisi (boleh tidak ada)
+    actions:                            # dijalankan bila kondisi benar
+      - { action: hide, items: [P2_KEAHLIAN] }
+    else:                               # dijalankan bila kondisi salah
+      - { action: show, items: [P2_KEAHLIAN] }
 ```
 
-**Langkah 3. Simpan, lalu jalankan halamannya.** Pilih *Magang*: grup Keahlian hilang. Pilih *Tetap*: muncul lagi. Saat
-halaman dibuka untuk karyawan yang sudah magang, grup itu langsung tersembunyi (lihat `on_load` di bawah).
+Label di formulir dan nama di YAML:
 
-Bila ada yang salah (nama item salah ketik, aksi tanpa target), simpan ditolak dengan pesan yang menyebut dynamic action
-dan aksinya, sama seperti impor spec.
+| formulir Page Designer | YAML |
+| --- | --- |
+| Item berubah / Mengetik di item / Tombol diklik / Halaman dibuka | `change` / `key_release` / `click` / `page_load` |
+| Tampilkan / Sembunyikan | `show` / `hide` |
+| Aktifkan / Nonaktifkan | `enable` / `disable` |
+| Isi nilai / Kosongkan | `set_value` / `clear` |
+| Muat ulang region | `refresh` |
+| Minta konfirmasi / Tampilkan pesan | `confirm` / `alert` |
+| Pindahkan kursor ke item | `focus` |
+| Kirim halaman | `submit_page` |
+| Jalankan kode di server | `execute_server_code` |
+| Dijalankan bila: kondisi benar / kondisi salah (else) | di bawah `actions:` / di bawah `else:` |
+| Kondisi: Selalu / Item sama dengan / tidak sama dengan / salah satu dari / bukan salah satu dari / kosong / terisi | tanpa `when:` / `item_equals` / `item_not_equals` / `item_in` / `item_not_in` / `item_null` / `item_not_null` |
+
+#### Referensi: event, kondisi, aksi
 
 **Event** (`event:`)
 
 | event | berjalan saat | wajib diisi |
 | --- | --- | --- |
-| `change` | nilai salah satu item berubah | `items: [...]` |
+| `change` | nilai salah satu item berubah (juga saat diubah oleh `set_value`/`clear` dynamic action lain) | `items: [...]` |
 | `key_release` | tombol keyboard dilepas di item teks (setiap ketikan) | `items: [...]` |
 | `click` | tombol diklik | `button: NAMA`; tombolnya harus ber-`action: defined_by_da` |
 | `page_load` | halaman selesai dibuka | — |
 
 **Kondisi** (`when:`, opsional, dicek di browser terhadap nilai item saat itu)
 
-| kondisi | contoh |
-| --- | --- |
-| `item_equals` / `item_not_equals` | `{ item_equals: { item: P2_STATUS, value: "Y" } }` |
-| `item_in` / `item_not_in` | `{ item_in: { item: P2_STATUS, values: [A, B] } }` |
-| `item_null` / `item_not_null` | `{ item_null: P2_CATATAN }` |
+| kondisi | benar bila | contoh |
+| --- | --- | --- |
+| `item_equals` / `item_not_equals` | nilai item sama / tidak sama dengan `value` | `{ item_equals: { item: P2_STATUS, value: "Y" } }` |
+| `item_in` / `item_not_in` | nilai item ada / tidak ada di `values` | `{ item_in: { item: P2_STATUS, values: [A, B] } }` |
+| `item_null` / `item_not_null` | item kosong / terisi | `{ item_null: P2_CATATAN }` |
 
 Nilai dibandingkan sebagai teks, sama seperti yang dikirim ke server: switch/checkbox bernilai `on_value`/`off_value`
-(bawaan `Y`/`N`), checkbox group digabung dengan `:` (mis. `SQL:K3`), item kosong = `""`.
+(bawaan `Y`/`N`), checkbox group digabung dengan `:` (mis. `SQL:K3`), item kosong = `""`. Tulis nilai angka dalam
+tanda kutip bila perlu (`value: "10"`).
 
 **Aksi** (`actions:` dan `else:`, dijalankan berurutan)
 
-| aksi | target | isian lain | keterangan |
-| --- | --- | --- | --- |
-| `show` / `hide` | `items`, `regions`, `buttons` | | region ditulis dengan `static_id`-nya |
-| `enable` / `disable` | `items`, `buttons` | | field yang di-disable tetap ikut terkirim saat submit |
-| `set_value` | `items` | `value: teks` **atau** `from_item: P1_X` | memicu `change` pada item tujuan |
-| `clear` | `items` | | mengosongkan; checkbox jadi tidak dicentang |
-| `refresh` | `regions` | | memuat ulang region dari server tanpa mengganggu isian lain |
-| `confirm` | — | `message: teks` | **Batal** menghentikan aksi-aksi berikutnya |
-| `alert` | — | `message: teks` | menampilkan pesan; aksi berikutnya berjalan setelah **OK** |
-| `focus` | `items` (satu item) | | memindahkan kursor ke item itu; radio: pilihan yang tercentang atau yang pertama |
-| `submit_page` | — | `request: NAMA` | mengirim halaman; proses dan branch melihat `NAMA` sebagai REQUEST |
-| `execute_server_code` | — | `code`, `items_to_submit`, `items_to_return` | menjalankan PL/pgSQL di server tanpa mengirim halaman; lihat di bawah |
+| aksi | target | isian lain | saat halaman dibuka (`on_load` bawaan) | keterangan |
+| --- | --- | --- | --- | --- |
+| `show` / `hide` | `items`, `regions`, `buttons` | | ya | region ditulis dengan `static_id`-nya |
+| `enable` / `disable` | `items`, `buttons` | | ya | field yang di-disable tetap ikut terkirim saat submit |
+| `set_value` | `items` | `value: teks` **atau** `from_item: P1_X` | tidak (boleh `true`) | memicu `change` pada item tujuan |
+| `clear` | `items` | | tidak (boleh `true`) | mengosongkan; checkbox jadi tidak dicentang |
+| `refresh` | `regions` | `items_to_submit` (opsional) | tidak pernah | memuat ulang region dari server tanpa mengganggu isian lain |
+| `confirm` | — | `message: teks` | tidak pernah | **Batal** menghentikan aksi-aksi berikutnya |
+| `alert` | — | `message: teks` | tidak pernah | menampilkan pesan; aksi berikutnya berjalan setelah **OK** |
+| `focus` | `items` (tepat satu item) | | tidak pernah | memindahkan kursor ke item itu; radio: pilihan yang tercentang atau yang pertama |
+| `submit_page` | — | `request: NAMA` (opsional) | tidak pernah | mengirim halaman; proses dan branch melihat `NAMA` sebagai REQUEST |
+| `execute_server_code` | — | `code`, `items_to_submit`, `items_to_return` | tidak pernah | menjalankan PL/pgSQL di server tanpa mengirim halaman |
 
-`refresh` juga boleh diberi `items_to_submit: [...]`: nilai item itu di browser disimpan dulu ke session state, baru region
-dimuat ulang. Dengan begitu report yang query-nya memakai `:P1_DEPT` langsung tersaring begitu pilihan berubah.
+`on_load: true/false` pada aksi menentukan apakah aksi itu juga dijalankan saat halaman dibuka. Kolom "saat halaman
+dibuka" di atas adalah bawaannya; `on_load` hanya boleh diisi untuk `show`, `hide`, `enable`, `disable`, `set_value`,
+dan `clear` (di formulir: **Juga saat halaman dibuka**). Aksi `show`/`hide`/`enable`/`disable` bawaannya `true` agar
+halaman langsung tampil dalam keadaan yang benar, misalnya saat membuka data yang sudah tersimpan.
 
-`on_load: true/false` pada aksi menentukan apakah aksi itu juga dijalankan saat halaman dibuka. Bawaannya `true` untuk
-`show`, `hide`, `enable`, `disable` (agar halaman langsung tampil dalam keadaan yang benar) dan `false` untuk `set_value`
-dan `clear`. `refresh`, `confirm`, dan `submit_page` tidak pernah berjalan saat halaman dibuka.
+Dynamic action ber-`event: page_load` berbeda: semua aksinya dijalankan saat halaman dibuka (kecuali `submit_page` dan
+`confirm`, yang tidak boleh ada di sana), jadi `alert`, `focus`, dan `execute_server_code` pun boleh dipakai.
 
-**Tombol yang dikendalikan dynamic action.** Tombol biasa langsung mengirim halaman. Bila tombol harus bertanya dulu atau
-hanya mengubah isian di browser, beri `action: defined_by_da` lalu buat dynamic action `event: click` untuknya.
-Contoh dari halaman 4 (Mutasi):
+Aturan yang dicek saat menyimpan (pesan error menyebut aksinya):
+
+- Setiap item, region, dan tombol yang disebut harus ada di halaman ini.
+- `focus` hanya untuk tepat satu item; `message` hanya untuk `confirm` dan `alert`.
+- `items_to_submit` hanya untuk `execute_server_code` dan `refresh`; item *display only* tidak bisa dikirim.
+- `request` pada `submit_page` tidak boleh nama tombol lain di halaman.
+- Dynamic action `page_load` tidak boleh berisi `submit_page` atau `confirm`.
+
+#### Contoh per kasus
+
+Kasus 1, 4, dan 7 ada di aplikasi contoh **emp** (`examples/emp/app.yaml`), jadi bisa langsung dicoba. Kasus lain
+diambil dari aplikasi uji otomatis `e2e/da-app.yaml`; salin polanya ke halaman Anda dan sesuaikan nama item, region,
+dan tombolnya.
+
+**Kasus 1. Sembunyikan/tampilkan field berdasarkan pilihan.** Lihat contoh `magang_tanpa_keahlian` di atas. Pola
+umumnya: `event: change`, kondisi pada item yang sama, `hide` di `actions:` dan `show` di `else:`.
+
+**Kasus 2. Aktifkan field hanya bila switch menyala.**
+
+```yaml
+- name: email_jika_kirim
+  event: change
+  items: [P1_KIRIM]
+  when: { item_equals: { item: P1_KIRIM, value: "Y" } }
+  actions:
+    - { action: enable, items: [P1_EMAIL] }
+  else:
+    - { action: disable, items: [P1_EMAIL] }
+```
+
+**Kasus 3. Isi field dari field lain sambil mengetik.** `from_item` menyalin nilai; `value` mengisi teks tetap.
+
+```yaml
+- name: sapaan_dari_nama
+  event: key_release
+  items: [P1_NAMA]
+  actions:
+    - { action: set_value, items: [P1_SAPAAN], from_item: P1_NAMA }
+```
+
+**Kasus 4. Tombol yang bertanya dulu lalu mengosongkan isian.** Tombol biasa langsung mengirim halaman. Bila tombol
+harus bertanya dulu atau hanya mengubah isian di browser, beri `action: defined_by_da` lalu buat dynamic action
+`event: click` untuknya. Contoh dari halaman 4 (Mutasi):
 
 ```yaml
 regions:
@@ -465,12 +562,40 @@ dynamic_actions:
       - { action: focus, items: [P4_DEPT_TUJUAN] }
 ```
 
-Bila dynamic action klik berakhir dengan `submit_page` tanpa `request`, REQUEST-nya nama tombol itu, jadi proses cukup
-memakai `when_button: NAMA_TOMBOL` seperti tombol biasa. `request` lain boleh dipakai (mis. `CATAT`); di proses gunakan
-`condition: { request_equals: CATAT }`. Nama tombol lain di halaman tidak boleh dipakai sebagai `request`.
+Tombol `defined_by_da` boleh diletakkan di posisi mana pun (termasuk header region) dan juga berfungsi di halaman
+dialog (modal).
 
-**Menjalankan kode di server (`execute_server_code`).** Dipakai bila nilai perlu diambil atau dihitung dari database
-tanpa mengirim halaman, mis. menampilkan jabatan saat karyawan dipilih. Contoh dari halaman 4 (Mutasi):
+**Kasus 5. Tanya dulu, lalu kirim halaman.**
+
+```yaml
+- name: kirim
+  event: click
+  button: KIRIM
+  actions:
+    - { action: confirm, message: Kirim sekarang? }
+    - { action: submit_page }
+```
+
+Bila `submit_page` tidak diberi `request`, REQUEST-nya nama tombol itu (`KIRIM`), jadi proses cukup memakai
+`when_button: KIRIM` seperti tombol biasa. `request` lain boleh dipakai (mis. `CATAT`); di proses gunakan
+`condition: { request_equals: CATAT }`.
+
+**Kasus 6. Saring report saat pilihan berubah.** `refresh` dengan `items_to_submit` menyimpan nilai item di browser
+ke session state dulu, baru region dimuat ulang. Report yang query-nya memakai `:P1_DEPT` langsung tersaring.
+
+```yaml
+- name: saring_departemen
+  event: change
+  items: [P1_DEPT]
+  actions:
+    - { action: refresh, regions: [jumlah], items_to_submit: [P1_DEPT] }
+```
+
+Item yang mengikuti item lain (`cascade: [P1_DEPT]`) sudah dimuat ulang otomatis; tidak perlu dynamic action untuk itu.
+Keadaan disable/enable yang diatur dynamic action tetap berlaku setelah item itu dimuat ulang.
+
+**Kasus 7. Ambil nilai dari database tanpa mengirim halaman (`execute_server_code`).** Misalnya menampilkan jabatan
+saat karyawan dipilih. Contoh dari halaman 4 (Mutasi):
 
 ```yaml
 - name: posisi_karyawan
@@ -498,32 +623,111 @@ Cara kerjanya, langkah demi langkah:
 2. Kode dijalankan sebagai role workspace, sama seperti proses PL/pgSQL. Baca item dengan `:P4_EMPNO`, ubah item dengan
    `perform rpx_rt.set_item('P4_POSISI', nilai)`. Perubahan data (insert/update) disimpan (commit).
 3. Nilai item di `items_to_return` dikirim balik dan langsung tampil di halaman. Item *display only* juga bisa, dan
-   tampil dengan formatnya (mis. angka `1.100`).
+   tampil dengan formatnya (mis. angka `1.100`). Nilai yang dikembalikan memicu `change`, jadi dynamic action lain yang
+   mengawasi item itu ikut berjalan.
 4. Aksi berikutnya di dynamic action yang sama baru berjalan setelah server selesai.
 
-Bila kode gagal (`raise exception 'Pesan.'`) atau nilai yang dikirim tidak valid, semua perubahan dibatalkan, session state
-tetap seperti sebelumnya, pesan **Aksi tidak berhasil.** beserta alasannya tampil di atas formulir, dan aksi-aksi berikutnya
-tidak dijalankan.
+Bila kode gagal (`raise exception 'Pesan.'`) atau nilai yang dikirim tidak valid, semua perubahan dibatalkan, session
+state tetap seperti sebelumnya, pesan **Aksi tidak berhasil.** beserta alasannya tampil di atas formulir, dan aksi-aksi
+berikutnya tidak dijalankan. Pesan ditampilkan sebagai teks biasa, jadi aman walaupun berisi tanda `<` atau `>`.
 
 Hal yang perlu diingat:
 
-- Kode hanya tersimpan di server. Browser tidak pernah menerima isi kode; browser hanya menyebut nama dynamic action dan
-  urutan aksinya, dan server menolak dynamic action yang tidak dikirim bersama halaman itu.
 - Item yang lupa dicantumkan di `items_to_submit` dibaca dari session state, yaitu nilai terakhir yang tersimpan, bukan
   yang sedang terlihat di layar. Untuk popup LOV yang mengikuti item lain (cascade), sertakan juga item induknya, seperti
   `P4_DEPT_ASAL` di contoh.
-- Tidak bisa dikirim: item *display only* dan *hidden* yang terlindungi. Tidak bisa dikembalikan: popup LOV dan *hidden*
-  yang terlindungi.
+- Tidak bisa dikirim: item *display only* dan *hidden* yang terlindungi. Tidak bisa dikembalikan: popup LOV dan
+  *hidden* yang terlindungi.
 - `key_release` dengan `execute_server_code` memanggil server di setiap ketikan; pakai `change` bila cukup.
+- Bila sesi pengguna sudah habis saat dynamic action memanggil server, halaman diarahkan ke login lalu kembali ke
+  halaman yang sama setelah masuk.
+- Bila aplikasi diimpor ulang saat halaman sedang terbuka: kode yang diubah langsung berlaku pada panggilan berikutnya;
+  dynamic action yang dihapus atau diganti namanya ditolak dengan pesan *Muat ulang halaman*.
 
-**Penting soal keamanan.** Menyembunyikan atau men-disable field di browser hanya kenyamanan bagi pengguna; orang yang
-paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`, `condition`, `authorization`, dan
-validasi. Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya juga tidak dikirim ke browser,
-dan REQUEST-nya ditolak server.
+**Kasus 8. Pesan dan kursor.** `alert` cocok untuk memberi tahu sesuatu tanpa menghentikan alur; `focus` membawa
+pengguna ke isian berikutnya.
 
-Di formulir Page Designer, `alert` bernama *Tampilkan pesan* dan `focus` bernama *Pindahkan kursor ke item*. *Execute JavaScript* sengaja tidak didukung (halaman memakai Content Security Policy yang
-melarang skrip inline). Event *after close dialog* tidak perlu ditulis: halaman pemanggil otomatis di-refresh setelah
-dialognya ditutup.
+```yaml
+- name: gaji_kosong
+  event: change
+  items: [P1_GAJI]
+  when: { item_null: P1_GAJI }
+  actions:
+    - { action: alert, message: Gaji pokok belum diisi. }
+    - { action: focus, items: [P1_GAJI] }
+```
+
+**Rantai `set_value`.** `set_value` dan `clear` memicu `change` pada item tujuan, sehingga dynamic action lain bisa
+berjalan berantai. Bila dua dynamic action saling mengisi (A mengisi B, B mengisi A), rantai berhenti sendiri setelah
+beberapa langkah; halaman tidak macet. Tetap hindari pola ini karena hasilnya sulit ditebak.
+
+#### Padanan istilah APEX
+
+| APEX | pandawapex (YAML) | catatan |
+| --- | --- | --- |
+| Dynamic Action | `dynamic_actions:` di bawah halaman | |
+| When > Event: Change | `event: change` | |
+| When > Event: Key Release | `event: key_release` | |
+| When > Event: Click | `event: click` + `button:` | tombolnya ber-Action *Defined by Dynamic Action* (`action: defined_by_da`) |
+| When > Event: Page Load | `event: page_load` | |
+| Selection Type: Item(s) / Button | `items: [...]` / `button: NAMA` | |
+| Client-side Condition | `when:` | jenis: equals, not equals, in list, not in list, null, not null |
+| True actions | `actions:` | |
+| False actions | `else:` | |
+| Fire on Initialization | `on_load: true/false` | |
+| Show / Hide | `show` / `hide` | |
+| Enable / Disable | `enable` / `disable` | |
+| Set Value (Static Assignment / Item) | `set_value` + `value:` / `from_item:` | Set Value dengan SQL/PL/SQL → pakai `execute_server_code` |
+| Clear | `clear` | |
+| Refresh | `refresh` | Items to Submit → `items_to_submit` |
+| Confirm | `confirm` + `message:` | |
+| Alert | `alert` + `message:` | |
+| Set Focus | `focus` | |
+| Submit Page | `submit_page` + `request:` | |
+| Execute Server-side Code | `execute_server_code` + `code:` | PL/pgSQL, bukan PL/SQL; `apex_util.set_session_state` → `rpx_rt.set_item` |
+| Items to Submit / Items to Return | `items_to_submit` / `items_to_return` | |
+| Affected Elements: Item(s) / Region / Button | `items` / `regions` (static_id) / `buttons` | |
+| Execute JavaScript Code | tidak didukung | halaman memakai Content Security Policy yang melarang skrip inline |
+| Dialog Closed | tidak perlu | halaman pemanggil otomatis di-refresh setelah dialog ditutup |
+
+#### Keamanan dan batasan
+
+- **Browser bukan tempat aturan.** Menyembunyikan atau men-disable field di browser hanya kenyamanan bagi pengguna;
+  orang yang paham bisa mengubahnya. Yang melindungi data tetap aturan di server: `read_only`, `condition`,
+  `authorization`, dan validasi.
+- **Kode tidak pernah dikirim ke browser.** Browser hanya menyebut nama dynamic action dan urutan aksinya. Server menolak
+  dynamic action yang tidak dikirim bersama halaman itu, dan menolak aksi yang bukan `execute_server_code` atau
+  `refresh` dengan `items_to_submit`.
+- **Tombol tersembunyi tetap tersembunyi.** Tombol yang tidak tampil karena kondisi/otorisasinya, dynamic action kliknya
+  juga tidak dikirim ke browser, dan REQUEST-nya ditolak server.
+- **Setiap panggilan server dicek** seperti submit halaman biasa: token CSRF, tanda tangan halaman, dan validitas nilai.
+- **Pesan error ditampilkan sebagai teks**, bukan HTML.
+
+Yang belum didukung: event lain selain empat di atas (mis. *Focus*, *Lose Focus*, *Custom*), kondisi berupa ekspresi
+JavaScript, aksi *Execute JavaScript*, dan *Set Value* langsung dari SQL (pakai `execute_server_code`).
+
+#### Daftar uji dynamic action untuk tim
+
+Pakai aplikasi contoh **emp** (masuk sebagai pengguna demo). Centang setiap baris; bila hasilnya beda, catat langkah
+dan tangkapan layarnya.
+
+| # | langkah | hasil yang diharapkan |
+| --- | --- | --- |
+| 1 | Halaman 2, ubah *Status kerja* ke Magang lalu ke Tetap | grup Keahlian hilang, lalu muncul lagi |
+| 2 | Buka karyawan berstatus Magang dari daftar | grup Keahlian langsung tersembunyi saat halaman dibuka |
+| 3 | Halaman 4, pilih karyawan | isian *Posisi* langsung terisi jabatan dan departemen, tanpa halaman berkedip |
+| 4 | Halaman 4, isi beberapa field lalu klik **Kosongkan isian**, pilih **Batal** | tidak ada yang berubah |
+| 5 | Ulangi, pilih **OK** | isian tujuan kosong, Status kembali Tetap, kursor di Departemen tujuan |
+| 6 | Lakukan langkah 4–5 hanya dengan keyboard (Tab, Spasi, Enter) | semua bisa dijalankan tanpa mouse |
+| 7 | Buka halaman 4 di lebar layar ponsel (DevTools, 390 px) | tombol dan pesan konfirmasi tetap terbaca dan bisa diklik |
+| 8 | Page Designer: buat dynamic action baru, simpan, jalankan halamannya | perilaku sesuai yang diisi |
+| 9 | Page Designer: isi nama item yang salah lalu **Simpan** | ditolak dengan pesan yang menyebut aksinya; isian tidak hilang |
+| 10 | Buka halaman yang sama di dua tab Page Designer, simpan di tab 1 lalu di tab 2 | tab 2 mendapat pesan bentrok; isian tab 2 tetap ada |
+| 11 | Biarkan aplikasi terbuka sampai sesi habis, lalu pilih karyawan di halaman 4 | diarahkan ke login, lalu kembali ke halaman 4 |
+| 12 | Ubah kode `posisi_karyawan` agar `raise exception 'Coba gagal.'`, simpan, pilih karyawan | pesan **Aksi tidak berhasil.** dengan alasan *Coba gagal.*; data tidak berubah |
+
+Uji otomatisnya ada di `test/da.test.ts`, `test/da-server.test.ts`, `test/b5.test.ts` (editor), dan `e2e/da.spec.ts`
+(aplikasi uji `e2e/da-app.yaml`, termasuk dialog modal, tombol di header, cascade, rantai `set_value`, dan sesi habis).
 
 ## 8. Properti aplikasi
 
@@ -647,4 +851,4 @@ builder lewat hostname yang terdaftar, atau, di laptop sendiri, jalankan server 
 aplikasi sendiri.
 
 **Interactive Grid, drag-drop tata letak?** Belum ada. Lihat bagian "Belum ada" di
-[checkpoint-fase2.md](checkpoint-fase2.md#yang-belum-ada).
+[checkpoint-fase3.md](checkpoint-fase3.md#yang-belum-ada).

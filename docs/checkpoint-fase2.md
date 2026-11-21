@@ -168,15 +168,11 @@ git push origin <nama-tag>
 | #23 | **Dynamic Actions tahap 2**: `execute_server_code` (PL/pgSQL di server tanpa submit, dengan *items to submit/return*) dan refresh region dengan nilai item terbaru. Contoh: pilih karyawan di halaman Mutasi, posisinya langsung tampil |
 | #24 | **Dynamic Actions tahap 3**: dynamic action tampil di pohon Page Designer dan diubah lewat formulir (event, kondisi, daftar aksi dengan pilihan item/region/tombol dari halaman); tetap bisa diubah sebagai YAML |
 | #25 | Dynamic action: aksi `alert` (tampilkan pesan) dan `focus` (pindahkan kursor ke item). **Butuh migrasi** `0007_da_focus_alert.sql`: jalankan `npm run rpx -- db migrate` setelah `git pull` |
+| #26 | Uji menyeluruh dynamic action dan referensi lengkap di panduan; **[checkpoint 3](checkpoint-fase3.md)** |
 
-Kondisi terbaru: `npm test` 218 lulus, tes browser 122 lulus (2 sengaja dilewati). Migrasi terakhir
+Kondisi terbaru: `npm test` 220 lulus, tes browser 132 lulus (2 sengaja dilewati). Migrasi terakhir
 `0007_da_focus_alert.sql` (#25): setelah `git pull`, jalankan langkah 4 di atas (`db migrate`).
 
 ## Langkah berikutnya
 
-1. Catatan dari uji lokal Tim PANDAWA diperbaiki lebih dulu.
-2. Dynamic Actions: uji menyeluruh dan ringkasan dokumentasi.
-3. Region tambahan: list, tab, dynamic content, cards.
-4. Interactive Grid: menutup must-have terakhir dan flow F06.
-5. Format angka/tanggal saat input, upload file.
-6. Developer toolbar dan debug (F10), saved report.
+Dilanjutkan di [checkpoint-fase3.md](checkpoint-fase3.md#langkah-berikutnya).

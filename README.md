@@ -3,11 +3,11 @@
 Low-code runtime ala Oracle APEX di atas **PostgreSQL**, untuk kebutuhan internal KCSI / Tim PANDAWA.
 Clean-room: dibangun dari dokumentasi publik dan pengamatan perilaku, tanpa kode, aset, atau nama milik Oracle.
 
-> **Status: Fase 2, checkpoint 2** (builder B1–B5), ditambah uji menyeluruh builder dan panduan demo publik lewat
-> Cloudflare Tunnel. Yang sudah bisa: menjalankan aplikasi (report, form, dialog, daftar pilihan, otorisasi, SSO) dan
+> **Status: checkpoint 3** ([Dynamic Actions](docs/checkpoint-fase3.md)), di atas checkpoint 2 (builder B1–B5), uji menyeluruh
+> builder, dan panduan demo publik lewat Cloudflare Tunnel. Yang sudah bisa: menjalankan aplikasi (report, form, dialog, daftar pilihan, otorisasi, SSO) dan
 > membuatnya dari builder visual (wizard dari tabel, Page Designer, akun, ekspor/impor).
 > Baru: **Dynamic Actions** (tampil/sembunyi, isi nilai, refresh region, konfirmasi, dan menjalankan PL/pgSQL di server tanpa submit).
-> Belum ada: Interactive Grid, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase2.md#yang-belum-ada)).
+> Belum ada: Interactive Grid, drag-drop tata letak ([daftar lengkap](docs/checkpoint-fase3.md#yang-belum-ada)).
 
 ## Mulai dari sini
 
@@ -174,7 +174,7 @@ backup-lokal.cmd    backup database di Windows tanpa Docker (bisa dijadwalkan de
 
 ## Dokumen
 
-- [Instalasi lokal](docs/install-lokal.md) · [Checkpoint 1: Windows + Cmder dari nol](docs/checkpoint-fase1.md) · [Checkpoint 2: builder](docs/checkpoint-fase2.md)
+- [Instalasi lokal](docs/install-lokal.md) · [Checkpoint 1: Windows + Cmder dari nol](docs/checkpoint-fase1.md) · [Checkpoint 2: builder](docs/checkpoint-fase2.md) · [Checkpoint 3: Dynamic Actions](docs/checkpoint-fase3.md)
 - [Panduan penggunaan](docs/panduan-pengguna.md) · [Panduan operasional: backup, restore, session, log](docs/operasional.md) · [Demo publik via Cloudflare Tunnel](docs/cloudflare-local-demo.md) · [Porting dari APEX](examples/demo-permintaan/PORTING.md)
 - [Recon map](replica/recon.md) · [Feature matrix](replica/features.csv)
 - [Arsitektur](replica/architecture.md) · [Schema](db/migrations/0001_schema.sql)
